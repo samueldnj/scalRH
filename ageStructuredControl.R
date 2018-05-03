@@ -6,11 +6,7 @@
 # 
 # Model features:
 #   - Multistock and multispecies (DERPA)
-#       - Will have interaction/spawning mtx for individual
-#         stocks within a species
-#       - emigration/immigration? Sounds like OM world to me
-#       - Species made up of a single stock have only speciew level 
-#         priors
+#   - Single sex? Or split sex?
 #   - Multi-level RH priors on:
 #       - Growth (vonB or F-W undecided)
 #       - Fishing mortality (correlation in REs if estimated)
@@ -18,7 +14,8 @@
 #       - Selectivity
 #       - Catchability
 #       - S-R Steepness
-#   - Length based observation model
+#   - Length composition observation model (used in years where ages unavailable)
+#   - Age composition observation model (used when ages available)
 #   - Integrated growth model to predict length dist
 #   - Discarding
 # 
@@ -26,17 +23,20 @@
 # 
 # Data from the 2017 DERPA data request are provided to the assessment
 # model. These include:
-#   - yearly catch and discards by species, fleet and management 
+#   - yearly catch and discards by species and management 
 #     area (1954 - 2016)
 #   - survey data by year, species and management area for
 #       - Synoptic survey (all 4 legs) (2003 - 2016)
 #       - Hecate Strait Assemblage (1984 - 2003)
 #       - Fine mesh surveys - not really used
-#   - Biological observations from above surveys, including
-#       - maturity
-#       - length
-#       - age
-#       - weight
+#       - Commercial CPUE: Modeled with tv q in 3 blocks:
+#           - 1. Pre ASOP (1954 - 1996)
+#           - 2. ASOP (1997-2005)
+#           - 3. Integration (2006+)
+#   - Biological observations from surveys on length and age, for 
+#     integrated growth model
+#   - Fixed maturity and weight-at-length values, estimated
+#     separately from data
 # 
 # <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
 
@@ -50,6 +50,8 @@ library( "RColorBrewer" )
 library( "HapEstXXR" )
 library( "parallel" )
 library( "stringr" )
+
+source("DERPAfuns.R")
 
 # compile and load msProd objective function.
 compile ("scalRH.cpp")
@@ -78,31 +80,46 @@ stocksCommDover <- list(  HG = c(7,8,9),
                           QCS = c(5,6),
                           WCVI = c(3,4) )
 
-# Number of gear types (fleets + each synoptic survey leg) - might restrict to 6
-# initially to remove LL and trap - setting it up this way allows us to use 
-# standardised fishery dep. indices later
-nG <- 8
-nP <- length(stocksSurvDover) + length(stocksSurvAtooth)
-nS <- 2
-s_p <- c(1,1,1,2)
-type_f <- c(0,0,0,0,0,1,1,1)
-A_s <- c(60,25)
-nL_s <- c(5,5)
-swRinit_p <- rep(1,nP)
-lenD_s <- c(0,0)
-
-
-# Go through bio data to get length bin midpoints and breaks
-
 relBioDover  <- makeRelBioStocks( years = c(fYear,lYear), spec = "dover", collapseSyn = FALSE, 
                                   stocks = stocksSurvDover )
 catchDover   <- makeStockCatch( years = c(fYear,lYear), spec = "dover", 
                                 stocks = stocksCommDover )
 
-relBioAtooth  <- makeRelBioStocks( years = c(iYear,2016), spec = "atooth", collapseSyn = FALSE, 
-                                  stocks = stocksSurvAtooth )
-catchAtooth   <- makeStockCatch( years = c(iYear,2016), spec = "atooth", 
-                                stocks = stocksCommAtooth )
+relBioAtooth  <- makeRelBioStocks( years = c(fYear,lYear), spec = "atooth", collapseSyn = FALSE, 
+                                  stocks = stocksSurvDover )
+catchAtooth   <- makeStockCatch( years = c(fYear,lYear), spec = "atooth", 
+                                stocks = stocksCommDover )
+
+bioDataAtooth <- makeBioDataStocks( years = c(fYear,lYear),
+                                    spec = "atooth")
+
+# Number of gear types (fleets + each synoptic survey leg) - might restrict to 6
+# initially to remove LL and trap - setting it up this way allows us to use 
+# standardised fishery dep. indices later
+nG <- 6
+nP <- length(stocksSurvDover) + length(stocksSurvDover)
+nS <- 2
+s_p <- c(1,1,1,2,2,2)
+type_f <- c(0,0,0,0,0,1)
+A_s <- c(60,25)
+nL_s <- c(5,5)
+swRinit_p <- rep(1,nP)
+lenD_s <- c(30,35)
+nT <- lYear - fYear + 1
+
+I_pft <- array( -1, dim = c(nP,nG,nT))
+for( g in 1:5 )
+{
+  I_pft[1:3,g,] <- relBioDover$relBio.arr[g,,]
+  I_pft[4:6,g,] <- relBioAtooth$relBio.arr[g,,]  
+}
+
+
+C_pft <- array( 0, dim = c(nP,nG,nT) )
+C_pft[1:3,6,] <- catchDover$catch.arr
+C_pft[4:6,6,] <- catchAtooth$catch.arr
+
+# Go through bio data to get length bin midpoints and breaks
 
 
 

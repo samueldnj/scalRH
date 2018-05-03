@@ -1254,12 +1254,13 @@ lengthWt <- function( bioData, plot = T )
 
 # Define a NLL for optim
 vonB_nll <- function( theta,
-                      data, sigL = 5 )
+                      data )
 {
   # Recover leading pars
   Linf  <- exp(theta[1])
   K     <- exp(theta[2])
   t0    <- theta[3]
+  cvL   <- 1 / (1 + exp(-theta[4]))
 
   data <- data %>%
           mutate( expLt = vonB(AGE,K=K,Linf=Linf,t0=t0),
@@ -1267,7 +1268,15 @@ vonB_nll <- function( theta,
 
   # browser()
   maxLen <- max(data$LENGTH_MM)
-  nll <- nrow(data) * log(sigL*sigL) + 0.5*sum(data$res^2)/sigL/sigL
+  lengths <- unique(data$LENGTH_MM)
+  nll <- 0
+  for( len in lengths )
+  {
+    subData <- data %>% filter( LENGTH_MM == len )
+    sigL <- cvL * LENGTH_MM
+    nll <- nll +  nrow(subData) * log(sigL*sigL) + 0.5*sum(subData$res^2)/sigL/sigL
+  }
+  
   nll <- nll + (Linf - maxLen)^2/(maxLen/2)
 
   return(nll)
@@ -1299,8 +1308,8 @@ lengthAge <- function( bioData, plot = T, plotLeg = F )
   # bioDataBlank  <- bioData %>% filter( SEX == 0 | SEX == 3 )
 
   # Now optimise
-  Linf <- max(bioData$LENGTH_MM) + 10
-  theta <- c(log(Linf),0,0)
+  Linf <- max(bioData$LENGTH_MM)
+  theta <- c(log(Linf),0,0,0)
   laAll <- optim(par = theta, fn = vonB_nll, data = bioData )
   laBoys <- optim(par = theta, fn = vonB_nll, data = bioDataBoys )
   laGirls <- optim(par = theta, fn = vonB_nll, data = bioDataGirls )

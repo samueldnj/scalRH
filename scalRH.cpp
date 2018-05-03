@@ -60,7 +60,7 @@ Type objective_function<Type>::operator() ()
   DATA_ARRAY(age_afpt);             // Age observations for each population and fleet over time (-1 missing)
   DATA_ARRAY(length_lfpt);          // Length observations for each population and fleet over time (-1 missing)
   DATA_IVECTOR(s_p);                // species ID for each population e.g. (1,1,2,2,3)
-  DATA_IVECTOR(type_f);             // Fleet type (0 survey, 1 fishery)
+  DATA_IVECTOR(type_f);             // Fleet type (0 survey, 1 fishery dependent)
   DATA_IVECTOR(A_s);                // +Group age by species
   DATA_IVECTOR(lenD_s);             // Discard length by species
   // DATA_MATRIX(intMatrix_pp);        // population interactions mtx (spawning?, adjacency)
@@ -73,7 +73,7 @@ Type objective_function<Type>::operator() ()
 
   // Model dimensions
   int nP = I_pft.dim(0);            // No. of stocks (populations)
-  int nG = I_pft.dim(1);            // No. of gear types (fleets)  
+  int nG = I_pft.dim(1);            // No. of fleets (surveys + trawl)  
   int nT = I_pft.dim(2);            // No of time steps
   int nS = A_s.size();              // No of species
   int nL = maxL;                    // max no of length bins (for creating state arrays)
@@ -92,7 +92,7 @@ Type objective_function<Type>::operator() ()
   PARAMETER_VECTOR(lnLinf_p);       // pop-specific vonB Linf parameter
   PARAMETER_VECTOR(lnvonK_p);       // pop-specific vonB K parameter
   PARAMETER_VECTOR(lnvont0_p);      // pop-specific vonB t0 parameter
-  PARAMETER_ARRAY(LWa_s);           // species L-W conversion a par (cm to kilotonnes)
+  PARAMETER_ARRAY(LWa_s);           // species L-W conversion a par (units conv: cm -> kt)
   PARAMETER_ARRAY(LWb_s);           // species L-W conversion b par (length to volume)
   PARAMETER_VECTOR(lenMat50_s);     // length at 50% maturity
   PARAMETER_VECTOR(lenMat95_s);     // length at 95% maturity
@@ -485,7 +485,7 @@ Type objective_function<Type>::operator() ()
   // Currently has lengths binned the same as the integration above, 
   // we should probably free this up to reduce bias caused by summary stats...
   // (ref review of integrated models (Maunder and Punt, 2013))
-  // This should also be replaced with Cadigan's hierarchical
+  // This could also be replaced with Cadigan's hierarchical
   // vonB model for redfish later (Cadigan 2016)...
   vector<Type> vonBnll_p(nP);
   vonBnll_p.setZero();
