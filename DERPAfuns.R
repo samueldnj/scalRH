@@ -2,9 +2,14 @@
 #
 # DERPAfuns.R
 #
-# Functions for DERPAdata.R and DERPAmsProd.R
+# Functions for DERPAdata.R and ageStructuredControl.R
 # 
 # -----------------------------------------------------------------------------
+
+# OK, we need functions to summarise the biological data 
+# for a given species, given a determined stock structure
+
+
 
 # Reconstructing the time series from the fit to ensure that 
 # everything is working ok
@@ -781,6 +786,10 @@ catchToRaster <- function(  catchDF = surveyData,
   
 }
 
+
+
+
+
 plotCatchMap <- function( catchRaster = relBioRaster,
                           colBreaks = c(1,10,50,100),
                           base = nepacLL,
@@ -1124,6 +1133,7 @@ ageProps <- function(year, ageObs )
   ageObs
 }
 
+
 plotAgeBubbles <- function( bioData, yrs = allYrs )
 {
   # ageBubbles()
@@ -1182,6 +1192,8 @@ plotRelativeBio <- function(  densData, strataArea = stratArea,
     panLegend( x = 0, y = 1, legTxt = names(surveyIDs), pch = surveyIDs,
                 bty = "n" )
 }
+
+
 
 lengthWt <- function( bioData, plot = T )
 {

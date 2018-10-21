@@ -73,12 +73,15 @@ stocksSurvDover <- list(  HG = c(2,3,16),
                           QCS = c(1),
                           WCVI = c(4) )
 
-stocksSurvAtooth <- list( CW = c(1,2,3,4,16))
-stocksCommAtooth <- list( CW = 3:9 )
-
 stocksCommDover <- list(  HG = c(7,8,9),
                           QCS = c(5,6),
                           WCVI = c(3,4) )
+
+#stocksSurvAtooth <- list( CW = c(1,2,3,4,16))
+#stocksCommAtooth <- list( CW = 3:9 )
+
+stocksSurvAtooth <- stocksSurvDover
+stocksCommAtooth <- stocksCommDover
 
 relBioDover  <- makeRelBioStocks( years = c(fYear,lYear), spec = "dover", collapseSyn = FALSE, 
                                   stocks = stocksSurvDover )
@@ -86,12 +89,16 @@ catchDover   <- makeStockCatch( years = c(fYear,lYear), spec = "dover",
                                 stocks = stocksCommDover )
 
 relBioAtooth  <- makeRelBioStocks( years = c(fYear,lYear), spec = "atooth", collapseSyn = FALSE, 
-                                  stocks = stocksSurvDover )
+                                  stocks = stocksSurvAtooth )
 catchAtooth   <- makeStockCatch( years = c(fYear,lYear), spec = "atooth", 
-                                stocks = stocksCommDover )
+                                stocks = stocksCommAtooth )
 
 bioDataAtooth <- makeBioDataStocks( years = c(fYear,lYear),
-                                    spec = "atooth")
+                                    spec = "atooth",
+                                    surveyStocks = stocksSurvAtooth,
+                                    commStocks = stocksCommAtooth )
+
+
 
 # Number of gear types (fleets + each synoptic survey leg) - might restrict to 6
 # initially to remove LL and trap - setting it up this way allows us to use 

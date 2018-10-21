@@ -632,17 +632,17 @@ Type objective_function<Type>::operator() ()
 
   // Now take the sum of all the likelihoods, keep separate
   // in case we want to weight data later
-  Type joint_nll = 0.0;
+  Type joint_nlp = 0.0;
   // Observations
-  joint_nll += Ctnll_p.sum();       // Catch
-  joint_nll += lenCompsnll_p.sum(); // Length compositions
-  joint_nll += ageCompsnll_p.sum(); // Age compositions
-  joint_nll += CPUEnll_p.sum();     // Survey CPUE
+  joint_nlp += Ctnll_p.sum();       // Catch
+  joint_nlp += lenCompsnll_p.sum(); // Length compositions
+  joint_nlp += ageCompsnll_p.sum(); // Age compositions
+  joint_nlp += CPUEnll_p.sum();     // Survey CPUE
   // Growth model
-  joint_nll += vonBnll_p.sum();     // Growth model
+  joint_nlp += vonBnll_p.sum();     // Growth model
   // Recruitment errors
-  joint_nll += recnll_p.sum();      // recruitment process errors
-  joint_nll += pop_nlp + spec_nlp;
+  joint_nlp += recnll_p.sum();      // recruitment process errors
+  joint_nlp += pop_nlp + spec_nlp;
 
   
   // Return quantities
@@ -677,7 +677,7 @@ Type objective_function<Type>::operator() ()
   REPORT(recb_p);
 
   // Likelihood values
-  REPORT(joint_nll);
+  REPORT(joint_nlp);
   REPORT(recnll_p);
   REPORT(vonBnll_p);
   REPORT(CPUEnll_p);
@@ -700,7 +700,7 @@ Type objective_function<Type>::operator() ()
   ADREPORT(lenSel95_sf)   // length at 95% sel
   ADREPORT(F_pft)         // Fishing mortality
 
-  return( joint_nll );
+  return( joint_nlp );
 
 }
 
