@@ -8,16 +8,16 @@
 #   - Multistock and multispecies (DERPA)
 #   - Single sex? Or split sex?
 #   - Multi-level RH priors on:
-#       - Growth (vonB or F-W undecided)
+#       - Growth (vonB )
 #       - Fishing mortality (correlation in REs if estimated)
 #       - Natural mortality (M0 prior and correlated deviations)
 #       - Selectivity
-#       - Catchability
+#       - Catchability for survey biomass - comm in kg/hr
 #       - S-R Steepness
 #   - Length composition observation model (used in years where ages unavailable)
 #   - Age composition observation model (used when ages available)
 #   - Integrated growth model to predict length dist
-#   - Discarding
+#   - Discarding - takes a grading length
 # 
 # Data:
 # 
@@ -35,6 +35,7 @@
 #           - 3. Integration (2006+)
 #   - Biological observations from surveys on length and age, for 
 #     integrated growth model
+#   - Biological data from commercial fleets - length/age/sex
 #   - Fixed maturity and weight-at-length values, estimated
 #     separately from data
 # 
@@ -53,16 +54,17 @@ library( "stringr" )
 
 source("DERPAfuns.R")
 
-# compile and load msProd objective function.
+# compile and load scalRH objective function.
 compile ("scalRH.cpp")
 dyn.load(dynlib("scalRH"))
+
+
 
 # 1. Read control file that determines
 #   a. Level of detail - multistock or multispecies?
 #   b. What priors will we use?
-
-fYear <- 1984
-lYear <- 2016
+fYear <- 1954
+lYear <- 2018
 
 # 2. Read in and groom data
 #   a. Organise into the management units and species groups, 
