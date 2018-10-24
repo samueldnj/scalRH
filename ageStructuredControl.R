@@ -59,7 +59,6 @@ compile ("scalRH.cpp")
 dyn.load(dynlib("scalRH"))
 
 
-
 # 1. Read control file that determines
 #   a. Level of detail - multistock or multispecies?
 #   b. What priors will we use?
