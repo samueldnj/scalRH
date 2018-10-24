@@ -1,0 +1,1081 @@
+hist(resid(H2)-resid(H3))
+boxplot(resid(H3)-resid(H2))
+boxplot(resid(H3),resid(H2))
+boxplot(resid(H3),resid(H2),labels=c("without flow","with flow")
+)
+help(boxplot)
+y
+objects()
+y1
+y2
+head(Hbest)
+plot(Hbest$Eggs,Hbest$LN_S)
+plot(Hbest$Eggs,Hbest$y1,type="l")
+plot(Hbest$Eggs,Hbest$LN_S)
+points(Hbest$Eggs,Hbest$y1,type="l")
+plot(Hbest$Eggs,Hbest$y1,type="l")
+plot(Hbest$Eggs,y1,type="l")
+points(Hbest$Eggs,Hbest$y1,type="l")
+plot(Hbest$Eggs,Hbest$LN_S)
+points(Hbest$Eggs,Hbest$y1,type="l")
+points(Hbest$Eggs,y1,type="l")
+points(Hbest$Eggs,y2,type="l")
+plot(Hbest$Eggs,Hbest$LN_S)
+points(Hbest$Eggs,y2,type="l")
+plot(Hbest$Eggs,y2,type="l")
+plot(Hbest$Eggs,Hbest$LN_S)
+points(Hbest$Eggs,y1,type="l")
+points(Hbest$Eggs,y2,type="l")
+plot(Hbest$Eggs,Hbest$LN_S)
+points(Hbest$Eggs,y2,type="l")
+plot(Hbest$Eggs,Hbest$LN_S)
+points(Hbest$Eggs,y1,type="l")
+y2<-fitted(lm(LN_S~Eggs+Flow, data=Hbest))
+y2
+points(Hbest$Eggs,y2,col="red")
+plot(Hbest$Eggs,y1)
+plot(Hbest$Eggs,y2)
+plot(Hbest$Eggs,sort(y2))
+plot(y2)
+plot(y1)
+plot(Hbest$Eggs,y1)
+plot(Hbest$Eggs,y2)
+plot(Hbest$Eggs+Hbest$Flow,y2)
+plot(Hbest)
+y3<-y2[order(y2)]
+y3
+Hbest$Egg[order(Hbest$Egg)]
+Hbest$Egg[order(Hbest$Egg)]->x2
+plot(x2,y3)
+plot(x2,y3,type="l")
+fitted <- fitted(lm(LN_S~Eggs, data=Hbest))#
+fitted2 <- fitted(lm(LN_S~Eggs+Flow, data=Hbest))#
+plot(LN_S~fitted, data=Hbest, xlim=c(-1.6,-0.8),ylim=c(-3, 0))#
+points(LN_S~fitted2, data=Hbest, col="red")#
+abline(lm(LN_S~fitted, data=Hbest, col="black"))#
+abline(lm(LN_S~fitted2, data=Hbest, col="red"))
+fitted1 <- fitted(lm(LN_S~Eggs, data=Hbest))#
+fitted2 <- fitted(lm(LN_S~Eggs+Flow, data=Hbest))#
+plot(LN_S~fitted1, data=Hbest, xlim=c(-1.6,-0.8),ylim=c(-3, 0))#
+points(LN_S~fitted2, data=Hbest, col="red")#
+abline(lm(LN_S~fitted1, data=Hbest, col="black"))#
+abline(lm(LN_S~fitted2, data=Hbest, col="red"))
+fitted1 <- fitted(lm(LN_S~Eggs, data=Hbest))#
+fitted2 <- fitted(lm(LN_S~Eggs+Flow, data=Hbest))#
+plot(LN_S~fitted1, data=Hbest, xlim=c(-1.6,-0.8),ylim=c(-3, 0))#
+points(LN_S~fitted2, data=Hbest, col="red")#
+abline(lm(LN_S~fitted1, data=Hbest, col="black"))#
+abline(lm(LN_S~fitted2, data=Hbest), col="red")
+fitted1 <- fitted(lm(LN_S~Eggs, data=Hbest))#
+fitted2 <- fitted(lm(LN_S~Eggs+Flow, data=Hbest))#
+plot(LN_S~fitted1, data=Hbest, xlim=c(-1.6,-0.8),ylim=c(-3, 0))#
+points(LN_S~fitted2, data=Hbest, col="red")#
+abline(lm(LN_S~fitted1, data=Hbest), col="black")#
+abline(lm(LN_S~fitted2, data=Hbest), col="red")
+fitted1 <- fitted(lm(LN_S~Eggs, data=Hbest))#
+fitted2 <- fitted(lm(LN_S~Eggs+Flow, data=Hbest))#
+plot(LN_S~fitted1, data=Hbest, xlim=c(-1.6,-0.8),ylim=c(-3, 0))#
+points(LN_S~fitted2, data=Hbest, col="red")#
+abline(lm(LN_S~fitted1, data=Hbest), col="black")#
+fitted1==fitted2
+fitted1 <- fitted(lm(LN_S~Eggs, data=Hbest))#
+fitted2 <- fitted(lm(LN_S~Eggs+Flow, data=Hbest))#
+plot(LN_S~fitted1, data=Hbest, xlim=c(-1.6,-0.8),ylim=c(-3, 0))#
+points(LN_S~fitted2, data=Hbest, col="red")#
+abline(lm(LN_S~fitted1, data=Hbest), col="black")#
+lm(LN_S~fitted1, data=Hbest)==lm(LN_S~fitted1, data=Hbest)
+fitted1 <- fitted(lm(LN_S~Eggs, data=Hbest))#
+fitted2 <- fitted(lm(LN_S~Eggs+Flow, data=Hbest))#
+plot(LN_S~fitted1, data=Hbest, xlim=c(-1.6,-0.8),ylim=c(-3, 0))#
+points(LN_S~fitted2, data=Hbest, col="red")#
+abline(lm(LN_S~fitted1, data=Hbest), col="black")#
+fitted1==fitted2
+fitted1 <- fitted(lm(LN_S~Eggs, data=Hbest))#
+fitted2 <- fitted(lm(LN_S~Eggs+Flow, data=Hbest))#
+plot(LN_S~fitted1, data=Hbest, xlim=c(-1.6,-0.8),ylim=c(-3, 0))#
+points(LN_S~fitted2, data=Hbest, col="red")#
+abline(lm(LN_S~fitted1, data=Hbest), col="black")#
+fitted1-fitted2
+exp(fitted1-fitted2)
+getwd()
+square<-function(x)#
+{#
+	answer<-x*x#
+	return(answer)#
+}
+square()
+square(x=2)
+2^2
+square(2)
+square<-function(x=4)#
+{#
+	answer<-x*x#
+	return(answer)#
+}
+square()
+square(2)
+cube_volume<-function(S)#
+{#
+	answer<-s^3#
+	return(answer)#
+}
+cube_volume(3)
+cube_volume<-function(s)#
+{#
+	answer<-s^3#
+	return(answer)#
+}
+cube_volume(3)
+cube_sa<-function(s)#
+{#
+	answer<-6s^2#
+	return(answer)#
+}
+cube_sa<-function(s)#
+{#
+	answer<-6*s^2#
+	return(answer)#
+}
+cube_sa(2)
+cube_func<-function(s)#
+{#
+	SA<-6*s^2#
+	Volume<-s^3#
+}
+cube_func(2)
+cube_func<-function(s)#
+{#
+	SA<-6*s^2#
+	Volume<-s^3#
+}
+cube_func<-function(s)#
+{#
+	SA<-6*s^2#
+	Volume<-s^3#
+	Volume	#
+}
+cube_func(s=2)
+cube_func<-function(s)#
+{#
+	SA<-6*s^2#
+	Volume<-s^3#
+	return(list(volume=Volume, surface_area=SA))	#
+}
+cube_func(s=2)
+testresults<-cube_func(s=2)
+testresults
+testresults$volume
+(-1)^(.5)
+cube_func<-function(s)#
+{ if(s<0) warning("nonsensical length argument - also michelle is awesome")#
+	SA<-6*s^2#
+	Volume<-s^3#
+	return(list(volume=Volume, surface_area=SA))	#
+}
+cube_func(-1)
+cube_func<-function(s)#
+{ if(s<0) stop("expletive this code sucks")#
+	SA<-6*s^2#
+	Volume<-s^3#
+	return(list(volume=Volume, surface_area=SA))	#
+}
+cube_func(-1)
+number_samples=1
+storage_space<-matrix(NA,nrow=number_samples,ncol=2)
+storage_space
+help(rnorm)
+sample_sims<-function(flower=0, sd=1, sample_size=100, number_samples=10)#
+{ set.seed=15#
+	storage_space<-matrix(NA,nrow=number_samples,ncol=2)#
+	for (i in 1:number_samples)#
+	{data<-rnorm(sample_size, mean=flower, sd=sd)#
+		storage_space[i,1]<-mean(data)#
+		storage_space[i,2]<-sd(data)#
+	}#
+	return(storage_space)#
+}
+sample_sims()
+sample_sims(25,1,100,10)
+sample_sims(number_samples=200)
+sample_sims(number_samples=200)->michelle_is_stillcool
+hist(michelle_is_stillcool[,1])
+sample_sims<-function(mean=0, sd=1, sample_size=2, number_samples=10)#
+{ set.seed=15#
+	storage_space<-matrix(NA,nrow=number_samples,ncol=2)#
+	for (i in 1:number_samples)#
+	{data<-rnorm(sample_size, mean=mean, sd=sd)#
+		storage_space[i,1]<-mean(data)#
+		storage_space[i,2]<-sd(data)#
+		browser()#
+	}#
+	return(storage_space)#
+}#
+sample_sims()
+sample_size
+`
+sample_sims<-function(mean=0, sd=1, sample_size=2, number_samples=10)#
+{ set.seed=15#
+	storage_space<-matrix(NA,nrow=number_samples,ncol=2)#
+	for (i in 1:number_samples)#
+	{data<-rnorm(sample_size, mean=mean, sd=sd)#
+		storage_space[i,1]<-mean(data)#
+		storage_space[i,2]<-sd(data)#
+		browser()#
+	}#
+	return(storage_space)#
+}#
+sample_sims()
+q
+Q
+400+200+100+4*75+4*125+100+6*125+100
+400+200+100+4*75+100+6*125+100
+sample_sims<-function(flower=0, sd=1, sample_size=100, number_samples=10)#
+{ set.seed=15#
+	storage_space<-matrix(NA,nrow=number_samples,ncol=2)#
+	for (i in 1:number_samples)#
+	{data<-rnorm(sample_size, mean=flower, sd=sd)#
+		storage_space[i,1]<-mean(data)#
+		storage_space[i,2]<-sd(data)#
+	}#
+	return(storage_space)#
+}
+cube_func<-function(s)#
+{ if(s<0) stop("expletive this code sucks")#
+	SA<-6*s^2#
+	Volume<-s^3#
+	return(list(volume=Volume, surface_area=SA))	#
+}
+expletives<-c("fuck","damnit","what the hell?")#
+cube_func<-function(s, expletives=expletives)#
+{ if(s<0) stop(paste(sample(1,expletives))#
+	SA<-6*s^2#
+	Volume<-s^3#
+	return(list(volume=Volume, surface_area=SA))	#
+}#
+#
+sample_sims<-function(mean=0, sd=1, sample_size=100, number_samples=10)#
+{ set.seed=15#
+	storage_space<-matrix(NA,nrow=number_samples,ncol=2)#
+	for (i in 1:number_samples)#
+	{data<-rnorm(sample_size, mean=mean, sd=sd)#
+		storage_space[i,1]<-mean(data)#
+		storage_space[i,2]<-sd(data)#
+	}#
+	return(storage_space)#
+}
+expletives<-c("fuck","damnit","what the hell?")#
+cube_func<-function(s, expletives=expletives)#
+{ if(s<0) stop(paste(sample(1,expletives))#
+	SA<-6*s^2#
+	Volume<-s^3#
+	return(list(volume=Volume, surface_area=SA))	#
+}
+cube_func<-function(s, expletives=expletives)#
+{ if(s<0) stop(paste(sample(1,expletives))#
+	SA<-6*s^2#
+	Volume<-s^3#
+	return(list(volume=Volume, surface_area=SA))	#
+}
+expletives<-c("fuck","damnit","what the hell?")#
+cube_func<-function(s, expletives=expletives)#
+{ if(s<0) stop(paste(sample(1,expletives)))#
+	SA<-6*s^2#
+	Volume<-s^3#
+	return(list(volume=Volume, surface_area=SA))	#
+}
+cube_func(-1)
+cube_func(s=-1)
+cube_func(s=-6)
+(sample(1,expletives)
+)
+help(sample)
+cube_func<-function(s, expletives=expletives)#
+{ if(s<0) stop(paste(sample(expletives,1)))#
+	SA<-6*s^2#
+	Volume<-s^3#
+	return(list(volume=Volume, surface_area=SA))	#
+}
+help(sample)
+cube_func(s=-6)
+sample(expletives, 1)
+rm(ls())
+help(rm)
+remove(ls())
+remove(list=ls())
+objects()
+expletives<-c("fuck","damnit","what the hell?")#
+cube_func<-function(s, expletives=expletives)#
+{ if(s<0) stop(paste(sample(expletives,1)))#
+	SA<-6*s^2#
+	Volume<-s^3#
+	return(list(volume=Volume, surface_area=SA))	#
+}
+cube_func(s=-1)
+cube_func<-function(s)#
+{      expletives<-c("fuck","damnit","what the hell?")#
+	if(s<0) stop(paste(sample(expletives,1)))#
+	SA<-6*s^2#
+	Volume<-s^3#
+	return(list(volume=Volume, surface_area=SA))	#
+}
+cube_func<-function(s=-1)
+cube_func(s=-1)
+cube_func<-function(s=-1)#
+{      expletives<-c("fuck","damnit","shit","WTF","F***ing Shit","what the hell?")#
+	if(s<0) stop(paste(sample(expletives,1)))#
+	SA<-6*s^2#
+	Volume<-s^3#
+	return(list(volume=Volume, surface_area=SA))	#
+}
+cube_func()
+cube_func(5)
+cube_func<-function(s=-1)#
+{      expletives<-c("fuck","damnit","shit","WTF","F***ing Shit","what the hell?")#
+	if(s<0) stop(paste(sample(expletives,1)))#
+	SA<-6*s^2#
+	Volume<-s^3#
+	return(list(volume=Volume, surface_area=SA))	#
+}#
+cube_func()
+cube_func()
+cube_func<-function(s=-1)#
+{      expletives<-c("fuck","damnit","shit","WTF","F***ing Shit","what the hell?")#
+	if(s<0) stop(paste(sample(expletives,1)))#
+	SA<-6*s^2#
+	Volume<-s^3#
+	return(list(volume=Volume, surface_area=SA))	#
+}#
+cube_func()
+cube_func()
+Example one: Make a function that takes the square of the number#
+   square<-function(x) {    # We need to store our function in an object to run, so our function will be called square. It will take one argument, x, which has no default so mus be supplied.#
+   answer<-x*x              # we will take the value of x supplied and perform the operation x multiplied by x and save it in an object called answer#
+   return(x)                # The function will return the answer when we run the function #
+   }#
+#
+   square(x=2)              # After we write the function, we need to run it in the command line. Here we are asking it to take the square of 2
+If we supply a value for x, the default is over-ridden#
+  square <- function(x=4) {#
+  answer <- x * x#
+  return(answer)#
+	      }#
+#
+  square()                  # defaults to assuming x is 4#
+  square(x=2)               #assumes x=2
+Example Two: Write a function that will find the volume AND surface area of a perfectly square cube given the length of one side#
+#
+    cube_facts<-function (s) {                 # we wil call the function cube_facts and it will have a default argument of s#
+ 	surface_area<-6*2^2                        # take the surface area of the cube and store it in the object surface_area#
+ 	volume<-s^3                                # take the volume of the cube#
+ 	return(list(SA=surface_area, Vol=volume))  # return both the surface area and the volume as a list#
+     }#
+#
+    cube_facts(s=2)                            # run the function
+Often Warnings or errors are good to incorporate in functions. For instance, if you took the surface area of a negative measurement, the square would#
+ # make it positive and you may not realize you have bad data. Now, we will modify the code to include a warning term#
+  cube_facts<-function (s) {                                    # we wil call the function cube_facts and it will have a default argument of s#
+ 	if(s<0) warning("You have negative length measure")        # if the side measurement is less then 0, print the warning label in quotes#
+ 	surface_area<-6*2^2                                         # take the surface area of the cube and store it in the object surface_area#
+ 	volume<-s^3                                                 # take the volume of the cube#
+ 	return(list(SA=surface_area, Vol=volume))                   # return both the surface area and the volume as a list#
+     }#
+#
+    cube_facts(s=-2)
+to make the warning into an error so no answer is produced, we can use stop#
+  cube_facts<-function (s) {                                    # we wil call the function cube_facts and it will have a default argument of s#
+ 	if(s<0) stop("You have negative length measure")           # if the side measurement is less then 0, stop the function#
+ 	surface_area<-6*2^2                                         # take the surface area of the cube and store it in the object surface_area#
+ 	volume<-s^3                                                 # take the volume of the cube#
+ 	return(list(SA=surface_area, Vol=volume))                   # return both the surface area and the volume as a list#
+     }#
+#
+    cube_facts(s=-2)
+sample_sims<-function(mean=0, sd=1, sample_size=2, number_samples=10)#
+{ set.seed=15#
+	storage_space<-matrix(NA,nrow=number_samples,ncol=2)#
+	for (i in 1:number_samples)#
+	{data<-rnorm(sample_size, mean=mean, sd=sd)#
+		storage_space[i,1]<-mean(data)#
+		storage_space[i,2]<-sd(data)#
+		browser()#
+	}#
+	return(storage_space)#
+}#
+sample_sims()
+Q
+matrix(NA,nrow=number_samples,dimnames=list("mean","sd"),ncol=2)
+matrix(NA,nrow=10,dimnames=list("mean","sd"),ncol=2)
+matrix(NA,nrow=10,dimnames=c("mean","sd"),ncol=2)
+matrix(NA,nrow=10,dimnames=list(c("mean"),("sd")),ncol=2)
+help(dimnames)
+help(matrix)
+help
+matrix(NA,nrow=10,dimnames=list(c("mean"),("sd")),ncol=2)
+matrix(NA,nrow=10,ncol=2)->test
+colnames(test)=c("mean","sd")
+test
+sample_sims<-function(mean=0, sd=1, sample_size=100, number_samples=10)  # Our function will be called sample sims and has 4 arguments (the pop mean, which will default to 0, the pop standard deviation, defaulted to 0, the sample size of each individual sample (100), and the total number of samples taken (10).#
+    { set.seed=15                                                            # This sets where in the random number table we start so we all have comparable answers#
+	storage_space<-matrix(NA,nrow=number_samples,ncol=2)                     # Create storage space for each sample's mean and standard deviation, we make the number of rows the same as the number of samples versus and actual number because the size of the storage space will change depending on how the user defines the original arguments.#
+	colnames(storage_space)=c("mean","SD")#
+	for (i in 1:number_samples)#
+	{data<-rnorm(sample_size, mean=mean, sd=sd)#
+		storage_space[i,1]<-mean(data)#
+		storage_space[i,2]<-sd(data)#
+		browser()#
+	}#
+	return(storage_space)#
+}
+sample_sims()
+Q
+sample_sims<-function(mean=0, sd=1, sample_size=100, number_samples=10)  # Our function will be called sample sims and has 4 arguments (the pop mean, which will default to 0, the pop standard deviation, defaulted to 0, the sample size of each individual sample (100), and the total number of samples taken (10).#
+    { set.seed=15                                                            # This sets where in the random number table we start so we all have comparable answers#
+	storage_space<-matrix(NA,nrow=number_samples,ncol=2)                     # Create storage space for each sample's mean and standard deviation, we make the number of rows the same as the number of samples versus and actual number because the size of the storage space will change depending on how the user defines the original arguments.#
+	colnames(storage_space)=c("mean","SD")#
+	for (i in 1:number_samples)#
+	{data<-rnorm(sample_size, mean=mean, sd=sd)#
+		storage_space[i,1]<-mean(data)#
+		storage_space[i,2]<-sd(data)#
+	}#
+	return(storage_space)#
+    }
+sample_sims()
+Example Three: Write a function that takes the means and standard deviations of a user-defined number of randomly generated samples. The #
+    # user should be able to define the number of samples generated, the sample size of each individual sample, the mean of the normal distribution#
+    # the sample is taken from, and the standard deviation of the distribution the sample is randomly generated from.#
+    sample_sims<-function(mean=0, sd=1, sample_size=100, number_samples=10)  # Our function will be called sample sims and has 4 arguments (the pop mean, which will default to 0, the pop standard deviation, defaulted to 0, the sample size of each individual sample (100), and the total number of samples taken (10).#
+    { set.seed=15                                                            # This sets where in the random number table we start so we all have comparable answers#
+	sample_results<-matrix(NA,nrow=number_samples,ncol=2)                    # Create storage space for each sample's mean and standard deviation, we make the number of rows the same as the number of samples versus and actual number because the size of the storage space will change depending on how the user defines the original arguments.#
+	colnames(sample_results)=c("mean","SD")                                  # Put column headings on your storage matrix#
+		for (i in 1:number_samples)                                          # for each individual sample, up until the total number of samples is reached#
+	{data<-rnorm(sample_size, mean=mean, sd=sd)                              # make a data set by sampling from the normal distribution with the specified mean and SD until a sample of size samplesize is reached. #
+		sample_results[i,1]<-mean(data)                                      # take the mean of this data and put it in the first column ith row of our storage matrix#
+		sample_results[i,2]<-sd(data)                                        # take the standard deviation of this data and put it in the first column ith row of our storage matrix#
+	}                                                                        # Go back and to the top of the loop and make a new set of data#
+	return(sample_results)                                                   # return the sample_results the function was designed to create#
+    }
+sample_sims()
+This code accomponies Module 9: Writing Functions in R, of Michelle's Introductory R Course Adapted from Mike Malick.#
+#
+# Example one: Make a function that takes the square of the number#
+   square<-function(x) {    # We need to store our function in an object to run, so our function will be called square. It will take one argument, x, which has no default so mus be supplied.#
+   answer<-x*x              # we will take the value of x supplied and perform the operation x multiplied by x and save it in an object called answer#
+   return(x)                # The function will return the answer when we run the function #
+   }#
+#
+   square(x=2)              # After we write the function, we need to run it in the command line. Here we are asking it to take the square of 2#
+                            # note that if we type square() nothing will happen because we have not supplied the needed argument x#
+# To modify our example, we can add default arguments which will allow the function to run without having to suppply a value for x. #
+#If we supply a value for x, the default is over-ridden#
+  square <- function(x=4) {#
+  answer <- x * x#
+  return(answer)#
+	      }#
+#
+  square()                  # defaults to assuming x is 4#
+  square(x=2)               #assumes x=2#
+#
+#If a function is not working, you can use a browser to interrupt your function for trouble shooting. To quit a browser type >> Q#
+# Example Two: Write a function that will find the volume AND surface area of a perfectly square cube given the length of one side#
+#
+    cube_facts<-function (s) {                 # we wil call the function cube_facts and it will have a default argument of s#
+ 	surface_area<-6*2^2                        # take the surface area of the cube and store it in the object surface_area#
+ 	volume<-s^3                                # take the volume of the cube#
+ 	return(list(SA=surface_area, Vol=volume))  # return both the surface area and the volume as a list#
+     }#
+#
+    cube_facts(s=2)                            # run the function#
+ # Often Warnings or errors are good to incorporate in functions. For instance, if you took the surface area of a negative measurement, the square would#
+ # make it positive and you may not realize you have bad data. Now, we will modify the code to include a warning term#
+  cube_facts<-function (s) {                                    # we wil call the function cube_facts and it will have a default argument of s#
+ 	if(s<0) warning("You have a negative length measurement")   # if the side measurement is less then 0, print the warning label in quotes#
+ 	surface_area<-6*2^2                                         # take the surface area of the cube and store it in the object surface_area#
+ 	volume<-s^3                                                 # take the volume of the cube#
+ 	return(list(SA=surface_area, Vol=volume))                   # return both the surface area and the volume as a list#
+     }#
+#
+    cube_facts(s=-2) #
+#
+# to make the warning into an error (ie no answer is produced) we can use stop#
+    cube_facts<-function (s) {                                  # we wil call the function cube_facts and it will have a default argument of s#
+ 	if(s<0) stop("You have a negative length measurement")      # if the side measurement is less then 0, stop the function#
+ 	surface_area<-6*2^2                                         # take the surface area of the cube and store it in the object surface_area#
+ 	volume<-s^3                                                 # take the volume of the cube#
+ 	return(list(SA=surface_area, Vol=volume))                   # return both the surface area and the volume as a list#
+     }#
+#
+    cube_facts(s=-2) #
+    ## Example Three: Write a function that takes the means and standard deviations of a user-defined number of randomly generated samples. The #
+    # user should be able to define the number of samples generated, the sample size of each individual sample, the mean of the normal distribution#
+    # the sample is taken from, and the standard deviation of the distribution the sample is randomly generated from.#
+    sample_sims<-function(mean=0, sd=1, sample_size=100, number_samples=10)  # Our function will be called sample sims and has 4 arguments (the pop mean, which will default to 0, the pop standard deviation, defaulted to 0, the sample size of each individual sample (100), and the total number of samples taken (10).#
+    { set.seed=15                                                            # This sets where in the random number table we start so we all have comparable answers#
+	  sample_results<-matrix(NA,nrow=number_samples,ncol=2)                  # Create storage space for each sample's mean and standard deviation, we make the number of rows the same as the number of samples versus and actual number because the size of the storage space will change depending on how the user defines the original arguments.#
+	  colnames(sample_results)=c("mean","SD")                                # Put column headings on your storage matrix#
+		for (i in 1:number_samples)                                          # for each individual sample, up until the total number of samples is reached#
+	      { data<-rnorm(sample_size, mean=mean, sd=sd)                       # make a data set by sampling from the normal distribution with the specified mean and SD until a sample of size samplesize is reached. #
+	     	sample_results[i,1]<-mean(data)                                  # take the mean of this data and put it in the first column ith row of our storage matrix#
+		    sample_results[i,2]<-sd(data)                                    # take the standard deviation of this data and put it in the first column ith row of our storage matrix#
+	       }                                                                 # Go back and to the top of the loop and make a new set of data#
+	return(sample_results)                                                   # return the sample_results the function was designed to create#
+    }
+sample_sims() # run the function based on default arguments
+sample_sims(sd=10) # change the standard deviation of the underlying population to 10#
+sample_sims(0,10,100,10)
+plotting_data<-sample_sims()  # save the result for later analysis, such as plotting#
+hist(plotting_data[,1],xlab="Sample Means", las=1, main="Sample Means \n Example Three, R Workshop Mod 9")
+sample_sims() # run the function based on default arguments#
+sample_sims(sd=10) # change the standard deviation of the underlying population to 10#
+sample_sims(0,10,100,10) # if you supply all the arguments in the correct order, you do not need to use labels as to what the inputs are. #
+plotting_data<-sample_sims(number_samples=500)  # save the result for later analysis, such as plotting#
+hist(plotting_data[,1],xlab="Sample Means", las=1, main="Sample Means \n Example Three, R Workshop Mod 9")
+hist(plotting_data[,1],xlab="Sample Means", las=1, main="Example 3 - Sample Means \n R Workshop Mod 9")
+sample_sims(0,10,100,100000)
+sample_sims(0,10,100,1000)
+sample_sims(0,10,100,1000)->test
+plot(test[,1])
+hist(test[,1])
+sample_sims(mean=0,sd=10,100,1000)->test
+hist(test[,1])
+10^.5
+This code accomponies Module 9: Writing Functions in R, of Michelle's Introductory R Course Adapted from Mike Malick. Taught November 6, 2014.#
+#
+###################################################################################################################################################
+# EXAMPLE ONE: Make a function that takes the square of the number#
+   square<-function(x) {    # We need to store our function in an object to run, so our function will be called square. It will take one argument, x, which has no default, meaning x must be supplied each time the function is run.#
+   answer<-x*x              # we will take the value of x supplied and perform the operation x multiplied by x and save it in an object called answer#
+   return(x)                # The function will return the answer when we run the function #
+   }#
+#
+   square(x=2)              # After we write the function, we need to run it in the command line. Here we are asking it to take the square of 2#
+                            # note that if we type square() nothing will happen because we have not supplied the needed argument x#
+#
+  # To modify our example, we can add default arguments which will allow the function to run without having to suppply a value for x. #
+  # If we supply a value for x, the default is overridden#
+  square <- function(x=4) {#
+  answer <- x * x#
+  return(answer)#
+	      }#
+#
+  square()                  # defaults to assuming x is 4#
+  square(x=2)               #assumes x=2#
+#
+  # If a function is not working, you can use a browser to interrupt your function for trouble shooting (> browser()) . To quit a browser type > Q#
+###################################################################################################################################################
+#
+# EXAMPLE TWO: Write a function that will find the volume AND surface area of a perfectly square cube given the length of one side#
+#
+    cube_facts<-function (s) {                 # we wil call the function cube_facts and it will have a default argument of s#
+ 	surface_area<-6*2^2                        # take the surface area of the cube and store it in the object surface_area#
+ 	volume<-s^3                                # take the volume of the cube#
+ 	return(list(SA=surface_area, Vol=volume))  # return both the surface area and the volume as a list#
+     }#
+#
+    cube_facts(s=2)                            # run the function#
+ # Often Warnings or errors are good to incorporate in functions. For instance, if you took the surface area of a negative measurement, the square would#
+ # make it positive and you may not realize you have unrealalistic data. Now, we will modify the code to include a warning term#
+  cube_facts<-function (s) {                                    # we wil call the function cube_facts and it will have a default argument of s#
+ 	if(s<0) warning("You have a negative length measurement")   # if the side measurement is less then 0, print the warning label in quotes#
+ 	surface_area<-6*2^2                                         # take the surface area of the cube and store it in the object surface_area#
+ 	volume<-s^3                                                 # take the volume of the cube#
+ 	return(list(SA=surface_area, Vol=volume))                   # return both the surface area and the volume as a list#
+     }#
+#
+    cube_facts(s=-2) #
+#
+# to make the warning into an error (ie no answer is produced) we can use stop#
+    cube_facts<-function (s) {                                  # we wil call the function cube_facts and it will have a default argument of s#
+ 	if(s<0) stop("You have a negative length measurement")      # if the side measurement is less then 0, stop the function#
+ 	surface_area<-6*2^2                                         # take the surface area of the cube and store it in the object surface_area#
+ 	volume<-s^3                                                 # take the volume of the cube#
+ 	return(list(SA=surface_area, Vol=volume))                   # return both the surface area and the volume as a list#
+     }#
+#
+    cube_facts(s=-2) #
+###################################################################################################################################################
+#
+ # Example Three: Write a function that takes the means and standard deviations of a user-defined number of randomly generated samples. The #
+ # user should be able to define the number of samples generated, the sample size of each individual sample, the mean of the normal distribution#
+ # the sample is taken from, and the standard deviation of the distribution the sample is randomly generated from.#
+    sample_sims<-function(mean=0, sd=1, sample_size=100, number_samples=10)  # Our function will be called sample sims and has 4 arguments (the pop mean, which will default to 0, the pop standard deviation, defaulted to 0, the sample size of each individual sample (100), and the total number of samples taken (10).#
+    { sample_results<-matrix(NA,nrow=number_samples,ncol=2)                  # Create storage space for each sample's mean and standard deviation, we make the number of rows the same as the number of samples versus and actual number because the size of the storage space will change depending on how the user defines the original arguments.#
+	  colnames(sample_results)=c("mean","SD")                                # Put column headings on your storage matrix#
+		for (i in 1:number_samples)                                          # for each individual sample, up until the total number of samples is reached#
+	      { data<-rnorm(sample_size, mean=mean, sd=sd)                       # make a data set by sampling from the normal distribution with the specified mean and SD until a sample of size samplesize is reached. #
+	     	sample_results[i,1]<-mean(data)                                  # take the mean of this data and put it in the first column ith row of our storage matrix#
+		    sample_results[i,2]<-sd(data)                                    # take the standard deviation of this data and put it in the first column ith row of our storage matrix#
+	       }                                                                 # Go back and to the top of the loop and make a new set of data#
+	return(sample_results)                                                   # return the sample_results the function was designed to create#
+    }#
+sample_sims()                                     # run the function based on default arguments#
+sample_sims(sd=10)                                # change the standard deviation of the underlying population to 10#
+sample_sims(0,10,100,10)                          # if you supply all the arguments in the correct order, you do not need to use labels as to what the inputs are. #
+plotting_data<-sample_sims(number_samples=500)    # save the result for later analysis, such as plotting#
+hist(plotting_data[,1],xlab="Sample Means", las=1, main="Example 3 - Sample Means \n R Workshop Mod 9") # plot the sample means our function generated
+l<-c(1:400)#
+# parameters#
+C<-1#
+k<-.1#
+a<-50#
+b<-9#
+#
+## single distributions before multiplication together#
+## Exponential Growth#
+expo_func<-function (l=l,C=C, k=k)#
+{#
+	selectivity=C*exp(k*l)#
+	plot(selectivity, main="Exponential Growth")#
+	return(selectivity)#
+}#
+expo_func(l=l,C=C, k=k)#
+##Exponential Decay#
+decexpo_func<-function (l=l,C=C, k=k)#
+{#
+	selectivity=C*exp(-k*l)#
+	plot(selectivity, main="Exponential Decay")#
+	return(selectivity)#
+}#
+decexpo_func(l=l,C=C, k=k)#
+## Increasing Expo Decay#
+inc_expo_func<-function (l=l,C=C, k=k)#
+{#
+	selectivity=C*(1-exp(-k*l))#
+	plot(selectivity, main="Exponential Decay")#
+	return(selectivity)#
+}#
+inc_decexpo_func(l=l,C=C, k=k)
+single distributions before multiplication together#
+## Exponential Growth#
+expo_func<-function (l=l,C=C, k=k)#
+{#
+	selectivity=C*exp(k*l)#
+	plot(selectivity, main="Exponential Growth")#
+	return(selectivity)#
+}#
+expo_func(l=l,C=C, k=k)#
+##Exponential Decay#
+decexpo_func<-function (l=l,C=C, k=k)#
+{#
+	selectivity=C*exp(-k*l)#
+	plot(selectivity, main="Exponential Decay")#
+	return(selectivity)#
+}#
+decexpo_func(l=l,C=C, k=k)#
+## Increasing Expo Decay#
+inc_dexpo_func<-function (l=l,C=C, k=k)#
+{#
+	selectivity=C*(1-exp(-k*l))#
+	plot(selectivity, main="Exponential Decay")#
+	return(selectivity)#
+}#
+inc_decexpo_func(l=l,C=C, k=k)
+l<-c(1:400)#
+# parameters#
+C<-1#
+k<-.1#
+a<-50#
+b<-9#
+#
+## single distributions before multiplication together#
+## Exponential Growth#
+expo_func<-function (l=l,C=C, k=k)#
+{#
+	selectivity=C*exp(k*l)#
+	plot(selectivity, main="Exponential Growth")#
+	return(selectivity)#
+}#
+expo_func(l=l,C=C, k=k)#
+#
+dev.new()#
+#
+##Exponential Decay#
+decexpo_func<-function (l=l,C=C, k=k)#
+{#
+	selectivity=C*exp(-k*l)#
+	plot(selectivity, main="Exponential Decay")#
+	return(selectivity)#
+}#
+decexpo_func(l=l,C=C, k=k)#
+dev.new()#
+#
+## Increasing Expo Decay#
+inc_dexpo_func<-function (l=l,C=C, k=k)#
+{#
+	selectivity=C*(1-exp(-k*l))#
+	plot(selectivity, main="Increasing Exponential Decay")#
+	return(selectivity)#
+}#
+inc_decexpo_func(l=l,C=C, k=k)
+inc_dexpo_func(l=l,C=C, k=k)
+l<-c(1:400)#
+# parameters#
+C<-3#
+k<-.5#
+a<-50#
+b<-9#
+#
+## single distributions before multiplication together#
+## Exponential Growth#
+expo_func<-function (l=l,C=C, k=k)#
+{#
+	selectivity=C*exp(k*l)#
+	plot(selectivity, main="Exponential Growth")#
+	return(selectivity)#
+}#
+expo_func(l=l,C=C, k=k)#
+#
+dev.new()#
+#
+##Exponential Decay#
+decexpo_func<-function (l=l,C=C, k=k)#
+{#
+	selectivity=C*exp(-k*l)#
+	plot(selectivity, main="Exponential Decay")#
+	return(selectivity)#
+}#
+decexpo_func(l=l,C=C, k=k)#
+dev.new()#
+#
+## Increasing Expo Decay#
+inc_dexpo_func<-function (l=l,C=C, k=k)#
+{#
+	selectivity=C*(1-exp(-k*l))#
+	plot(selectivity, main="Increasing Exponential Decay")#
+	return(selectivity)#
+}#
+inc_dexpo_func(l=l,C=C, k=k)
+l<-c(1:400)#
+# parameters#
+C<-3#
+k<-10#
+a<-50#
+b<-9#
+#
+## single distributions before multiplication together#
+## Exponential Growth#
+expo_func<-function (l=l,C=C, k=k)#
+{#
+	selectivity=C*exp(k*l)#
+	plot(selectivity, main="Exponential Growth")#
+	return(selectivity)#
+}#
+expo_func(l=l,C=C, k=k)#
+#
+dev.new()#
+#
+##Exponential Decay#
+decexpo_func<-function (l=l,C=C, k=k)#
+{#
+	selectivity=C*exp(-k*l)#
+	plot(selectivity, main="Exponential Decay")#
+	return(selectivity)#
+}#
+decexpo_func(l=l,C=C, k=k)#
+dev.new()#
+#
+## Increasing Expo Decay#
+inc_dexpo_func<-function (l=l,C=C, k=k)#
+{#
+	selectivity=C*(1-exp(-k*l))#
+	plot(selectivity, main="Increasing Exponential Decay")#
+	return(selectivity)#
+}#
+inc_dexpo_func(l=l,C=C, k=k)
+l<-c(1:400)#
+# parameters#
+C<-3#
+k<-.01#
+a<-50#
+b<-9#
+#
+## single distributions before multiplication together#
+## Exponential Growth#
+expo_func<-function (l=l,C=C, k=k)#
+{#
+	selectivity=C*exp(k*l)#
+	plot(selectivity, main="Exponential Growth")#
+	return(selectivity)#
+}#
+expo_func(l=l,C=C, k=k)#
+#
+dev.new()#
+#
+##Exponential Decay#
+decexpo_func<-function (l=l,C=C, k=k)#
+{#
+	selectivity=C*exp(-k*l)#
+	plot(selectivity, main="Exponential Decay")#
+	return(selectivity)#
+}#
+decexpo_func(l=l,C=C, k=k)#
+dev.new()#
+#
+## Increasing Expo Decay#
+inc_dexpo_func<-function (l=l,C=C, k=k)#
+{#
+	selectivity=C*(1-exp(-k*l))#
+	plot(selectivity, main="Increasing Exponential Decay")#
+	return(selectivity)#
+}#
+inc_dexpo_func(l=l,C=C, k=k)
+450*3
+900+1350+400
++150
+900+1350+400+150
+2014-1989
+25+18
+700*12
+700*12+12000
+1728*2
+800*6
+6*700
+4200+6000
+18000*2+12000
+700*6+12000
+700*6
+700*6+12000
+800*6
+1986+19
+362-243
+243-75
+25+50+75+100
+500*6
+1000*6
+16+14
+400/365
+2200/1600
+.17*20000
+year=19
+t.crit=3
+results=3
+objects()
+paste(year, "results", t.crit)
+paste(year, "results", t.crit)<-3
+(paste(year, "results", t.crit))<-3
+all.results<-list()
+allresults[paste(year, "results", t.crit)]<-3
+all.results[paste(year, "results", t.crit)]<-3
+all.results[1]
+all.results<-list()#
+for (i in 1:3)#
+{#
+year<-i#
+t.crit<-1.5#
+results<-t.crit+year#
+all.results[paste(year, "results", t.crit)]<-results#
+}
+all.results[]
+all.results[1]
+all.results$1 results 1.5
+all.results$1results1.5
+all.results<-list()#
+for (i in 1:3)#
+{#
+year<-i#
+t.crit<-1.5#
+results<-t.crit+year#
+all.results[paste(year, sep=“”,"results”,sep=“”, t.crit)]<-results#
+}#
+#
+results$1results1.5
+all.results<-list()#
+for (i in 1:3)#
+{#
+year<-i#
+t.crit<-1.5#
+results<-t.crit+year#
+all.results[paste(year, sep="","results",sep="", t.crit)]<-results#
+}#
+#
+results$1results1.5
+all.results<-list()#
+for (i in 1:3)#
+{#
+year<-i#
+t.crit<-1.5#
+results<-t.crit+year#
+all.results[paste(year,"results",t.crit,sep="")]<-results#
+}#
+#
+results$1results1.5
+all.results<-list()#
+for (i in 1:3)#
+{#
+year<-i#
+t.crit<-1.5#
+results<-t.crit+year#
+all.results[paste("y",year, sep=“”,"results”,sep=“”, t.crit)]<-results #you can’t name an object with the first letter as a number so I added a y#
+}#
+#
+results$y1results1.5
+all.results<-list()#
+for (i in 1:3)#
+{#
+year<-i#
+t.crit<-1.5#
+results<-t.crit+year#
+all.results[paste("y",year, sep="","results”,sep="", t.crit)]<-results #
+}#
+#
+results$y1results1.5
+all.results<-list()#
+for (i in 1:3)#
+{#
+year<-i#
+t.crit<-1.5#
+results<-t.crit+year#
+all.results[paste("y",year, sep="","results",sep="", t.crit)]<-results #
+}#
+#
+results$y1results1.5
+all.results<-list()#
+for (i in 1:3)#
+{#
+year<-i#
+t.crit<-1.5#
+results<-t.crit+year#
+all.results[paste("y",year,"results", t.crit,sep="")]<-results #
+}#
+#
+results$y1results1.5
+results
+all.results$y1results1.5
+all.results<-list()#
+all.results<-list()#
+ for (i in 1:3)#
+ {#
+ year<-i#
+ t.crit<-1.5#
+ results<-t.crit+year#
+ all.results[paste("y",year,"results", t.crit,sep="")]<-results #
+ }#
+all.results$y1results1.5
+all.results<-list()#
+all.results<-list()#
+ for (i in 1:3)#
+ {#
+ year<-i#
+ t.crit<-1.5#
+ results<-t.crit+year#
+ all.results[paste("y",year,"results", t.crit,sep="")]<-results #
+ }#
+all.results$y2results1.5
+help(write.csv)
+index<-c()
+index
+c(index,1)
+cite()
+citation()
+setwd("/Users/michellejones/Dropbox/Sam_Inlets")#
+#setwd(~/Dropbox/Work/Sam_Inlets")#
+## load packages - likely ot all are required, but unsure of which ones are#
+library(geosphere)#
+library(mapdata)#
+library(rgeos) #
+library(maptools)#
+library(raster)#
+library (sp) ##
+library(ggplot2) #
+library(ggmap) #
+library(maps) #
+library(rgdal) #
+#
+##read in the data set#
+sable<-read.csv("sable_recoveries.csv")#
+#subset the recoveries so we're only looking at inlet-origin fish#
+inlets<-subset(sable, release_set_type=="INLET STANDARDIZED")#
+#head(inlets)#
+#
+#read in spatial data#
+setwd("/Users/michellejones/Dropbox/Sam_Inlets/ShapeFiles")#
+management_areas<-readShapeSpatial("ShapeFiles/MajorMinorSQL_geo.shp")
+Load packages (these probably aren't all needed)#
+library(geosphere)#
+library(mapdata)#
+library(rgeos) #
+library(maptools)#
+library(raster)#
+library (sp) ##
+library(ggplot2) #
+library(ggmap) #
+library(maps) #
+library(rgdal) #
+#
+# Read in tagging data, subset to inlet releases#
+sable <- read.csv("recoveries.csv")#
+inlets <- subset(sable, release_set_type=="INLET STANDARDIZED")#
+# head(inlets)#
+#
+# Read in shape file#
+management_areas <- readShapeSpatial("ShapeFiles/MajorMinorSQL_geo.shp")#
+#
+# Extract major/minor area codes and the centroids of each#
+majCodes <- management_areas $ MAJOR_CODE#
+minCodes <- management_areas $ MINOR_CODE#
+centroids <- coordinates(management_areas)#
+#
+# Create a data frame to hold them#
+MgmtAreaCentroids <- data.frame(  MAJOR = majCodes, MINOR = minCOdes, #
+                                        centroids = centroids )#
+#
+# Remove rows from inlets which have no recovery#
+rows <- which ( inlets $ recovery_Major != "" )#
+inlets <- inlets [ rows, ]#
+plot( inlets $ recovery_Major )#
+#
+# okay, the NAs in the liberty years vector are screwing me up, so#
+rows <- which ( is.na ( inlets $ liberty_years ) )#
+inlets <- inlets [ -rows, ]#
+#
+# YALfrequencies is a function which will create a table#
+# of frequencies for years at liberty (YAL) for recoveries in each major/minor#
+# area pair.#
+#     Args:     plusGroup = point at which to accumulate larger years#
+#               minYear = smallest value years at liberty#
+#               areas = a data frame containing maj/min area codes#
+#     Returns:  MgmtAreaFreqs = the areas df with the frequencies addended#
+YALfrequencies <- function (  plusGroup = 5, minYear = 0, #
+                              areas = MgmtAreaCentroids, recoveries = inlets )#
+{#
+  # Get length of areas df#
+  nAreas <- nrow ( areas )#
+  bins <- length( minYear:plusGroup )#
+#
+  # Define a matrix to hold the frequencies, and name the columns#
+  freqs <- matrix ( 0, nrow = nAreas, ncol = bins )#
+  pgName <- paste ( plusGroup, "+", sep = "" )#
+  freqCols <- c ( minYear:( plusGroup - 1 ), pgName )#
+  colnames ( freqs ) <- freqCols#
+#
+  # Now to extract the frequencies for each major/minor pair#
+  areaCodes <- areas [ , 1:2 ]#
+  for ( mmArea in 1:nAreas ) {#
+    majCode <- areaCodes [ mmArea, 1 ]#
+    minCode <- areaCodes [ mmArea, 2 ]#
+    rows <- which ( inlets $ recovery_Major_cde == majCode & #
+                    inlets $ recovery_Minor_cde == minCode )#
+    if ( length(rows) > 0 ) {#
+      areaRecs <- inlets [ rows, ]#
+      for ( bin in 1:(bins - 1)  ) {#
+        binRows <- which ( areaRecs $ liberty_years == (bin - 1) )#
+        freqs [ mmArea, bin ] <- nrow ( areaRecs [ binRows, ] )#
+      }#
+      plusRows <- which ( areaRecs $ liberty_years >= plusGroup )#
+      freqs [ mmArea, bins ] <- nrow ( areaRecs [ plusRows, ] )#
+    }#
+  }#
+#
+  # Append frequencies areas#
+  areas <- cbind ( areas, freqs )#
+#
+  # Return areas#
+  return ( areas )#
+}#
+releaseLocations <- data.frame  ( #
+                                  long = -1 * inlets$release_longitude, #
+                                  lat = inlets $ release_latitude #
+                                )#
+#
+# management_areas@data#
+plot(management_areas )#
+  points ( centroids )
