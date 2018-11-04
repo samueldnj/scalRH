@@ -1,171 +1,275 @@
-lknsdfa
-source("/Users/sdnjohnson/Work/write/thesis/thesisProposal/figures/Gantt.r")
-m1
-x <- seq ( -5,5,length = 100)
-y1 <- dnorm ( x = x, mean = -1, sd = 2)
-y2 <- dnorm ( x = x, mean = 2, sd = 0.5)
-plot ( x = x, y = y1)
-lines ( x = x, y = y2)
-yLim <- c(0,1.2*max(y1,y2))
-x <- seq ( -6, 6, length = 100)
-y1 <- dnorm ( x = x, mean = -1, sd = 2)
-y2 <- dnorm ( x = x, mean = 2, sd = 0.5)
-yLim <- c(0,1.2*max(y1,y2))
-xLim <- c(-6,6)
-plot ( xLim, yLim, type = "n" )
-plot ( xLim, yLim, type = "n", xlab = "", ylab = "" )
-?plot
-plot ( xLim, yLim, type = "n", xlab = "", ylab = "", axes = "n" )
-plot ( xLim, yLim, type = "n", xlab = "", ylab = "", axes = FALSE )
-plot ( xLim, yLim, type = "n", xlab = "", ylab = "", axes = 1 )
-plot ( xLim, yLim, type = "n", xlab = "", ylab = "", axes = 2 )
-plot ( xLim, yLim, type = "n", xlab = "", ylab = "", axes = "b" )
-??axes
-plot ( xLim, yLim, type = "n", xlab = "", ylab = "" )
-lines ( x = x, y = y1, col = "steelblue")
-lines ( x = x, y = y1, col = "steelblue", lwd = 3)
-lines ( x = x, y = y2, col = "salmon", lwd = 3)
-y1 + y2
-lines ( x = x, y = y1+y2, col = "darkgreen", lwd = 3)
-plot ( xLim, yLim, type = "n", xlab = "", ylab = "" )
-lines ( x = x, y = y1, col = "steelblue", lwd = 3)
-lines ( x = x, y = y2, col = "salmon", lwd = 3)
-lines ( x = x, y = (y1+y2)/2, col = "darkgreen", lwd = 3)
-plot ( xLim, yLim, type = "n", xlab = "", ylab = "" )
-lines ( x = x, y = y1, col = "steelblue", lwd = 3)
-plot ( xLim, yLim, type = "n", xlab = "", ylab = "" )
-y1 <- dnorm ( x = x, mean = 0, sd = 1.5)
-y2 <- dnorm ( x = x, mean = 1, sd = 0.75)
-yLim <- c(0,1.2*max(y1,y2))
-plot ( xLim, yLim, type = "n", xlab = "", ylab = "" )
-lines ( x = x, y = y1, col = "steelblue", lwd = 3)
-lines ( x = x, y = y2, col = "salmon", lwd = 3)
-yLim <- c(0,1.2*max(y1,y2, y1+y2))
-plot ( xLim, yLim, type = "n", xlab = "", ylab = "" )
-lines ( x = x, y = y2, col = "salmon", lwd = 3)
-lines ( x = x, y = y1, col = "steelblue", lwd = 3)
-lines ( x = x, y = y1+y2, col = "darkgreen", lwd = 3)
-legend ( x = 0, y = 0.7, legend = c("m=0,sd=1.5", "m=1,sd=0.75","mixture"), col = c("steelblue","salmon","darkgreen"), lwd=c(3,3,3))
-legend ( x = 0, y = 0.7, legend = c("m=0,sd=1.5", "m=1,sd=0.75","mixture"), col = c("steelblue","salmon","darkgreen"), lwd=c(3,3,3), bty = "n")
-plot ( xLim, yLim, type = "n", xlab = "", ylab = "" )
-lines ( x = x, y = y1, col = "steelblue", lwd = 3)
-lines ( x = x, y = y2, col = "salmon", lwd = 3)
-lines ( x = x, y = y1+y2, col = "darkgreen", lwd = 3)
-legend ( x = -5, y = 0.7, legend = c("m=0,sd=1.5", "m=1,sd=0.75","mixture"), col = c("steelblue","salmon","darkgreen"), lwd=c(3,3,3), bty = "n")
-source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/coastWide/control.R")
-sample(6,4,replace=TRUE)
-sample(10,1)
-sample(8,1)
-sample(6,1)
-sample(10,1)
-sample(8,1)
-sample(6,1)
-sample(4,5, replace = TRUE)
-sample(6,4,replace=TRUE)
-update.packages()
-library(devtools)
-install.package("devtools")
-install.packages("devtools")
-source("/Users/sdnjohnson/Work/code/mseR/mseR-NCod/loadRPackages.r")
-install_github("mattwatts/marxanui")
-library(devtools)
-install_github("mattwatts/marxanui")
-asd
-source("/Users/sdnjohnson/Work/code/models/mseR-ISCAM/mseRsystem.r")
-expPrefix <- "blarg"
-i <- 1
-copyDest <- file.path("/Volumes/home/thesisStuff/cwMSexperiments/TMB/",expPrefix[i])
-dir.create( copyDest )
-source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/ageLenSelTest.R")
-probLenAtAge
-plot(lenAge)
-pnorm(lHi, lenAge[a], lenAge[a]*CV_L )
-plot(lenAge)
-sel_len
-plot(sel_len)
-plot(sel_age)
-sel_age
-source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/ageLenSelTest.R")
-sel_age
-plot(sel_age)
-source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/ageLenSelTest.R")
-plot(sel_age)
-plot(sel_len)
-source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/ageLenSelTest.R")
-Nlt
-source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/ageLenSelTest.R")
-Nlt
-hist(Nlt)
-plot(Nlt)
-plot(Nat)
-source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/ageLenSelTest.R")
-plot(Nlt)
-source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/ageLenSelTest.R")
-plot(sel_age)
-source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/ageLenSelTest.R")
-plot(Nlt)
-source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/ageLenSelTest.R")
-plot(Nlt)
-source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/ageLenSelTest.R")
-plot(Nlt)
-source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/ageLenSelTest.R")
-plot(Nlt)
-source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/ageLenSelTest.R")
-plot(selectedAge,selectedLength)
-source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/ageLenSelTest.R")
-plot(selectedLength)
-plot(selectedAge)
-source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/ageLenSelTest.R")
-plot(Nlt)
-plot(Nat)
-source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/ageLenSelTest.R")
-plot(Nat)
-plot(Nlt)
-plot(selectedLength)
-plot(selectedAge)
-source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/ageLenSelTest.R")
-plot(selectedAge)
-plot(selectedLength)
-plot(Nlt)
-source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/ageLenSelTest.R")
-plot(Nlt)
-plot(Nat)
-source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/ageLenSelTest.R")
-Nat
-plot(Nat)
-exp( - (ages - 1) * M + sel_age * 0.1 )
-source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/ageLenSelTest.R")
-plot(Nat)
-plot(Nlt)
-source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/ageLenSelTest.R")
-plot(Nlt)
-plot(Nat)
-sel_age
-source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/ageLenSelTest.R")
-plot(Nat)
-exp( - (ages - 1) * M - sel_age * 0.5 )
-sel_age
-ages
-- (ages - 1) * M - sel_age * 0.5
-- (ages - 1) * M - sel_age * 0.1
-source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/ageLenSelTest.R")
-plot(Nlt)
-plot( x = c(0,A), y = range(lMids), type = "n", axes = F )#
-  for( a in 1:A )#
-    points( x = rep(a,length(lMids)), y = lMids, cex = sqrt(probLenAtAge[a,]*10),#
-            col = "grey50", pch = 16 )#
-  lines( x = 1:A, y = lenAge, lty = 2, lwd = 3  )#
-  axis(side = 1)#
-  axis(side = 2)
-source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/ageLenSelTest.R")
-ul
-plot(el)
-plot(ul)
-points(probLenBin)
-probLenBin
-probHarvLength
-source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/ageLenSelTest.R")
-plot(ul)
-plot(probLenBin)
-source("ageLenSelTest.R")
-plot(sel_age)
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+source("DERPAdata.R")
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+source("DERPAdata.R")
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+bioData <- lapply(  X = survSpecNames,#
+                    FUN = readBioData )
+str(bioData)
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+makeLenAge()
+lenAge <- lapply( X = bioData, FUN = makeLenAge, stocks = names(stocksCommBio) )
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+lenAge <- lapply( X = bioData, FUN = makeLenAge, stocks = names(stocksCommBio) )
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+lenAge <- lapply( X = bioData, FUN = makeLenAge, stocks = names(stocksCommBio) )
+head(survData)
+survData <- survData %>%#
+              dplyr::select(  age = AGE, length = LENGTH_MM,#
+                              stockName, sex = SEX )
+head(commData)
+commData <- commData %>%#
+              dplyr::select(  age = AGE, length = LENGTH_MM,#
+                              stockName, sex = SEX )
+head(commData)
+survData <- data$survey
+commData <- data$comm
+survData <- survData %>%#
+              dplyr::select(  age = AGE, length = LENGTH_MM/10,#
+                              stockName, sex = SEX )
+Q
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+lenAge <- lapply( X = bioData, FUN = makeLenAge, stocks = names(stocksCommBio) )
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+lenAge <- lapply( X = bioData, FUN = makeLenAge, stocks = names(stocksCommBio) )
+c
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+lenAge <- lapply( X = bioData, FUN = makeLenAge, stocks = names(stocksCommBio) )
+combData
+head(combData)
+head(survData)
+survData <- data$survey
+commData <- data$comm
+survData <- survData %>%#
+              dplyr::select(  age = AGE, length = LENGTH_MM,#
+                              stockName, sex = SEX )
+head(survData)
+survData <- data$survey#
+  commData <- data$comm#
+#
+  # We want to filter down to cases where there are age/length#
+  # observations#
+  survData <- survData %>%#
+              dplyr::select(  age = AGE, length = LENGTH_MM,#
+                              stockName, sex = SEX ) %>%#
+              # mutate( length = length/10 ) %>%#
+              filter( !is.na(age),#
+                      !is.na(length) )
+c
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+lenAge <- lapply( X = bioData, FUN = makeLenAge, stocks = names(stocksCommBio) )
+head(commData)
+commData <- commData %>%#
+              dplyr::select(  age = AGE, length = LENGTH_MM,#
+                              stockName, sex = SEX ) %>%#
+              filter( !is.na(age),#
+                      !is.na(length) )
+survData <- data$survey#
+  commData <- data$comm#
+#
+  # We want to filter down to cases where there are age/length#
+  # observations#
+  survData <- survData %>%#
+              dplyr::select(  age = AGE, length = LENGTH_MM,#
+                              stockName, sex = SEX ) %>%#
+              # mutate( length = length/10 ) %>%#
+              filter( !is.na(age),#
+                      !is.na(length) )#
+  commData <- commData %>%#
+              dplyr::select(  age = AGE, length = LENGTH_MM,#
+                              stockName, sex = SEX ) %>%#
+              filter( !is.na(age),#
+                      !is.na(length) )
+head(survData)
+Linf <- max(combData$length)
+theta <- c(log(Linf),0,0,0)
+lenAgeAll <- optim(par = theta, fn = vonB_nll, data = combData )
+head(combData)
+theta
+range(combData$length)
+is.na(combData$length)
+which(is.na(combData$length))
+survData <- data$survey#
+  commData <- data$comm#
+#
+  # We want to filter down to cases where there are age/length#
+  # observations#
+  survData <- survData %>%#
+              dplyr::select(  age = AGE, length = LENGTH_MM,#
+                              stockName, sex = SEX ) %>%#
+              mutate( length = length/10 ) %>%#
+              filter( !is.na(age),#
+                      !is.na(length) )#
+  commData <- commData %>%#
+              dplyr::select(  age = AGE, length = LENGTH_MM,#
+                              stockName, sex = SEX ) %>%#
+              filter( !is.na(age),#
+                      !is.na(length) ) %>%#
+              mutate( length = length/10 )
+combData <- rbind(survData,commData)
+bioDataBoys   <- combData %>% filter( sex == 1 )
+bioDataGirls  <- combData %>% filter( sex == 2 )
+Linf <- max(combData$length)
+theta <- c(log(Linf),0,0,0)
+theta
+lenAgeAll <- optim(par = theta, fn = vonB_nll, data = combData )
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+lenAgeAll <- optim(par = theta, fn = vonB_nll, data = combData )
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+Q
+lenAge <- lapply( X = bioData, FUN = makeLenAge, stocks = names(stocksCommBio) )
+Linf <- max(combData$length)
+theta <- c(log(Linf),0,0,0)
+lenAgeAll <- optim(par = theta, fn = vonB_nll, data = combData )
+lenAgeAll
+lenAgeBoys <- optim(par = theta, fn = vonB_nll, data = bioDataBoys )
+lenAgeGirls <- optim(par = theta, fn = vonB_nll, data = bioDataGirls )
+lenAgeBoys
+lenAgeGirls
+?optim
+c
+Q
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+lenAge <- lapply( X = bioData, FUN = makeLenAge, stocks = names(stocksCommBio) )
+lenAgeAll
+head(data)
+cvL
+c
+c
+c
+head(data)
+theta
+Linf
+K
+t0
+cvL
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+Q
+lenAge <- lapply( X = bioData, FUN = makeLenAge, stocks = names(stocksCommBio) )
+lenAgeAll
+c
+c
+Q
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+lenAge <- lapply( X = bioData, FUN = makeLenAge, stocks = names(stocksCommBio) )
+lenAgeAll
+Q
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+lenAge <- lapply( X = bioData, FUN = makeLenAge, stocks = names(stocksCommBio) )
+lenAgeAll
+lenAgeBoys
+lenAgeGirls
+lenAgeAll   <- optim(par = theta, fn = vonB_nll, data = combData, method = "Nelder-Mead" )
+lenAgeAll
+lenAgeAll   <- optim(par = lenAgeAll$par, fn = vonB_nll, data = combData, method = "BFGS" )
+lenAgeAll
+lenAgeBoys  <- optim(par = lenAgeAll$par, fn = vonB_nll, data = bioDataBoys, method = "BFGS" )
+lenAgeGirls <- optim(par = lenAgeAll$par, fn = vonB_nll, data = bioDataGirls, method = "BFGS" )
+lenAgeBoys
+lenAgeBoys  <- optim(par = lenAgeAll$par, fn = vonB_nll, data = bioDataBoys, method = "Nelder-Mead" )
+lenAgeBoys
+lenAgeBoys  <- optim(par = lenAgeBoys$par, fn = vonB_nll, data = bioDataBoys, method = "BFGS" )
+lenAgeBoys
+lenAgeGirls <- optim(par = lenAgeAll$par, fn = vonB_nll, data = bioDataGirls, method = "Nelder-Mead" )
+lenAgeGirls <- optim(par = lenAgeGirls$par, fn = vonB_nll, data = bioDataGirls, method = "Nelder-Mead" )
+lenAgeGirls
+lenAgeGirls <- optim(par = lenAgeGirls$par, fn = vonB_nll, data = bioDataGirls, method = "BFGS" )
+lenAgeGirls
+Q
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+lenAgeGirls <- optim(par = lenAgeAll$par, fn = vonB_nll, data = bioDataGirls, method = "Nelder-Mead" )
+lenAge <- lapply( X = bioData, FUN = makeLenAge, stocks = names(stocksCommBio) )
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+lenAge <- lapply( X = bioData, FUN = makeLenAge, stocks = names(stocksCommBio) )
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+bioData <- lapply(  X = survSpecNames,#
+                    FUN = readBioData )
+lenAge <- lapply( X = bioData, FUN = makeLenAge, stocks = names(stocksCommBio) )
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+lenAge <- lapply( X = bioData, FUN = makeLenAge, stocks = names(stocksCommBio) )
+lenAgeBoys
+c
+lenAge <- lapply( X = bioData, FUN = makeLenAge, stocks = names(stocksCommBio) )
+stockID
+stockDataBoys
+head(stockDataBoys)
+plot(x = stockDataBoys$age, y = stockDataBoys$length)
+plot(x = stockDataGirls$age, y = stockDataGirls$length)
+lenAgeAll <- optim(par = lenAgeAll$par, fn = vonB_nll, data = stockData, method = "BFGS" )
+lenAgeAll
+lenAgeBoys <- optim(par = lenAgeBoys$par, fn = vonB_nll, data = stockDataBoys, method = "BFGS" )
+lenAgeBoys
+lenAgeGirls <- optim(par = lenAgeGirls$par, fn = vonB_nll, data = stockDataGirls, method = "BFGS" )
+stockFits[[stockIdx]] <- list(  lenAgeAll = lenAgeAll,#
+                                    lenAgeBoys = lenAgeBoys,#
+                                    lenAgeGirls = lenAgeGirls )
+stockData <-  stockData %>%#
+                  mutate( length = round(length) ) %>%#
+                  group_by( age, length, sex ) %>%#
+                  filter( sex %in% c(1,2) ) %>%#
+                  summarise( nObs = n() )
+stockData
+c
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+lenAge <- lapply( X = bioData, FUN = makeLenAge, stocks = names(stocksCommBio) )
+c
+ALfreq
+Q
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+source("DERPAdata.R")
+c
+c
+source("DERPAdata.R")
+library( scales )
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+str(lenAge)
+plotLenAge()
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+plotLenAge()
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+plotLenAge()
+coastWide
+vonB
+str(obj)
+vonB          <- obj[[specIdx]]$vonB
+vonB
+coastWide     <- vonB$coastWide
+coastWide
+vonBAll.cw    <- vonB( age = 1:maxAge, theta = coastWide$lenAgeAll$par )
+vonBBoys.cw   <- vonB( age = 1:maxAge, theta = coastWide$lenAgeBoys$par )
+maxAge
+specData
+head(specData)
+names(specData)
+maxAge        <- max(specSurv$age, specComm$age,na.rm = T)
+maxLen        <- max(specSurv$length, specComm$length, na.rm =T)
+maxAge
+maxLen
+coastWide     <- vonB$coastWide
+vonBAll.cw    <- vonB( age = 1:maxAge, theta = coastWide$lenAgeAll$par )
+vonBAll.cw
+vonBBoys.cw   <- vonB( age = 1:maxAge, theta = coastWide$lenAgeBoys$par )
+vonBGirls.cw  <- vonB( age = 1:maxAge, theta = coastWide$lenAgeGirls$par )
+vonBBoys.cw
+coastWide$lenAgeAll$par
+plot(coastWide$lenAgeAll$par)
+c
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+plotLenAge()
+c
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+plotLenAge()
+c
+source("/Users/sdnjohnson/Work/code/models/stockAssessment/multiSpecies/robinHood/ageStructured/DERPAfuns.R")
+plotLenAge()
+c
+c
+c
+c
+c
+c

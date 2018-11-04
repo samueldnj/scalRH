@@ -1,10 +1,10 @@
 # -----------------------------------------------------------------------------
 #
-# DERPAdata.R
+# plotDERPAdata.R
 #
-# Reads in biological and survey CPUE data from the ./biology_with_age/
-# and ./density/ folders inside the working directory. Used to plot CPUE
-# time series, catch locations from the survey, and age compositions
+# Reads in processed biological and index data from the ./Data/
+# and folder inside the working directory, and plots standard
+# data plots for use inside supplemental materials
 # 
 # -----------------------------------------------------------------------------
 
@@ -92,21 +92,9 @@ commSpecNames <- c( Dover = "dover-sole",
 
 # Plots that we want to make - and may not
 # need to reinvent the code for...
-# 1. Catch and indices - how to plot comm CPUE?
-relBioList_Survey <- lapply(  X = survSpecNames,
-                              FUN = makeRelBioStocks,
-                              years = c(fYear,lYear),
-                              stocks = stocksSurvey,
-                              survIDs = surveyIDs,
-                              stratArea = stratData )
-names(relBioList_Survey) <- names(survSpecNames)
-save(relBioList_Survey, file = "./Data/surveyBio.RData")
-
-commCPUEList <- lapply( X = commSpecNames,
-                        FUN = readCommCPUE,
-                        stocks = stocksCommCPUE )
-names(commCPUEList) <- names(commSpecNames)
-save(commCPUEList, file = "./Data/commCPUE.RData")
+# 1. Indices
+load("./Data/surveyBio.RData")
+load("./Data/commCPUE.RData")
 
 # Plot stock indices
 plotIndices(save = TRUE)
@@ -121,17 +109,11 @@ bioData <- lapply(  X = survSpecNames,
 names(bioData) <- names(commSpecNames)
 
 # 2. Length at age plots - stock and sex - spit out age-length freq array
-lenAge <- lapply( X = bioData, FUN = makeLenAge, stocks = names(stocksCommBio) )
-names(lenAge) <- names(commSpecNames)
-# Save data out
-save(lenAge, file = "./Data/lenAge.RData")
+load("./Data/lenAge.RData")
 plotLenAge(save = TRUE)
 
 # 3. Length/wt plots - stock and sex
-wtLen <- lapply( X = bioData, FUN = makeWtLen, stocks = names(stocksCommBio))
-names(wtLen) <- names(commSpecNames)
-# Save data out
-save(wtLen, file = "./Data/wtLen.RData")
+load("./Data/wtLen.RData")
 plotWtLen(save = TRUE)
 
 # 4. Catch and discards - Species and area
@@ -140,14 +122,17 @@ catchData <- read.csv(  "./Data/catch_by_maj.csv", header = TRUE,
 plotCatch(save = TRUE)
 
 # 5a. Age compositions by fleet, stock, and species - spit out comp data array
-ageComps <- lapply( X = bioData, FUN = makeAgeComps )
-save(ageComps, file = "./Data/ageComps.RData")
-# plotAgeComps()
+load("./Data/ageComps.RData")
+plotComps(  comps = ageComps, save = TRUE,
+            prefix = "age", saveDir = "Outputs/ageComps" )
 
 # 5b. length compositions by fleet, stock, and species - spit out comp data array
+load("./Data/lenComps.RData")
+plotComps(  comps = lenComps, save = TRUE,
+            prefix = "len", saveDir = "Outputs/lenComps" )
 
+# 7. Maturity at age and length by stock and species
 
-# 7. Maturity at age by stock and species
 
 
 

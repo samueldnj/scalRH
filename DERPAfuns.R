@@ -4,13 +4,22 @@
 #
 # Functions for DERPAdata.R and ageStructuredControl.R
 # 
+# Last revised: Nov 4, 2018
+# 
 # -----------------------------------------------------------------------------
 
 # OK, we need functions to summarise the biological data 
 # for a given species, given a determined stock structure
 
+# Load CRS codes
+loadCRS <- function()
+{
+  AEAproj <<- CRS("+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +datum=NAD83 +units=m")
+  LLproj  <<- CRS("+proj=longlat +datum=WGS84")
+  UTMproj <<- CRS("+proj=utm +zone=9 +datum=WGS84")
 
-
+  invisible(NULL)
+}
 
 # Makes data and parameter lists for fitting the 
 # msProd model to DERPA data
@@ -102,6 +111,1972 @@ makeDatPar <- function( relB = relBio, Cst = Katch )
   out
 }
 
+
+
+# Calculate relative biomass by species and arrange in an array
+# for feeding to TMB model
+makeRelBioStocks <- function( spec = "dover",
+                              years = c(1975, 2016), 
+                              stocks = list(  HGHS = c(2,3,16),
+                                              QCS = c(1),
+                                              WCVI = c(4) ),
+                              survIDs = surveyIDs,
+                              stratArea = stratData   )
+{
+
+  # Read in density
+  specDensityFile <- paste(spec,"density.csv",sep = "_")
+  specDensityPath <- file.path(getwd(),"Data","density",specDensityFile)
+  densityTab <- read.csv(specDensityPath, header = T)
+
+  # first, calculate the tow length from speed and distance, if
+  # it doesn't exist
+  calcLengths <-  densityTab %>% 
+                  filter( is.na(TOW_LENGTH_M) ) %>%
+                  mutate( TOW_LENGTH_M = DURATION_MIN * SPEED_MPM )
+
+  # Now rejoin those back to original data frame
+  densityTab <- densityTab %>% 
+                filter( !is.na( TOW_LENGTH_M ) ) %>%
+                rbind( calcLengths )
+
+  # Now fill in missing door spreads
+  aveSpread <- mean(densityTab$DOORSPREAD_M, na.rm = T)
+  missingSpreads <- densityTab %>% filter( is.na( DOORSPREAD_M ) ) %>%
+                    mutate( DOORSPREAD_M = aveSpread )
+
+  densityTab <- densityTab %>%
+                filter( !is.na(DOORSPREAD_M) ) %>%
+                rbind( missingSpreads )
+
+  # Combine density frames based on trip and trawl IDs
+  # First, rename the catch column in each df
+  densityTab <- densityTab %>% mutate(  catch = CATCH_WEIGHT,
+                                        density = DENSITY_KGPM2,
+                                        areaFished_km2 = DOORSPREAD_M * TOW_LENGTH_M )
+
+  includedSurveys <- unlist(stocks)
+
+  # Now join and select the columns we want
+  surveyData <- densityTab %>%
+                left_join( stratArea, by = "GROUPING_CODE") %>%
+                dplyr::select(  year = YEAR,
+                                tripID = TRIP_ID,
+                                eventID = FISHING_EVENT_ID,
+                                lat = LATITUDE,
+                                lon = LONGITUDE,
+                                stratum = GROUPING_CODE,
+                                majorArea = MAJOR_STAT_AREA_CODE,
+                                minorArea = MINOR_STAT_AREA_CODE,
+                                survey = SURVEY_DESC,
+                                surveyID = SURVEY_ID,
+                                survSeriesID = SURVEY_SERIES_ID,
+                                stratArea = AREA_KM2,
+                                density, catch,
+                                fishedArea = areaFished_km2  ) %>%
+                filter( survSeriesID %in% includedSurveys ) %>%
+                mutate( stockName = sapply( X = survSeriesID, 
+                                            FUN = appendName, 
+                                            stocks ) )
+
+  relativeBio <-  surveyData %>%
+                  group_by( year, stockName, survSeriesID, stratum ) %>%
+                  dplyr::summarise( density.var = var(density),
+                                    density.mean = mean(density),
+                                    area = mean(stratArea),
+                                    fishedArea = sum(fishedArea),
+                                    nBlocks = n() ) %>%
+                  ungroup() %>%
+                  filter( !is.na(density.mean) & !is.na(density.var) ) %>%
+                  group_by( year, stockName, survSeriesID ) %>%
+                  mutate( varMult = area * (area - nBlocks) / nBlocks,
+                          varSummand = varMult * density.var ) %>%
+                  summarise(  relBio_Kt = sum( area * density.mean ),
+                              relBio_Kt.var = sum( varSummand ),
+                              surveyArea = sum( area ) ) %>%
+                  ungroup() %>%
+                  filter( year >= years[1] & year <= years[2] ) %>%
+                  mutate( surveyName = sapply(  X = survSeriesID, 
+                                                FUN = appendName,
+                                                survIDs ) )
+
+  # relativeBio <-  surveyData %>%
+  #                 group_by( year, stockName, survSeriesID, stratum ) %>%
+  #                 dplyr::summarise( density.var = var(density),
+  #                                   density.mean = mean(density),
+  #                                   area = mean(stratArea),
+  #                                   fishedArea = sum(fishedArea),
+  #                                   nBlocks = n() ) %>%
+  #                 dplyr::summarize( relBio_Kt = sum( area * density.mean),
+  #                                   relBio.var_Kt = sum( area * (area - fishedArea) * density.var / fishedArea ),
+  #                                   surveyArea = sum(area) ) %>%
+  #                 ungroup() %>%
+  #                 filter( year >= years[1] & year <= years[2] )
+
+  # if( collapseSyn )
+  # {
+  #   # isolate synoptic IDs
+  #   synIDs <-  c( QCSyn = 1, HSSyn = 3, WCVISyn=4,
+  #                 WCHGSyn = 16 )
+  #   synStratAreas <- surveyData %>%
+  #                   filter( survSeriesID %in% synIDs ) %>%
+  #                   group_by( stockName, survSeriesID, stratum ) %>%
+  #                   summarise( stratArea = unique( stratArea ) ) %>%
+  #                   summarise( surveyArea = sum( stratArea ) ) %>%
+  #                   ungroup()
+
+  #   synStockAreas <-  synStratAreas %>%
+  #                     group_by( stockName ) %>%
+  #                     summarise( stockArea = sum( surveyArea ) ) %>%
+  #                     ungroup()
+
+
+  #   synRelativeBio <- relativeBio %>% 
+  #                     filter( survSeriesID %in% synIDs ) %>%
+  #                     left_join( synStockAreas, by = "stockName" ) %>%
+  #                     group_by( stockName, year ) %>%
+  #                     dplyr::summarize( area = sum(surveyArea),
+  #                                       relBio_Kt = sum( relBio_Kt ),
+  #                                       relBio_Kt.var = sum( relBio_Kt.var ),
+  #                                       stockArea = unique(stockArea) ) %>%
+  #                     dplyr::mutate(  relBio_Kt = relBio_Kt * stockArea / area,
+  #                                     survSeriesID = 1 ) %>%
+  #                     dplyr::select(  year,
+  #                                     stockName,
+  #                                     survSeriesID,
+  #                                     relBio_Kt,
+  #                                     relBio_Kt.var,
+  #                                     surveyArea = area,
+  #                                     stockArea = stockArea
+  #                                   )
+
+  #   relativeBio <-  relativeBio %>%
+  #                   left_join( synStockAreas, by = "stockName" ) %>%
+  #                   filter( !(survSeriesID %in% synIDs) )
+
+  #   relativeBio <- rbind(as.data.frame(relativeBio),as.data.frame(synRelativeBio))
+
+  #   survIDs <- intersect(survIDs[c(1,2,5,6)],includedSurveys)
+
+  # }
+
+  yrs <- years[1]:years[2]
+  stockNames <- names(stocks)
+  relativeBioArray <- array(  -1, dim = c(length(survIDs),length(stocks),length(yrs),2),
+                              dimnames = list(  names(survIDs), stockNames,
+                                                yrs, c("Mean", "SE") ) )
+
+  for( survIdx  in 1:length(survIDs) )
+  {
+    for( yIdx in 1:length(yrs) )
+    {
+      for( sIdx in 1:length(stocks) )
+      {
+        stockID <- names(stocks)[sIdx]
+        subRelBio <-  relativeBio %>%
+                      filter( year == yrs[yIdx], survSeriesID == survIDs[survIdx], stockName == stockID )
+        if( nrow(subRelBio) == 0 ) next
+        if( nrow(subRelBio) > 1 ) browser()
+        relativeBioArray[survIdx, sIdx, yIdx, "Mean" ]  <- subRelBio$relBio_Kt
+        relativeBioArray[survIdx, sIdx, yIdx, "SE" ]    <- sqrt(subRelBio$relBio_Kt.var)  
+      }
+      
+    }
+  }
+
+  out <- list(  relBio.df = relativeBio,
+                relBio.arr = relativeBioArray)
+  out
+}
+
+appendName <- function( dataCode, stockCodeKey )
+{
+  stockCodeKeyVec <- unlist(stockCodeKey)
+  nameVec <- c()
+  for( k in 1:length(stockCodeKey))
+    nameVec <- c(nameVec,rep(names(stockCodeKey)[k],length(stockCodeKey[[k]])))
+
+  stockCodeNum <- which( dataCode == stockCodeKeyVec )
+
+  if( length(stockCodeNum) > 0 )
+    return(nameVec[stockCodeNum])
+  else
+    return(NA)
+  
+}
+
+
+# Read in commercial CPUE, arrange in a data
+# frame and an array for feeding to TMB.
+# Need to decide if the commercial CPUE
+# will be a single fleet with blocks for
+# modern/historic catch, or 2 fleets 
+# (or more blocks/fleets).
+# inputs:   specName = species name char vector (root of filename)
+#           stocks = character list of stock IDs for converting
+#                     columns in data
+readCommCPUE <- function( specName = "dover-sole",
+                          stocks = stocksCommCPUE,
+                          years = c(1954,2018) )
+{
+  # Set data path
+  datPath       <- file.path(getwd(),"Data","comm-cpue-flatfish")
+  modernName    <- paste("cpue-predictions-",specName,"-modern.csv",sep = "")
+  historicName  <- paste("cpue-predictions-",specName,"-historic.csv",sep = "")
+  # Read modern and historic data
+
+  modData   <-  read.csv( file.path(datPath, modernName), header = T, 
+                          stringsAsFactors = FALSE ) %>%
+                mutate( period = "modern" ) %>%
+                dplyr::select(  version = "formula_version",
+                                est_link, se_link, area, year,
+                                period ) %>%
+                mutate( stockName = sapply( X = area, 
+                                            FUN = appendName, 
+                                            stockCodeKey = stocks ) )
+
+  histData  <-  read.csv( file.path(datPath, historicName), header = T,
+                          stringsAsFactors = FALSE ) %>%
+                mutate( period = "historic" ) %>%
+                dplyr::select(  version = "formula_version",
+                                est_link, se_link, area, year,
+                                period ) %>%
+                mutate( stockName = sapply( X = area, 
+                                            FUN = appendName, 
+                                            stockCodeKey = stocks ) )
+
+  # Combine data for DF returning
+  allData <- rbind( modData, histData )
+
+  # Pull years range
+  modYears  <- range(modData$year)
+  histYears <- range(histData$year)
+
+  # create a years vector
+  yrs <- years[1]:years[2]
+  histYrs <- histYears[1]:histYears[2]
+  modYrs  <- modYears[1]:modYears[2] 
+
+  dataArray <- array( -1, dim = c(  2,               # Fleets (modern/hist)
+                                    length(stocks),  # Number of stocks
+                                    length(yrs),     # Number of time steps
+                                    2,               # stdized/unstdized 
+                                    2 ),             # Mean/SE
+                          dimnames = list(  c("historic","modern"),
+                                            names(stocks),
+                                            yrs,
+                                            c("log.mean","log.sd"),
+                                            c("stdized","unstdized") ) )  
+
+  for( stockIdx in 1:length(stocks) )
+  {
+    stockName <- names(stocks)[stockIdx]
+    stockID   <- stocks[stockIdx]
+    
+    # Filter data by stock
+    subModStd <-  modData %>%
+                  filter( area == stockID,
+                          version == "Full standardization")
+
+    subModUnStd <-  modData %>%
+                    filter( area == stockID,
+                            version == "Unstandardized")
+
+    subHistStd <- histData %>%
+                  filter( area == stockID,
+                          version == "Full standardization")
+
+    subHistUnStd <- histData %>%
+                    filter( area == stockID,
+                            version == "Unstandardized" )
+
+    # Place in array
+    # historic data, mean values
+    dataArray["historic",stockName,as.character(histYrs),"log.mean","stdized"] <- subHistStd$est_link
+    dataArray["historic",stockName,as.character(histYrs),"log.mean","unstdized"] <- subHistUnStd$est_link
+    # historic data, standard errors
+    dataArray["historic",stockName,as.character(histYrs),"log.sd","stdized"] <- subHistStd$se_link
+    dataArray["historic",stockName,as.character(histYrs),"log.sd","unstdized"] <- subHistUnStd$se_link
+    # Modern data, mean values
+    dataArray["modern",stockName,as.character(modYrs),"log.mean","stdized"] <- subModStd$est_link
+    dataArray["modern",stockName,as.character(modYrs),"log.mean","unstdized"] <- subModUnStd$est_link
+    # Modern data, standard errors
+    dataArray["modern",stockName,as.character(modYrs),"log.sd","stdized"] <- subModStd$se_link
+    dataArray["modern",stockName,as.character(modYrs),"log.sd","unstdized"] <- subModUnStd$se_link
+  }
+
+  return( list( cpue.df = allData,
+                cpue.arr = dataArray ) ) 
+}
+
+# Quick function to scale by mean values
+transByMean <- function(x)
+{
+  x <- x -mean(x,na.rm = T)
+
+  x
+}
+
+
+# Read in bio data
+readBioData <- function(  specName = "dover",
+                          stocksSurv = stocksSurvey,
+                          stocksComm = stocksCommBio,
+                          years = c(1954,2018) )
+{
+  # First, read in survey bio data
+  surveyDataName <- paste(specName,"_bio.csv",sep = "")
+  surveyDataPath <- file.path(getwd(),"Data","biology_with_mat",surveyDataName)
+  surveyBio      <- read.csv(surveyDataPath, header = TRUE, stringsAsFactors = FALSE )
+  # Read in commercial bio data
+  commDataName <- paste(specName,"_comm_biodata.csv",sep = "")
+  commDataPath <- file.path(getwd(),"Data","DERPA_commercial_biodata",commDataName)
+  commBio      <- read.csv(commDataPath, header = TRUE, stringsAsFactors = FALSE )
+
+  # Read in density
+  specDensityFile <- paste(specName,"density.csv",sep = "_")
+  specDensityPath <- file.path(getwd(),"Data","density",specDensityFile)
+  trawlInfoTab <- read.csv(specDensityPath, header = T) %>%
+                  dplyr::select(  TRIP_ID, FE_MAJOR_LEVEL_ID,
+                                  MAJOR_STAT_AREA_CODE, SURVEY_SERIES_ID,
+                                  DEPTH_M, YEAR )
+  # Join trawl info to survey bio data and
+  # append stock names - I think that's all we want to do
+  # for now
+  surveyBio <-  surveyBio %>%
+                left_join( trawlInfoTab, by = c("TRIP_ID", "FE_MAJOR_LEVEL_ID" ) ) %>%
+                mutate( stockName = sapply( X = SURVEY_SERIES_ID, 
+                                            FUN = appendName,
+                                            stockCodeKey = stocksSurv),
+                        stockName = unlist(stockName) )
+
+  
+  # Now do the same for the commercial data
+  commBio <-  commBio %>%
+              mutate( stockName = sapply( X = MAJ, 
+                                          FUN = appendName,
+                                          stockCodeKey = stocksComm ) )
+
+
+  outList <- list(  survey = surveyBio,
+                    comm = commBio )
+
+  return(outList)
+} # END readBioData()
+
+# Define a NLL for optim
+vonB_nll <- function( theta,
+                      data )
+{
+  # Recover leading pars
+  Linf  <- exp(theta[1])
+  vonK  <- exp(-exp(theta[2]))
+  L1    <- exp(theta[3])
+  cvL   <- 1 / (1 + exp(-theta[4]))
+
+  data <- data %>%
+          mutate( expLt = vonB(age,theta = theta),
+                  res   = expLt - length,
+                  sigL  = cvL * expLt,
+                  lik   = .5*(log(cvL^2) + (res/sigL/cvL)^2 ) )
+  L50       <- quantile( data$length, probs = c(0.5) )
+  
+  # Get data to generate prior mean for Linf
+  LinfData  <-  data %>% 
+                filter( length > L50 ) 
+  # Get data L1 for prior mean
+  L1data    <-  data %>%
+                filter(age == 1)
+
+
+  # Add likelihood
+  nll <- sum( data$lik, na.rm = TRUE ) 
+  # add prior for Linf
+  if( nrow(LinfData) > 0)
+  {
+    meanLinf  <- mean(LinfData$length)
+    nll       <- nll  + 0.5*((Linf - meanLinf)/meanLinf)^2
+  }
+  # add prior for L1
+  if(nrow(L1data) > 0)
+  {
+    meanL1  <- mean(L1data$length)
+    nll     <- nll  + 0.5*((L1 - meanL1)/meanL1)^2
+  }
+
+  return(nll)
+}
+
+# von bertalanffy growth function
+vonB <- function( age, vonK = NULL, Linf = NULL, L1 = NULL, theta = NULL )
+{
+  if(!is.null(theta))
+  {
+    Linf <- exp(theta[1])
+    vonK <- exp(-exp(theta[2]))
+    L1 <- exp(theta[3])
+  }
+
+  Lt <- Linf + (L1 - Linf) * exp( -vonK * (age - 1))
+  Lt
+}
+
+
+# makeLenAge()
+# Conducts the length at age analysis for a given set of data,
+# splitting over stocks and estimating vonB functions
+# for each stock area, species, and sex. Spits out a length
+# at age frequency array (species,stock,sex)
+# inputs: data = output of readBioData()
+# outputs:  vonB = list of vonB fits, 
+#           data = input data  
+#           ALfreq = array of age-length freq, indexed by 
+#                     stock and species
+makeLenAge <- function( data = bioData$Dover,
+                        stocks = names(stocksCommBio) )
+{
+  # Get survey and commercial data
+  survData <- data$survey
+  commData <- data$comm
+
+  # We want to filter down to cases where there are age/length
+  # observations
+  survData <- survData %>%
+              dplyr::select(  age = AGE, length = LENGTH_MM,
+                              stockName, sex = SEX ) %>%
+              mutate( length = length/10 ) %>%
+              filter( !is.na(age),
+                      !is.na(length),
+                      length > 0 )
+  commData <- commData %>%
+              dplyr::select(  age = AGE, length = LENGTH_MM,
+                              stockName, sex = SEX ) %>%
+              filter( !is.na(age),
+                      !is.na(length),
+                      length > 0 ) %>%
+              mutate( length = length/10 )
+
+  data$survey <- survData
+  data$comm   <- commData 
+
+  # combine total data for likelihood
+  combData <- rbind(survData,commData)
+
+  bioDataBoys   <- combData %>% filter( sex == 1 )
+  bioDataGirls  <- combData %>% filter( sex == 2 )
+
+  # Now optimise model to create vonB fits
+  Linf <- max(combData$length)
+  L1init <- min(combData$length)
+  theta <- c(log(Linf),0,log(L1init),0)
+  lenAgeAll   <- optim(par = theta, fn = vonB_nll, data = combData, method = "Nelder-Mead" )
+  lenAgeAll   <- optim(par = lenAgeAll$par, fn = vonB_nll, data = combData, method = "BFGS" )
+  lenAgeBoys  <- optim(par = lenAgeAll$par, fn = vonB_nll, data = bioDataBoys, method = "Nelder-Mead" )
+  lenAgeBoys  <- optim(par = lenAgeBoys$par, fn = vonB_nll, data = bioDataBoys, method = "BFGS" )
+  lenAgeGirls <- optim(par = lenAgeAll$par, fn = vonB_nll, data = bioDataGirls, method = "Nelder-Mead" )
+  lenAgeGirls <- optim(par = lenAgeGirls$par, fn = vonB_nll, data = bioDataGirls, method = "BFGS" )
+
+  # save the coastwide model
+  coastWide <- list(  lenAgeAll = lenAgeAll,
+                      lenAgeBoys = lenAgeBoys,
+                      lenAgeGirls = lenAgeGirls )
+
+  # initialise age-length freq
+  # First, get array dimensions
+  lengths <- unique(combData$length)
+  ages    <- unique(combData$age)
+
+  allAges     <- 1:max(ages)
+  allLengths  <- 1:max(lengths)
+
+  # initialise array
+  ALfreq <- array( NA,  dim = c(  length(stocks),
+                                  length(allAges),
+                                  length(allLengths),
+                                  2 ),
+                        dimnames = list(  stocks, 
+                                          allAges, 
+                                          allLengths, 
+                                          c("boys","girls") ) )
+
+  stockFits <- vector( mode = "list", length = length(stocks) )
+  names(stockFits) <- stocks
+
+  # Now loop over stocks
+  for( stockIdx in 1:length(stocks) )
+  {
+    stockID <- stocks[stockIdx]
+    stockData <-  combData %>% 
+                  filter( stockName == stockID )
+
+    stockDataBoys <- stockData %>% filter( sex == 1 )
+    stockDataGirls <- stockData %>% filter( sex == 2 )
+
+    if( nrow(stockDataBoys) == 0 | nrow(stockDataGirls) == 0 )
+      next
+
+    lenAgeAll   <- optim( par = lenAgeAll$par, fn = vonB_nll, data = stockData, method = "BFGS" )
+    lenAgeBoys  <- optim( par = lenAgeBoys$par, fn = vonB_nll, data = stockDataBoys, method = "BFGS" )
+    lenAgeGirls <- optim( par = lenAgeGirls$par, fn = vonB_nll, data = stockDataGirls, method = "BFGS" )
+
+    stockFits[[stockIdx]] <- list(  lenAgeAll = lenAgeAll,
+                                    lenAgeBoys = lenAgeBoys,
+                                    lenAgeGirls = lenAgeGirls )
+    # Now populate the array - round length to nearest cm
+    # might need to aggregate further
+    frqData <-  stockData %>%
+                mutate( length = round(length) ) %>%
+                group_by( age, length, sex ) %>%
+                filter( sex %in% c(1,2) ) %>%
+                summarise( nObs = n() ) %>%
+                ungroup()
+
+    for( a in allAges )
+      for( l in allLengths )
+      {
+        boyObs <- frqData %>% filter( sex == 1, age == a, length == l )
+        girlObs <- frqData %>% filter( sex == 2, age == a, length == l )
+
+        if(nrow(boyObs) > 0)
+          ALfreq[ stockIdx, a, l, "boys" ] <- boyObs$nObs
+        if(nrow(girlObs) > 0)
+          ALfreq[ stockIdx, a, l, "girls" ] <- girlObs$nObs
+
+      }
+  }
+
+  outList <- list(  data = data,
+                    vonB = list( coastWide = coastWide, stocks = stockFits ),
+                    ALfreq = ALfreq )
+
+  outList
+} # END makeLenAge()
+
+# plotLenAge()
+# Plots vonBertalanffy growth models for each species
+# and stock from the output of makeLenAge().
+plotLenAge <- function( obj = lenAge,
+                        save = FALSE,
+                        saveDir = "Outputs",
+                        stocks = names(stocksCommBio) )
+{
+  # Set up plotting area
+  nSpec   <- length(obj)
+  nStocks <- length(stocks)
+
+  if(save)
+  {
+    graphics.off()
+    saveDir <- file.path(getwd(),saveDir)
+    if(! dir.exists(saveDir) )
+      dir.create(saveDir)
+    fileName <- "lengthAtAge.png"
+
+    savePath <- file.path(saveDir, fileName )
+    png(  savePath, width = 11, height = 8.5, units = "in",
+          res = 300)
+  }
+
+  par(  mfcol = c(nStocks, nSpec ), 
+        mar = c(0,2,0,2),
+        oma = c(4,4,1,3) )
+
+  sexCols       <- brewer.pal( n = 3, "Dark2" )
+  sexPch        <- c(3,1,2,3)
+
+  # Loop over species, pull data and fits
+  # for that species
+  for( specIdx in 1:length(obj))
+  {
+    specName      <- names(obj)[specIdx]
+    specData      <- obj[[specIdx]]$data
+    vonB          <- obj[[specIdx]]$vonB
+
+    specSurv      <- specData$survey
+    specComm      <- specData$comm
+
+    maxAge        <- max(specSurv$age, specComm$age,na.rm = T)
+    maxLen        <- max(specSurv$length, specComm$length, na.rm =T)
+
+    coastWide     <- vonB$coastWide
+
+    vonBAll.cw    <- vonB( age = 1:maxAge, theta = coastWide$lenAgeAll$par )
+    vonBBoys.cw   <- vonB( age = 1:maxAge, theta = coastWide$lenAgeBoys$par )
+    vonBGirls.cw  <- vonB( age = 1:maxAge, theta = coastWide$lenAgeGirls$par )
+
+    # Then loop over stocks
+    for( stockIdx in 1:length(stocks))
+    {
+      stockID       <- stocks[stockIdx]
+      subData.surv  <- specSurv %>% filter( stockName == stockID )
+      subData.comm  <- specComm %>% filter( stockName == stockID )
+
+      stockFit      <- vonB$stocks[[stockID]]
+
+      plot( x = c(1,maxAge),
+            y = c(0,maxLen),
+            type = "n", axes = F, xlab = "", ylab = "")
+        mfg <- par("mfg")
+        axis(side = 2, las = 1)
+        if( mfg[1] == mfg[3] )
+          axis( side = 1 )
+        box()
+
+        if( nrow( subData.surv ) != 0 | nrow(subData.comm) != 0)
+        {
+          vonBparsAll.stock <- stockFit$lenAgeAll$par
+          vonBparsBoys.stock <- stockFit$lenAgeBoys$par
+          vonBparsGirls.stock <- stockFit$lenAgeGirls$par
+
+          Linf.stock  <- round(exp(c(vonBparsAll.stock[1], vonBparsBoys.stock[1], vonBparsGirls.stock[1]) ),2)
+          K.stock     <- round(exp(-1*exp(c(vonBparsAll.stock[2], vonBparsBoys.stock[2], vonBparsGirls.stock[2]) )),2)
+          L1.stock    <- round(exp(c(vonBparsAll.stock[3], vonBparsBoys.stock[3], vonBparsGirls.stock[3] )),2)
+
+          vonBAll       <- vonB( age = 1:maxAge, theta = stockFit$lenAgeAll$par )
+          vonBBoys      <- vonB( age = 1:maxAge, theta = stockFit$lenAgeBoys$par )
+          vonBGirls     <- vonB( age = 1:maxAge, theta = stockFit$lenAgeGirls$par )
+          points( x = subData.surv$age, y = subData.surv$length,
+                  pch = sexPch[subData.surv$sex + 1], col = alpha("grey70",alpha = .3),
+                  cex = .5 )
+          points( x = subData.comm$age, y = subData.comm$length,
+                  pch = sexPch[subData.comm$sex + 1], col = alpha("grey70",alpha = .3),
+                  cex = .5 )
+          lines( x = 1:maxAge, y = vonBAll, lty = 1, lwd = 3, col = "black" )
+          lines( x = 1:maxAge, y = vonBBoys, lty = 1, lwd = 3, col = sexCols[1] )
+          lines( x = 1:maxAge, y = vonBGirls, lty = 1, lwd = 3, col = sexCols[2] )
+          text(  x = c(0.4,0.55,0.7,0.85)*maxAge, y = 0.25*maxLen,
+                 label = c(" ", "All", "Boys", "Girls" ), cex = .8 )
+          text(  x = c(0.4,0.55,0.7,0.85)*maxAge, y = 0.2*maxLen,
+                 label = c("Linf ", Linf.stock ), cex = .8 )
+          text(  x = c(0.4,0.55,0.7,0.85)*maxAge, y = 0.15*maxLen,
+                 label = c("vonK ", K.stock ), cex = .8 )
+          text(  x = c(0.4,0.55,0.7,0.85)*maxAge, y = 0.1*maxLen,
+                 label = c("L1 ", L1.stock ), cex = .8 )
+        } else {
+          panLab( x = 0.3, y = 0.9, 
+                  txt = "No Data" )
+        }
+        # Plot coastwide models
+        lines( x = 1:maxAge, y = vonBAll.cw, lty = 2, lwd = 1, col = "grey70" )
+        lines( x = 1:maxAge, y = vonBBoys.cw, lty = 2, lwd = 1, col = sexCols[1] )
+        lines( x = 1:maxAge, y = vonBGirls.cw, lty = 2, lwd = 1, col = sexCols[2] )
+
+    }
+  }
+  # Add legend to bottom of plot
+  par(mfcol = c(1,1) )
+  legend( x = "bottom",
+          horiz = TRUE,
+          legend = c("Male", "Female", "Unsexed", "Coastwide"),
+          pch = c( 1, 2, 3, NA ),
+          lty = c( 1, 1, 1, 2 ),
+          col = c( sexCols[1:2], "black", "grey70" ),
+          bty = "n" )
+  if( save )
+  {
+    dev.off()
+    cat( "Length-at-age plots saved to ", savePath, "\n", sep = "")
+  }
+}
+
+# makeWtLen()
+# Conducts the weight at length analysis for a given set of data,
+# splitting over stocks and estimating allometric 
+# growth parameters functions for each stock area, 
+# species, and sex.
+# inputs: data = output of readBioData()
+# outputs:  wtLen = list of wtLen fits, 
+#           data = input data  
+makeWtLen <- function(  data = bioData$English,
+                        stocks = names(stocksCommBio) )
+{
+  # Get survey and commercial data
+  survData <- data$survey
+  commData <- data$comm
+
+  # We want to filter down to cases where there are age/length
+  # observations
+  survData <- survData %>%
+              dplyr::select(  weight = WEIGHT_G, length = LENGTH_MM,
+                              stockName, sex = SEX ) %>%
+              mutate( length = length / 10,
+                      weight = weight / 1000,
+                      logL = log(length),
+                      logW = log(weight) ) %>%
+              filter( !is.na(weight),
+                      !is.na(length),
+                      length > 0,
+                      weight > 0 )
+  commData <- commData %>%
+              dplyr::select(  weight = WEIGHT_G, length = LENGTH_MM,
+                              stockName, sex = SEX ) %>%
+              filter( !is.na(weight),
+                      !is.na(length),
+                      length > 0,
+                      weight > 0 ) %>%
+              mutate( length = length/10,
+                      weight = weight/1000,
+                      logL = log(length),
+                      logW = log(weight) )
+
+  data$survey <- survData
+  data$comm   <- commData 
+
+  # combine total data for likelihood
+  combData <- rbind(survData,commData)
+
+  bioDataBoys   <- combData %>% filter( sex == 1 )
+  bioDataGirls  <- combData %>% filter( sex == 2 )
+
+  # Now optimise model to create vonB fits
+  wtLenAll    <- lm( logW ~ logL, data = combData )
+  wtLenBoys   <- lm( logW ~ logL, data = bioDataBoys )
+  wtLenGirls  <- lm( logW ~ logL, data = bioDataGirls )
+
+
+  # save the coastwide model
+  coastWide <- list(  wtLenAll = wtLenAll,
+                      wtLenBoys = wtLenBoys,
+                      wtLenGirls = wtLenGirls )
+
+  stockFits <- vector( mode = "list", length = length(stocks) )
+  names(stockFits) <- stocks
+
+  # Now loop over stocks
+  for( stockIdx in 1:length(stocks) )
+  {
+    stockID <- stocks[stockIdx]
+    stockData <-  combData %>% 
+                  filter( stockName == stockID )
+
+    stockDataBoys <- stockData %>% filter( sex == 1 )
+    stockDataGirls <- stockData %>% filter( sex == 2 )
+
+    if( nrow(stockDataBoys) == 0 & nrow(stockDataGirls) == 0 )
+      next
+    
+
+    wtLenAll    <- lm( logW ~ logL, data = stockData )
+    if( nrow(stockDataBoys) > 0 )
+      wtLenBoys   <- lm( logW ~ logL, data = stockDataBoys )
+    if( nrow(stockDataGirls) > 0)
+      wtLenGirls  <- lm( logW ~ logL, data = stockDataGirls )
+
+    stockFits[[stockIdx]] <- list(  wtLenAll = wtLenAll,
+                                    wtLenBoys = wtLenBoys,
+                                    wtLenGirls = wtLenGirls )
+  }
+
+  outList <- list(  data = data,
+                    wtLen = list( coastWide = coastWide, stocks = stockFits ) )
+
+  outList
+} # END makeLenAge()
+
+# plotLenAge()
+# Plots vonBertalanffy growth models for each species
+# and stock from the output of makeLenAge().
+plotWtLen <- function(  obj = wtLen,
+                        save = FALSE,
+                        saveDir = "Outputs",
+                        stocks = names(stocksCommBio) )
+{
+  # Set up plotting area
+  nSpec   <- length(obj)
+  nStocks <- length(stocks)
+
+  if(save)
+  {
+    graphics.off()
+    saveDir <- file.path(getwd(),saveDir)
+    if(! dir.exists(saveDir) )
+      dir.create(saveDir)
+    fileName <- "wtLength.png"
+
+    savePath <- file.path(saveDir, fileName )
+    png(  savePath, width = 11, height = 8.5, units = "in",
+          res = 300)
+  }
+
+  par(  mfcol = c(nStocks, nSpec ), 
+        mar = c(0,2,0,2),
+        oma = c(4,4,1,3) )
+
+  sexCols       <- brewer.pal( n = 3, "Dark2" )
+  sexPch        <- c(3,1,2,3)
+  # sexCols.alpha <- alpha( sexCols, alpha = .2 )
+
+  # Loop over species, pull data and fits
+  # for that species
+  for( specIdx in 1:length(obj))
+  {
+    # First make coastwide models
+    specName      <- names(obj)[specIdx]
+    specData      <- obj[[specIdx]]$data
+    wtLen         <- obj[[specIdx]]$wtLen
+
+    specSurv      <- specData$survey
+    specComm      <- specData$comm
+
+    maxWt         <- max(specSurv$weight, specComm$weight,na.rm = T)
+    maxLen        <- max(specSurv$length, specComm$length, na.rm =T)
+
+    coastWide     <- wtLen$coastWide
+
+    lenVec        <- seq(1,maxLen,length = 200)
+
+    wtLenAll.cw   <- exp(coef(coastWide$wtLenAll)[1]) * lenVec^(coef(coastWide$wtLenAll)[2])
+    wtLenBoys.cw  <- exp(coef(coastWide$wtLenBoys)[1]) * lenVec^(coef(coastWide$wtLenBoys)[2])
+    wtLenGirls.cw <- exp(coef(coastWide$wtLenGirls)[1]) * lenVec^(coef(coastWide$wtLenGirls)[2])
+
+
+    # Then loop over stocks
+    for( stockIdx in 1:length(stocks))
+    {
+      stockID       <- stocks[stockIdx]
+      
+      subData.surv  <- specSurv %>% filter( stockName == stockID )
+      subData.comm  <- specComm %>% filter( stockName == stockID )
+
+      stockFit      <- wtLen$stocks[[stockID]]
+
+      plot( x = c(1,maxLen),
+            y = c(0,maxWt),
+            type = "n", axes = F, xlab = "", ylab = "")
+        mfg <- par("mfg")
+        axis(side = 2, las = 1)
+        if( mfg[1] == mfg[3] )
+          axis( side = 1 )
+        box()
+
+        if( nrow( subData.surv ) != 0 | nrow(subData.comm) != 0)
+        {
+          wtLenAll.stock   <- coef(stockFit$wtLenAll)
+          wtLenBoys.stock  <- coef(stockFit$wtLenBoys)
+          wtLenGirls.stock <- coef(stockFit$wtLenGirls)
+
+          a.stock <- round(exp(c(wtLenAll.stock[1],wtLenGirls.stock[1],wtLenBoys.stock[1])),2)
+          b.stock <- round(c(wtLenAll.stock[2],wtLenGirls.stock[2],wtLenBoys.stock[2]),2)
+
+          wtLenAll       <- exp(wtLenAll.stock[1]) * lenVec^wtLenAll.stock[2]
+          wtLenBoys      <- exp(wtLenBoys.stock[1]) * lenVec^wtLenBoys.stock[2]
+          wtLenGirls     <- exp(wtLenGirls.stock[1]) * lenVec^wtLenGirls.stock[2]
+          points( x = subData.surv$length, y = subData.surv$weight,
+                  pch = sexPch[subData.surv$sex + 1], col = alpha("grey70", alpha = .5) )
+          points( x = subData.comm$length, y = subData.comm$weight,
+                  pch = sexPch[subData.comm$sex + 1], col = alpha("grey70", alpha = .5) )
+          lines( x = lenVec, y = wtLenAll, lty = 1, lwd = 3, col = "black" )
+          lines( x = lenVec, y = wtLenBoys, lty = 1, lwd = 3, col = sexCols[1] )
+          lines( x = lenVec, y = wtLenGirls, lty = 1, lwd = 3, col = sexCols[2] )
+          text(  x = c(0.1,0.25,0.4,0.55)*maxLen, y = 0.95*maxWt,
+                 label = c(" ", "All", "Boys", "Girls" ), cex = .8 )
+          text(  x = c(0.1,0.25,0.4,0.55)*maxLen, y = 0.9*maxWt,
+                 label = c("a ", a.stock ), cex = .8 )
+          text(  x = c(0.1,0.25,0.4,0.55)*maxLen, y = 0.85*maxWt,
+                 label = c("b ", b.stock ), cex = .8 )
+        } else {
+          panLab( x = 0.3, y = 0.9, 
+                  txt = "No Data" )
+        }
+        # Plot coastwide models
+        lines( x = lenVec, y = wtLenAll.cw, lty = 2, lwd = 1, col = "grey70" )
+        lines( x = lenVec, y = wtLenBoys.cw, lty = 2, lwd = 1, col = sexCols[1] )
+        lines( x = lenVec, y = wtLenGirls.cw, lty = 2, lwd = 1, col = sexCols[2] )
+
+    }
+  }
+  # Add a legend
+  par( mfcol = c(1,1) )
+  legend( x = "bottom",
+          horiz = TRUE,
+          legend = c("Male", "Female", "Unsexed", "Coastwide"),
+          pch = c( 1, 2, 3, NA ),
+          lty = c( 1, 1, 1, 2 ),
+          col = c( sexCols[1:2], "black", "grey70" ),
+          bty = "n" )
+
+  if( save )
+  {
+    dev.off()
+    cat( "Weight-at-length plots saved to ", savePath, "\n", sep = "")
+  }
+}
+
+
+# plotIndices()
+# Plots the commercial and survey biomass indices
+# on a multipanel plot
+plotIndices <- function(  survey = relBioList_Survey,
+                          comm = commCPUEList,
+                          stocksSurv = stocksSurvey,
+                          stocksComm = stocksCommData,
+                          save = FALSE,
+                          saveDir = "Outputs" )
+{
+  # Get number of species
+  nSpec <- length(survey)
+  nStocks <- length( stocksSurv )
+
+  # Get years from data
+  survDimNames <- dimnames(survey[[1]]$relBio.arr)
+  commDimNames <- dimnames(comm[[1]]$cpue.arr)
+  yrs <- as.integer(survDimNames[[3]])
+
+  vertLines <- seq(1960,2020, by = 10)
+
+  # Survey and comm fleet names
+  surveys <- survDimNames[[1]]
+  commPeriods <- commDimNames[[1]]
+
+  # Get colours for plotting
+  cols <- brewer.pal( n = length(surveys) + length(commPeriods), "Dark2" )
+
+  if( save )
+  {
+    graphics.off()
+    saveDir <- file.path(getwd(),saveDir)
+    if(! dir.exists(saveDir) )
+      dir.create(saveDir)
+    fileName <- "stockIndices.png"
+
+    savePath <- file.path(saveDir, fileName )
+    png(  savePath, width = 11, height = 8.5, units = "in",
+          res = 300)
+  }
+
+  # Set up plotting window
+  par(  mfcol = c(nStocks, nSpec), 
+        oma = c(4,4,3,4), 
+        mar = c(0,0,0,0) )
+
+  # Now loop over species and stocks, plot each one's
+  # indices
+  for( specIdx in 1:nSpec )
+  {
+    # Pull survey data
+    relBio    <-  survey[[specIdx]]$relBio.df %>%
+                  group_by( stockName, surveyName ) %>%
+                  mutate( logRelBio_Kt = log(relBio_Kt),
+                          logRelBio_Kt.scaled = logRelBio_Kt - mean(logRelBio_Kt),
+                          relBio_Kt.scaled = exp(logRelBio_Kt.scaled),
+                          relBio_Kt.se = sqrt(relBio_Kt.var),
+                          relBio_Kt.lwr = relBio_Kt - relBio_Kt.se,
+                          relBio_Kt.upr = relBio_Kt + relBio_Kt.se,
+                          relBio_Kt.lwr.scaled = exp(log(relBio_Kt.lwr) - mean(logRelBio_Kt)),
+                          relBio_Kt.upr.scaled = exp(log(relBio_Kt.upr) - mean(logRelBio_Kt)) ) %>%
+                  ungroup()
+
+                  
+
+    # Pull commercial CPUE
+    commCPUE  <-  comm[[specIdx]]$cpue.df %>%
+                  group_by( version, stockName, period) %>%
+                  mutate( est_link.scaled = est_link - mean(est_link),
+                          est.scaled = exp(est_link.scaled),
+                          est.scaled.upr = exp(est_link.scaled + se_link),
+                          est.scaled.lwr = exp(est_link.scaled - se_link) ) %>%
+                  ungroup()
+
+    for( stockIdx in 1:nStocks )
+    {
+      stockID   <- names(stocksSurv)[stockIdx]
+      specName  <- names(survey)[specIdx]
+
+      # Filter down to stock specific data
+      relBio.stock  <-  relBio %>%
+                        filter( stockName == stockID )
+      commCPUE.stock <- commCPUE %>%
+                        filter( stockName == stockID )
+
+
+      # Start plot
+      plot( x = range(yrs), y = range(0,6),
+            type = "n", axes = F, xlab = "", ylab = "" )
+        abline(v = vertLines, lty = 3, lwd = 1, col = "grey75")
+        mfg <- par("mfg")
+        if( mfg[1] == mfg[3])
+          axis( side = 1 )
+        if( mfg[2] == 1)
+          axis( side = 2, las = 1 )
+        if(mfg[1] == 1)
+          mtext(side = 3, text = specName, line = 1.5, font = 2 )
+        if(mfg[2] == mfg[4])
+          mtext( side = 4, text = stockID, line = 1.5)
+        box()
+        # First plot stdized and unstdized commercial CPUE
+        for( commIdx in 1:length(commPeriods))
+        {
+          commPeriod      <-  commPeriods[commIdx]
+          subCommData.std <-  commCPUE.stock %>%
+                              filter( period == commPeriod,
+                                      version == "Full standardization" )
+          subCommData.ust <-  commCPUE.stock %>%
+                              filter( period == commPeriod,
+                                      version == "Unstandardized" )
+          # Plot standardized
+          
+          segments( x0 = subCommData.std$year - 0.1, x1 = subCommData.std$year - 0.1,
+                    y0 = subCommData.std$est.scaled.lwr,
+                    y1 = subCommData.std$est.scaled.upr, col = cols[commIdx], lwd = 2 )
+          points( x = subCommData.std$year - 0.1,
+                  y = subCommData.std$est.scaled,
+                  col = cols[commIdx], pch = 21 )
+          # Plot unstandardized 
+          segments( x0 = subCommData.ust$year + 0.1, x1 = subCommData.ust$year + 0.1,
+                    y0 = subCommData.ust$est.scaled.lwr,
+                    y1 = subCommData.ust$est.scaled.upr, col = cols[commIdx], 
+                    lwd = 2, lty = 2 )
+          points( x = subCommData.ust$year + 0.1,
+                  y = subCommData.ust$est.scaled,
+                  col = cols[commIdx], pch = 22 )
+
+        }
+
+        # Now plot each survey
+        for( survIdx in 1:length(surveys) )
+        {
+          colIdx <- length(commPeriods) + survIdx 
+
+          survName <- surveys[survIdx]
+          subRelBio.stock <-  relBio.stock %>%
+                              filter( surveyName == survName )
+          if(nrow(subRelBio.stock) == 0 )
+            next
+
+          segments( x0 = subRelBio.stock$year,
+                    x1 = subRelBio.stock$year,
+                    y0 = subRelBio.stock$relBio_Kt.lwr.scaled,
+                    y1 = subRelBio.stock$relBio_Kt.upr.scaled,
+                    lwd = 2, col = cols[colIdx])
+          points( x = subRelBio.stock$year,
+                  y = subRelBio.stock$relBio_Kt.scaled,
+                  pch = 15 + survIdx, col = cols[colIdx] )
+        }
+
+    }
+
+  }
+  mtext(  side = 1, text = "Year", outer = TRUE,
+          line = 2 )
+  mtext(  side = 2, text = "Indices scaled by geometric mean", outer = TRUE,
+          line = 2 )
+  if(save)
+  {
+    dev.off()
+    cat("Stock indices plot saved to ", savePath,"\n",sep = "")
+  }
+}
+
+# Plot catch bars with discarding stacked on top
+# Need to do some work to improve these - maybe
+# we just do lines instead
+plotCatch <- function(  data = catchData,
+                        stocks = stocksCommBio,
+                        speciesCodes = specCodes,
+                        save = FALSE,
+                        saveDir = "Outputs",
+                        years = fYear:lYear )
+{
+  # Append stock name
+  data <- data %>%
+          filter( FISHERY_SECTOR == "GROUNDFISH TRAWL" ) %>%
+          mutate( stockName = sapply( X = MAJOR_STAT_AREA_CODE,
+                                      FUN = appendName,
+                                      stocks ),
+                  species = sapply( X = SPECIES_CODE,
+                                    FUN = appendName,
+                                    speciesCodes ) ) %>%
+          filter( stockName %in% names(stocks) ) %>%
+          dplyr::select(  year          = YEAR,
+                          catch         = LANDED_KG,
+                          discardWt     = DISCARDED_KG,
+                          discardNum  = DISCARDED_PCS,
+                          species, stockName ) %>%
+          group_by( species, stockName, year ) %>%
+          summarise(  catch   = sum(catch)/1e6,
+                      discWt  = sum(discardWt)/1e6,
+                      discNum = sum(discardNum) ) %>%
+          ungroup()
+
+  # Count species and stocks
+  nSpec   <- length( unique(data$species) )
+  nStocks <- length( stocks )
+
+  vertlines <- seq(1960,2020, by = 10)
+
+  # Set up save location
+  if(save)
+  {
+    graphics.off()
+    saveDir <- file.path(getwd(),saveDir)
+    if(! dir.exists(saveDir) )
+      dir.create(saveDir)
+    fileName <- "catchAndDiscards.png"
+
+    savePath <- file.path(saveDir, fileName )
+    png(  savePath, width = 11, height = 8.5, units = "in",
+          res = 300)
+  }
+
+  # Now set up plotting area,
+  par(  mfcol = c(nStocks, nSpec ), 
+        mar = c(0,2,0,1),
+        oma = c(4,4,3,3) )
+
+  # loop over species, then stocks
+  # Loop over species, pull data and fits
+  # for that species
+  for( specIdx in 1:length(speciesCodes))
+  {
+    specName <- names(speciesCodes)[specIdx]
+    specData <- data %>%
+                filter( species == specName )
+
+    
+    # Then loop over stocks
+    for( stockIdx in 1:length(stocks))
+    {
+ 
+      stockID       <-  names(stocks)[stockIdx]
+      subData       <-  specData %>%
+                        filter( stockName == stockID )
+
+      maxCatch      <- 1.05 * max( subData$catch + subData$discWt )
+
+      # Plot window
+      plot( x = range(years),
+            y = c(0,maxCatch),
+            type = "n", axes = F, xlab = "", ylab = "",
+            yaxs = "i")
+        mfg <- par("mfg")
+        axis(side = 2, las = 1)
+        if( mfg[1] == mfg[3] )
+          axis( side = 1 )
+        if( mfg[1] == 1 )
+          mtext( side = 3, text = specName, line = .5, font = 2 )
+        if( mfg[2] == mfg[4] )
+          mtext( side = 4, text = stockID, line = 2 )
+        box()
+        # stacked bar plots for catch and discards
+        rect( xleft = subData$year - 0.5,
+              xright = subData$year + 0.5,
+              ybottom = 0,
+              ytop = subData$catch,
+              col = "grey60", lwd = .8 )
+        rect( xleft = subData$year - 0.5,
+              xright = subData$year + 0.5,
+              ybottom = subData$catch,
+              ytop = subData$catch + subData$discWt,
+              col = "red", lwd = .8 )
+        abline( v = vertlines, lwd = .8, lty = 3,
+                col = "grey80")
+    }
+  }
+  # labels and legend
+  mtext(  side = 1, text = "Year", outer = TRUE, line = 2.5 )
+  mtext(  side = 2, text = "Catch and Discards (kt)", 
+          outer = TRUE, line = 2 )
+  
+
+  if( save )
+  {
+    dev.off()
+    cat( "Catch and discard plots saved to ", savePath, "\n", sep = "")
+  } 
+}
+
+# makeAgeComps()
+# Takes output of readBioData() for a species
+# and generates an array of age observation
+# frequencies.
+makeAgeComps <- function( data = bioData$Dover,
+                          stocksComm = stocksCommBio,
+                          stocksSurv = stocksSurvey,
+                          survIDs = surveyIDs,
+                          years = 1954:2018  )
+{
+  # Pull survey and commercial data
+  survData <- data$survey %>%
+              mutate(survID = sapply( X = SURVEY_SERIES_ID,
+                                      FUN = appendName,
+                                      survIDs) )
+  commData <- data$comm
+
+  # We want to make an array to hold age comps,
+  # so we need the largest observed age
+  maxAge <- max(survData$AGE, commData$AGE, na.rm = T)
+
+  # Make a vector of gear names - split
+  # commercial data into modern and historic
+  gearNames <- c(names(survIDs),"comm.hist","comm.mod")
+  stockNames <- names(stocksComm)
+
+  # Count dimensions
+  nGears  <- length(gearNames)
+  nYears  <- length(years)
+  nStocks <- length(stocksSurv)
+
+  # initialise array
+  ageFreq <- array(NA,  dim = c(nStocks,nGears,nYears,maxAge,3),
+                        dimnames = list(  stockNames,
+                                          gearNames,
+                                          as.character(years),
+                                          as.character(1:maxAge),
+                                          c("all", "boys", "girls" ) ) ) 
+
+  for( stockIdx in 1:nStocks )
+  {
+    stockID <- stockNames[stockIdx]
+    for( gearIdx in 1:nGears )
+    {
+      gearID <- gearNames[gearIdx]
+      if( gearID %in% c("comm.hist","comm.mod") )
+      {
+        # Filter down to this gear 
+        gearData <- commData %>%
+                    filter( !is.na(AGE), 
+                            stockName == stockID ) %>%
+                    dplyr::select(  age = AGE,
+                                    year = YEAR,
+                                    sex = SEX ) 
+
+        if( nrow(gearData) == 0 )
+          next
+
+        # Summarise all data
+        allData <-  gearData %>%
+                    group_by( year, age ) %>%
+                    summarise( nObs = n() ) %>%
+                    ungroup()
+        # Boys
+        boyData <-  gearData %>%
+                    filter( sex == 1 ) %>%
+                    group_by( year, age ) %>%
+                    summarise( nObs = n() ) %>%
+                    ungroup()
+        # Girls
+        girlData <- gearData %>%
+                    filter( sex == 2 ) %>%
+                    group_by( year, age ) %>%
+                    summarise( nObs = n() ) %>%
+                    ungroup()
+
+        # Pull those years with observations
+        obsYrs <- unique(gearData$year)
+
+        # 
+        if( gearID == "comm.hist")
+          obsYrs <- obsYrs[ obsYrs %in% 1954:1995 ]
+        if( gearID == "comm.mod")
+          obsYrs <- obsYrs[ obsYrs %in% 1996:2018 ]
+
+        # Loop over years with observations
+        for( yr in obsYrs )
+        {
+          yrChar <- as.character(yr)
+          # Subset to that year's data
+          yrData.all <- allData %>% filter( year == yr )
+          # Fill all fish slice
+          if( nrow(yrData.all) > 0)
+          {
+            # Replace NAs with 0s, as we have some observations
+            ageFreq[stockID, gearID, yrChar, ,"all" ] <- 0  
+            # Get vector of ages with positive observations
+            obsAges <- as.character(yrData.all$age)
+            # Save into ageFreq
+            ageFreq[stockID, gearID, yrChar, obsAges, "all" ]<- yrData.all$nObs
+          }
+          
+          # Subset to that year's data
+          yrData.boy <- boyData %>% filter( year == yr )
+          # Fill boy fish slice
+          if( nrow(yrData.boy) > 0)
+          {
+            # Replace NAs with 0s, as we have some observations
+            ageFreq[stockID, gearID, yrChar, ,"boys" ] <- 0  
+            # Get vector of ages with positive observations
+            obsAges <- as.character(yrData.boy$age)
+            # Save into ageFreq
+            ageFreq[stockID, gearID, yrChar, obsAges, "boys" ]<- yrData.boy$nObs
+          }
+
+          # Subset to that year's data
+          yrData.girl <- girlData %>% filter( year == yr )
+          # Fill girl fish slice
+          if( nrow(yrData.girl) > 0)
+          {
+            # Replace NAs with 0s, as we have some observations
+            ageFreq[stockID, gearID, yrChar, ,"girls" ] <- 0  
+            # Get vector of ages with positive observations
+            obsAges <- as.character(yrData.girl$age)
+            # Save into ageFreq
+            ageFreq[stockID, gearID, yrChar, obsAges, "girls" ]<- yrData.girl$nObs
+          }   
+
+        }
+        # Go to next gearID
+        next
+      }
+
+      gearData <- survData %>%
+                  filter( !is.na(AGE), 
+                          stockName == stockID ) %>%
+                  dplyr::select(  age = AGE,
+                                  year = YEAR,
+                                  survID,
+                                  sex = SEX ) %>%
+                  filter( survID == gearID ) 
+
+      if( nrow(gearData) == 0 )
+          next
+
+      # Summarise combined sexes
+      allData <-  gearData %>%
+                  group_by( year, age ) %>%
+                  summarise( nObs = n() ) %>%
+                  ungroup()
+
+      # Boys
+      boyData <-  gearData %>%
+                  filter( sex == 1 ) %>%
+                  group_by( year, age ) %>%
+                  summarise( nObs = n() ) %>%
+                  ungroup()
+      # Girls
+      girlData <- gearData %>%
+                  filter( sex == 2 ) %>%
+                  group_by( year, age ) %>%
+                  summarise( nObs = n() ) %>%
+                  ungroup()
+
+      # Pull those years with observations
+      obsYrs <- unique(gearData$year)
+
+      # Loop over years with observations
+      for( yr in obsYrs )
+      {
+        yrChar <- as.character(yr)
+        # Subset to that year's data
+        yrData.all <- allData %>% filter( year == yr )
+        # Fill all fish slice
+        if( nrow(yrData.all) > 0)
+        {
+          # Replace NAs with 0s, as we have some observations
+          ageFreq[stockID, gearID, yrChar, ,"all" ] <- 0  
+          # Get vector of ages with positive observations
+          obsAges <- as.character(yrData.all$age)
+          # Save into ageFreq
+          ageFreq[stockID, gearID, yrChar, obsAges, "all" ]<- yrData.all$nObs
+        }
+        
+        # Subset to that year's data
+        yrData.boy <- boyData %>% filter( year == yr )
+        # Fill boy fish slice
+        if( nrow(yrData.boy) > 0)
+        {
+          # Replace NAs with 0s, as we have some observations
+          ageFreq[stockID, gearID, yrChar, ,"boys" ] <- 0  
+          # Get vector of ages with positive observations
+          obsAges <- as.character(yrData.boy$age)
+          # Save into ageFreq
+          ageFreq[stockID, gearID, yrChar, obsAges, "boys" ]<- yrData.boy$nObs
+        }
+
+        # Subset to that year's data
+        yrData.girl <- girlData %>% filter( year == yr )
+        # Fill girl fish slice
+        if( nrow(yrData.girl) > 0)
+        {
+          # Replace NAs with 0s, as we have some observations
+          ageFreq[stockID, gearID, yrChar, ,"girls" ] <- 0  
+          # Get vector of ages with positive observations
+          obsAges <- as.character(yrData.girl$age)
+          # Save into ageFreq
+          ageFreq[stockID, gearID, yrChar, obsAges, "girls" ]<- yrData.girl$nObs
+        }   
+
+      }
+
+    }
+  }
+
+  # Return age frequencies
+  return(ageFreq)
+} # END makeAgeComps()
+
+
+# plotAgeComps()
+# Takes the output from makeAgeComps() and plots
+# age frequency distributions for each stock and gear,
+# and all years that gear has observations of that stock.
+# Will skip gears that don't fish a given stock.
+plotComps <- function(  comps = ageComps,
+                        save = FALSE,
+                        saveDir = "Outputs",
+                        prefix = "age" )
+{
+  # OK, we want to loop over species, then stocks
+  # Set up save location
+  if(save)
+  {
+    graphics.off()
+    saveDir <- file.path(getwd(),saveDir)
+    if(! dir.exists(saveDir) )
+      dir.create(saveDir)
+  }
+  # Get species names
+  nSpec     <- length(comps)
+  specNames <- names(comps)
+
+  # Loop over species
+  for( specIdx in 1:nSpec )
+  {
+    # Get species name
+    specID <- specNames[specIdx]
+
+    if( save )
+    {
+      # Create save directory if it doesn't exist
+      specDir <- file.path(saveDir,specID)
+      if( !dir.exists( specDir ) )
+        dir.create( specDir )
+    }
+
+    # pull age freq array
+    ageFrq <- comps[[specIdx]]
+
+    # Count stocks, gears, age classes
+    nStocks <- dim(ageFrq)[1]
+    nGears  <- dim(ageFrq)[2]
+    years   <- as.integer(dimnames(ageFrq)[[3]])
+    nA      <- dim(ageFrq)[4]
+
+    # Get stock and gear IDs
+    stockNames  <- dimnames(ageFrq)[[1]]
+    gearNames   <- dimnames(ageFrq)[[2]]
+
+    # Loop over stocks
+    for( stockIdx in 1:nStocks )
+    {
+      stockID <- stockNames[stockIdx]
+      if( save )
+      {
+        # Create save directory if it doesn't exist
+        stockDir <- file.path(specDir,stockID)
+        if( !dir.exists( stockDir ) )
+          dir.create( stockDir )
+      }
+
+      # Now loop over gears
+      for( gearIdx in 1:nGears )
+      {
+        # Get gear name
+        gearName <- gearNames[gearIdx]
+        # Skip if there are no observations
+        if( all(is.na(ageFrq[stockIdx,gearIdx,,,])) )
+          next
+
+        # Here I want to refactor and create 2 functions:
+        # 1. Bubble plots
+        if( save )
+        {
+          fileName <- paste( prefix,"Bubbles",gearName,".png", sep = "" )
+          png(  file = file.path(stockDir,fileName),
+                width = 8.5, height = 11, res = 300,
+                units = "in" )
+        }
+        # Pull subset
+        subFrq <- ageFrq[ stockIdx, gearIdx,,,]
+
+        # Set up multipanel region
+        par(mfrow = c(3,1), oma = c(4,4,3,2), mar = c(1,1,1,1) )
+        # Plot boys
+        .plotBubbles( z = subFrq[,,1])
+        mtext( side = 4, text = "Male", line = 2 )
+        # Plot girls
+        .plotBubbles( z = subFrq[,,2])
+        mtext( side = 4, text = "Female", line = 2 )
+        # Plot combined
+        .plotBubbles( z = subFrq[,,3])
+        mtext(  side = 4, text = "Both + Unsexed", line = 2 )
+        # Add title
+        mtext(  side = 3, text = paste(specID, stockID, gearName, sep = " - " ),
+                outer = T, line = 1, cex = 2, font = 2 )
+
+        if( save )
+          dev.off()
+
+        if(!save)
+          dev.new()
+
+        # 2. age freqency plots
+
+        # Now we want to plot the age frequency plots
+        # but we can't plot the three groups (boys, girls, unsexed)
+        # in one plot, so we need to plot each in a separate device
+        # Plot males
+        if(save)
+        {
+          fileName <- paste( prefix, "Freq_", gearName,"_Males.png", sep = "")
+          png(  file = file.path(stockDir,fileName),
+                width = 8.5, height = 11, res = 300,
+                units = "in" )
+        }
+        
+        .plotAgeFreq( z = subFrq[,,1] )
+        mtext(  side = 3, outer = TRUE, font = 2,
+                text = paste(specID, " Males - ", stockID ," - ", gearName, sep = "") )
+
+        if( save )
+          dev.off()
+
+        # Plot females
+        if(save)
+        {
+          fileName <- paste( prefix, "Freq_", gearName,"_Females.png", sep = "")
+          png(  file = file.path(stockDir,fileName),
+                width = 8.5, height = 11, res = 300,
+                units = "in" )
+        }
+        
+        .plotAgeFreq( z = subFrq[,,2] )
+        mtext(  side = 3, outer = TRUE, font = 2,
+                text = paste(specID, " Females - ", stockID ," - ", gearName, sep = "") )
+
+        if( save )
+          dev.off()
+
+        # Plot combined
+        if(save)
+        {
+          fileName <- paste( prefix, "Freq_", gearName,"_Combined.png", sep = "")
+          png(  file = file.path(stockDir,fileName),
+                width = 8.5, height = 11, res = 300,
+                units = "in" )
+        }
+        
+        .plotAgeFreq( z = subFrq[,,3] )
+        mtext(  side = 3, outer = TRUE, font = 2,
+                text = paste(specID, " Combined - ", stockID ," - ", gearName, sep = "") )
+
+        if( save )
+          dev.off()
+
+        
+      }
+    }
+  } 
+
+} # END plotAgeComps()
+
+# Hidden function to plot age bubbles - shamelessly stolen
+# from sableOpMod.R (SPC and ARK), but simplified for 
+# a specific application and our arrays with named dimensions.
+# inputs:   z = years x ages array of age observation frequencies
+.plotBubbles <- function( z,
+                          years = NULL,
+                          ages = NULL,
+                          minAge = 1,
+                          initYear = 1954,
+                          hide0 = TRUE,
+                          lwd = 1,
+                          pwr = .5,
+                          size = .1 )
+{
+  # Get dimensions of z
+  dz <- dim( z )
+
+  # Get number of years
+  nYears  <- dz[ 1 ]
+  nAges   <- dz[ 2 ]
+
+  # make colours
+  clrs <- c( "grey40", "salmon", "steelblue" )
+
+  # Create age and years vectors
+  if( is.null(years) )
+    years <- initYear + 1:nYears - 1
+
+  if( is.null(ages) )
+    ages <- minAge + 1:nAges - 1
+
+  # Create vectors of x and y arguments
+  # for a symbols call
+  xArg <- rep( years, nAges )
+  yArg <- rep( ages, each = nYears )
+
+  # Sweep out sum of age observations
+  # to convert to proportions
+  zSum  <- apply( X = z, FUN = sum, MARGIN = 1, na.rm = TRUE )
+  zz    <- sweep( x = z, MARGIN = 1, STATS = zSum, FUN = "/")
+
+
+  # Separate positive, negative and zero values
+  # for different plotting colours
+  zNA <- is.na(zz) | is.nan(zz) | is.infinite(zz)
+  zz[zNA] <- 0
+  z0 <- sign(zz) * abs(zz)^abs(pwr)
+  z1 <- z3 <- z0
+  z1[z0 <= 0] <- NA
+  z3[z0 < 0 | z0 > 0] <- NA
+  z2 <- -z0
+  z2[z0 >= 0] <- NA
+  za <- max(z0, na.rm = TRUE)
+  zb <- min(z0, na.rm = TRUE)
+  zM <- max(abs(z0))
+  sz1 <- max(za * size/zM, 0.001)
+  sz2 <- max(-zb * size/zM, 0.001)
+
+  plot( x = range(years), y = range(ages,nAges+1),
+        type = "n", xlab = "", ylab = "", axes = F )
+    axis( side = 1 )
+    axis( side = 2, las = 1 )
+    box()
+
+    if( !hide0 && !all(is.na(z3)) ) 
+    {
+        PBSmodelling::evalCall(symbols, argu = list(x = xArg, y = yArg, circles = as.vector(z3), 
+            inches = 0.001, fg = clrs[3], lwd = lwd, add = TRUE), 
+            checkpar = TRUE)
+    }
+    if( !all(is.na(z2)) ) 
+    {
+        PBSmodelling::evalCall(symbols, argu = list(x = xArg, y = yArg, circles = as.vector(z2), 
+            inches = sz2, fg = clrs[2], lwd = lwd, add = TRUE), 
+            checkpar = TRUE)
+    }
+    if( !all(is.na(z1)) ) 
+    {
+        PBSmodelling::evalCall(symbols, argu = list(x = xArg, y = yArg, circles = as.vector(z1), 
+            inches = sz1, fg = clrs[1], lwd = lwd, add = TRUE), 
+            checkpar = TRUE)
+    }
+    text( x = years[zSum > 0], y = nAges + 1, labels = zSum[zSum > 0],
+          srt = 45, cex = .5 )
+
+} # END .plotBubbles()
+
+# Hidden function to plot age frequencies. Shamelessly
+# copied from ARK and SPC functions in SableOpMod.R,
+# with simplifications for our purpose.
+.plotAgeFreq <- function( z,
+                          years = NULL,
+                          ages = NULL,
+                          minAge = 1,
+                          initYear = 1954,
+                          avg = FALSE,
+                          delta = .4 )
+{
+  # Get dimensions of z
+  dz <- dim( z )
+
+  # Get number of years
+  nYears  <- dz[ 1 ]
+  nAges   <- dz[ 2 ]
+
+  # Create age and years vectors
+  if( is.null(years) )
+    years <- initYear + 1:nYears - 1
+
+  if( is.null(ages) )
+    ages <- minAge + 1:nAges - 1
+
+  # Take sum of rows to get the total
+  zSum  <- apply( X = z, FUN = sum, MARGIN = 1, na.rm = TRUE )
+  # Weed out negative sums for years of missing data
+  posYrIdx  <- which(zSum > 0)
+  posYrs    <- years[ posYrIdx ]
+  zz        <- z[posYrIdx,] 
+  
+  # Sweep out sum to make proportions
+  zz        <- sweep( x = zz, FUN = "/", STATS = zSum[posYrIdx], MARGIN = 1 )
+
+  # Count years with positive observations
+  nPanels  <- length(posYrIdx)
+
+  myMar <- c( 2, 2, 1, 1 )
+  myOma <- c( 4, 3, 3, 1 )
+
+  # If not averaging, set up multi-panel
+  if( !avg )
+  {
+    if ( nPanels <= 9 )
+      par( oma=myOma, mar=myMar, mfcol=c(3,3) )
+    else if ( nPanels > 9 & nPanels <= 12 )
+      par( oma=myOma, mar=myMar, mfcol=c(4,3) )
+    else if ( nPanels > 12 & nPanels <= 16 )
+      par( oma=myOma, mar=myMar, mfcol=c(4,4) )
+    else if ( nPanels > 16 & nPanels <= 20 )
+      par( oma=myOma, mar=myMar, mfcol=c(5,4) )
+    else if ( nPanels > 20 & nPanels <=24 )
+      par( oma=myOma, mar=myMar, mfcol=c(6,4) )
+    else
+      par( oma=myOma, mar=myMar, mfcol=c(6,5) )
+  }
+
+  if( avg )
+  {
+    zz <- matrix( apply( X = zz, FUN = mean, 
+                         MARGIN = 2, na.rm = T), 
+                  nrow = 1 )
+  }
+
+  # Get xLim and yLim
+  xLim <- range(ages)
+  yLim <- c(0, 1.2*max(zz, na.rm = T) )
+
+  for( i in 1:nrow(zz) )
+  {
+    # Make labels for each plot
+    if( avg ) 
+    {
+      yearLab <- "Averaged"
+      numObs  <- sum( zSum )
+    } else {
+      yearLab <- posYrs[ i ]
+      numObs  <- zSum[ posYrIdx[i] ]
+    }
+    # Plot away
+    plot( xLim, yLim, type = "n",
+          axes = F, xlab = "", ylab = "", yaxs = "i" )
+      axis( side = 1 )
+      axis( side = 2, las = 1 )
+      box()
+      text( x = 0.8*nAges, y = 0.95*yLim[2], label = yearLab, cex = .8 )
+      text( x = 0.8*nAges, y = 0.9*yLim[2], label = paste("N =", numObs ), cex = .8 )
+      rect( xleft = ages - delta, xright = ages + delta,
+            ybottom = 0, ytop = zz[i,],
+            col = "grey80" )
+
+  }
+  mtext( side = 1, line = 1, outer = TRUE, 
+          text = "Age Class" )
+  mtext( side = 2, line = 2, outer = TRUE, 
+          text = "Proportion-at-age" )
+} # END .plotAgeFreq()
+
+
+# makeAgeComps()
+# Takes output of readBioData() for a species
+# and generates an array of age observation
+# frequencies.
+makeLenComps <- function( data = bioData$Dover,
+                          stocksComm = stocksCommBio,
+                          stocksSurv = stocksSurvey,
+                          survIDs = surveyIDs,
+                          years = 1954:2018  )
+{
+  # Pull survey and commercial data
+  survData <- data$survey %>%
+              mutate( survID = sapply(  X = SURVEY_SERIES_ID,
+                                        FUN = appendName,
+                                        survIDs),
+                      length = round(LENGTH_MM/10) )
+  commData <- data$comm %>%
+              mutate( length = round(LENGTH_MM/10) )
+
+  # We want to make an array to hold age comps,
+  # so we need the largest observed age
+  maxLen <- max(survData$length, commData$length, na.rm = T)
+
+  # Make a vector of gear names - split
+  # commercial data into modern and historic
+  gearNames <- c(names(survIDs),"comm.hist","comm.mod")
+  stockNames <- names(stocksComm)
+
+  # Count dimensions
+  nGears  <- length(gearNames)
+  nYears  <- length(years)
+  nStocks <- length(stocksSurv)
+
+  # initialise array
+  lenFreq <- array(NA,  dim = c(nStocks,nGears,nYears,maxLen,3),
+                        dimnames = list(  stockNames,
+                                          gearNames,
+                                          as.character(years),
+                                          as.character(1:maxLen),
+                                          c("all", "boys", "girls" ) ) ) 
+
+  for( stockIdx in 1:nStocks )
+  {
+    stockID <- stockNames[stockIdx]
+    for( gearIdx in 1:nGears )
+    {
+      gearID <- gearNames[gearIdx]
+      if( gearID %in% c("comm.hist","comm.mod") )
+      {
+        # Filter down to this gear 
+        gearData <- commData %>%
+                    filter( !is.na(length), 
+                            stockName == stockID ) %>%
+                    dplyr::select(  length,
+                                    year = YEAR,
+                                    sex = SEX ) 
+
+        if( nrow(gearData) == 0 )
+          next
+
+        # Summarise all data
+        allData <-  gearData %>%
+                    group_by( year, length ) %>%
+                    summarise( nObs = n() ) %>%
+                    ungroup()
+        # Boys
+        boyData <-  gearData %>%
+                    filter( sex == 1 ) %>%
+                    group_by( year, length ) %>%
+                    summarise( nObs = n() ) %>%
+                    ungroup()
+        # Girls
+        girlData <- gearData %>%
+                    filter( sex == 2 ) %>%
+                    group_by( year, length ) %>%
+                    summarise( nObs = n() ) %>%
+                    ungroup()
+
+        # Pull those years with observations
+        obsYrs <- unique(gearData$year)
+
+        # 
+        if( gearID == "comm.hist")
+          obsYrs <- obsYrs[ obsYrs %in% 1954:1995 ]
+        if( gearID == "comm.mod")
+          obsYrs <- obsYrs[ obsYrs %in% 1996:2018 ]
+
+        # Loop over years with observations
+        for( yr in obsYrs )
+        {
+          yrChar <- as.character(yr)
+          # Subset to that year's data
+          yrData.all <- allData %>% filter( year == yr )
+          # Fill all fish slice
+          if( nrow(yrData.all) > 0)
+          {
+            # Replace NAs with 0s, as we have some observations
+            lenFreq[stockID, gearID, yrChar, ,"all" ] <- 0  
+            # Get vector of ages with positive observations
+            obsLens <- as.character(yrData.all$length)
+            # Save into lenFreq
+            lenFreq[stockID, gearID, yrChar, obsLens, "all" ]<- yrData.all$nObs
+          }
+          
+          # Subset to that year's data
+          yrData.boy <- boyData %>% filter( year == yr )
+          # Fill boy fish slice
+          if( nrow(yrData.boy) > 0)
+          {
+            # Replace NAs with 0s, as we have some observations
+            lenFreq[stockID, gearID, yrChar, ,"boys" ] <- 0  
+            # Get vector of ages with positive observations
+            obsLens <- as.character(yrData.boy$length)
+            # Save into lenFreq
+            lenFreq[stockID, gearID, yrChar, obsLens, "boys" ]<- yrData.boy$nObs
+          }
+
+          # Subset to that year's data
+          yrData.girl <- girlData %>% filter( year == yr )
+          # Fill girl fish slice
+          if( nrow(yrData.girl) > 0)
+          {
+            # Replace NAs with 0s, as we have some observations
+            lenFreq[stockID, gearID, yrChar, ,"girls" ] <- 0  
+            # Get vector of ages with positive observations
+            obsLens <- as.character(yrData.girl$length)
+            # Save into lenFreq
+            lenFreq[stockID, gearID, yrChar, obsLens, "girls" ]<- yrData.girl$nObs
+          }   
+
+        }
+        # Go to next gearID
+        next
+      }
+
+      gearData <- survData %>%
+                  filter( !is.na(AGE), 
+                          stockName == stockID ) %>%
+                  dplyr::select(  length,
+                                  year = YEAR,
+                                  survID,
+                                  sex = SEX ) %>%
+                  filter( survID == gearID ) 
+
+      if( nrow(gearData) == 0 )
+          next
+
+      # Summarise combined sexes
+      allData <-  gearData %>%
+                  group_by( year, length ) %>%
+                  summarise( nObs = n() ) %>%
+                  ungroup()
+
+      # Boys
+      boyData <-  gearData %>%
+                  filter( sex == 1 ) %>%
+                  group_by( year, length ) %>%
+                  summarise( nObs = n() ) %>%
+                  ungroup()
+      # Girls
+      girlData <- gearData %>%
+                  filter( sex == 2 ) %>%
+                  group_by( year, length ) %>%
+                  summarise( nObs = n() ) %>%
+                  ungroup()
+
+      # Pull those years with observations
+      obsYrs <- unique(gearData$year)
+
+      # Loop over years with observations
+      for( yr in obsYrs )
+      {
+        yrChar <- as.character(yr)
+        # Subset to that year's data
+        yrData.all <- allData %>% filter( year == yr )
+        # Fill all fish slice
+        if( nrow(yrData.all) > 0)
+        {
+          # Replace NAs with 0s, as we have some observations
+          lenFreq[stockID, gearID, yrChar, ,"all" ] <- 0  
+          # Get vector of ages with positive observations
+          obsLens <- as.character(yrData.all$length)
+          # Save into lenFreq
+          lenFreq[stockID, gearID, yrChar, obsLens, "all" ]<- yrData.all$nObs
+        }
+        
+        # Subset to that year's data
+        yrData.boy <- boyData %>% filter( year == yr )
+        # Fill boy fish slice
+        if( nrow(yrData.boy) > 0)
+        {
+          # Replace NAs with 0s, as we have some observations
+          lenFreq[stockID, gearID, yrChar, ,"boys" ] <- 0  
+          # Get vector of ages with positive observations
+          obsLens <- as.character(yrData.boy$length)
+          # Save into lenFreq
+          lenFreq[stockID, gearID, yrChar, obsLens, "boys" ]<- yrData.boy$nObs
+        }
+
+        # Subset to that year's data
+        yrData.girl <- girlData %>% filter( year == yr )
+        # Fill girl fish slice
+        if( nrow(yrData.girl) > 0)
+        {
+          # Replace NAs with 0s, as we have some observations
+          lenFreq[stockID, gearID, yrChar, ,"girls" ] <- 0  
+          # Get vector of ages with positive observations
+          obsLens <- as.character(yrData.girl$length)
+          # Save into lenFreq
+          lenFreq[stockID, gearID, yrChar, obsLens, "girls" ]<- yrData.girl$nObs
+        }   
+
+      }
+
+    }
+  }
+
+  # Return age frequencies
+  return(lenFreq)
+} # END makeLenComps()
+
 # Split catch history by species and arrange in an array
 # for feeding to TMB model
 makeStockCatch <- function( years = c(1975,2016),
@@ -128,7 +2103,7 @@ makeStockCatch <- function( years = c(1975,2016),
   # Read in commercial catch data
   commCatch <- read.csv( "catch_by_maj.csv", header = T, stringsAsFactors = F)
 
-  appendStockName <- function( majorAreaCode, stockList )
+  appendName <- function( majorAreaCode, stockList )
   {
     majCodes <- unlist(stockList)
     stockVec <- rep(NA,max(majCodes))
@@ -159,7 +2134,7 @@ makeStockCatch <- function( years = c(1975,2016),
                                             discardWt,
                                             discardPc ) %>%
                             filter( majorStatArea %in% unlist(stocks) & specName == spec ) %>%
-                            mutate( stockName = appendStockName( majorStatArea, stocks) ) %>%
+                            mutate( stockName = appendName( majorStatArea, stocks) ) %>%
                             filter( year >= years[1] & year <= years[2] )
 
   catchSpecies <- catchAreaFleetSpecies %>%
@@ -186,305 +2161,6 @@ makeStockCatch <- function( years = c(1975,2016),
   out <- list(  catch.df  = catchSpecies,
                 catch.arr = catchSpecArray )
 
-  out
-}
-
-# Calculate relative biomass by species and arrange in an array
-# for feeding to TMB model
-makeRelBioStocks <- function( years = c(1975, 2016), 
-                              collapseSyn = FALSE,
-                              stocks = list(  HS = c(2,3,16),
-                                              QCS = c(1),
-                                              WCVI = c(4) ),
-                              spec = "dover"
-                            )
-{
-  # Read in strata areas
-  strata <- read.csv( "derpa_strata.csv", header=T )
-  stratArea <-  strata %>%
-                dplyr::select( GROUPING_CODE, AREA_KM2 )
-  # Survey ids for plotting/legends
-  survIDs <-  c(  QCSyn = 1, HSAss = 2, HSSyn = 3, WCVISyn=4,
-                  QCShr = 6, WCVIShr = 7, WCHGSyn = 16 )
-
-  # Read in density
-  specDensityFile <- paste(spec,"density.csv",sep = "_")
-  specDensityPath <- file.path(getwd(),"density",specDensityFile)
-  densityTab <- read.csv(specDensityPath, header = T)
-
-  # Combine density frames based on trip and trawl IDs
-  # First, rename the catch column in each df
-  densityTab <- densityTab %>% mutate(  catch = CATCH_WEIGHT,
-                                        density = DENSITY_KGPM2 )
-
-  appendStockName <- function( surveyID, stockList )
-  {
-    majCodes <- unlist(stockList)
-    stockVec <- rep(NA,max(majCodes))
-    for( i in 1:length(stockList) )
-    {
-      stockVec[ stockList[[i]] ] <- names(stockList)[i]
-    }
-    stockVec[surveyID]
-  }
-
-  includedSurveys <- unlist(stocks)
-
-  survIDs <- survIDs[survIDs %in% includedSurveys]
-
-  # Now join and select the columns we want
-  surveyData <- densityTab %>%
-                left_join( stratArea, by = "GROUPING_CODE") %>%
-                dplyr::select(  year = YEAR,
-                                tripID = TRIP_ID,
-                                eventID = FISHING_EVENT_ID,
-                                lat = LATITUDE,
-                                lon = LONGITUDE,
-                                stratum = GROUPING_CODE,
-                                majorArea = MAJOR_STAT_AREA_CODE,
-                                minorArea = MINOR_STAT_AREA_CODE,
-                                survey = SURVEY_DESC,
-                                surveyID = SURVEY_ID,
-                                survSeriesID = SURVEY_SERIES_ID,
-                                stratArea = AREA_KM2,
-                                density, catch  ) %>%
-                filter( survSeriesID %in% includedSurveys ) %>%
-                mutate( stockName = appendStockName( survSeriesID, stocks ) )
-
-  relativeBio <-  surveyData %>%
-                  filter( survSeriesID %in% survIDs) %>%
-                  group_by( year, stockName, survSeriesID, stratum ) %>%
-                  dplyr::summarise( density = mean(density),
-                                    area = mean(stratArea) ) %>%
-                  dplyr::summarize( relBio_Kt = sum( area * density),
-                                    surveyArea = sum(area) ) %>%
-                  ungroup() %>%
-                  filter( year >= years[1] & year <= years[2] )
-
-  if( collapseSyn )
-  {
-    # isolate synoptic IDs
-    synIDs <-  c( QCSyn = 1, HSSyn = 3, WCVISyn=4,
-                  WCHGSyn = 16 )
-    synStratAreas <- surveyData %>%
-                    filter( survSeriesID %in% synIDs ) %>%
-                    group_by( stockName, survSeriesID, stratum ) %>%
-                    summarise( stratArea = unique( stratArea ) ) %>%
-                    summarise( surveyArea = sum( stratArea ) ) %>%
-                    ungroup()
-
-    synStockAreas <-  synStratAreas %>%
-                      group_by( stockName ) %>%
-                      summarise( stockArea = sum( surveyArea ) ) %>%
-                      ungroup()
-
-
-    synRelativeBio <- relativeBio %>% 
-                      filter( survSeriesID %in% synIDs ) %>%
-                      left_join( synStockAreas, by = "stockName" ) %>%
-                      group_by( stockName, year ) %>%
-                      dplyr::summarize( area = sum(surveyArea),
-                                        relBio_Kt = sum( relBio_Kt ),
-                                        stockArea = unique(stockArea) ) %>%
-                      dplyr::mutate(  relBio_Kt = relBio_Kt * stockArea / area,
-                                      survSeriesID = 1 ) %>%
-                      dplyr::select(  year,
-                                      stockName,
-                                      survSeriesID,
-                                      relBio_Kt,
-                                      surveyArea = area,
-                                      stockArea = stockArea
-                                    )
-
-    relativeBio <-  relativeBio %>%
-                    left_join( synStockAreas, by = "stockName" ) %>%
-                    filter( !(survSeriesID %in% synIDs) )
-
-    relativeBio <- rbind(as.data.frame(relativeBio),as.data.frame(synRelativeBio))
-
-    survIDs <- intersect(survIDs[c(1,2,5,6)],includedSurveys)
-
-  }
-
-  yrs <- years[1]:years[2]
-  stockNames <- paste(spec,names(stocks),sep = "")
-  relativeBioArray <- array(  -1, dim = c(length(survIDs),length(stocks),length(yrs)),
-                              dimnames = list(  names(survIDs), stockNames,
-                                                yrs ) )
-
-  for( survIdx  in 1:length(survIDs) )
-  {
-    for( yIdx in 1:length(yrs) )
-    {
-      for( sIdx in 1:length(stocks) )
-      {
-        stockID <- names(stocks)[sIdx]
-        subRelBio <-  relativeBio %>%
-                      filter( year == yrs[yIdx], survSeriesID == survIDs[survIdx], stockName == stockID )
-        if( nrow(subRelBio) == 0 ) next
-        if( nrow(subRelBio) > 1 ) browser()
-        relativeBioArray[survIdx, sIdx, yIdx] <- subRelBio$relBio_Kt
-        
-      }
-      
-    }
-  }
-
-  out <- list(  relBio.df = relativeBio,
-                relBio.arr = relativeBioArray)
-  out
-}
-
-# Calculate relative biomass by species and arrange in an array
-# for feeding to TMB model
-makeRelativeBio <- function( years = c(1975, 2016), collapseSyn = TRUE )
-{
-  specNames <- c("dover","english","rock","petrale","atooth")
-  
-  # Read in strata areas
-  strata <- read.csv( "derpa_strata.csv", header=T )
-  stratArea <-  strata %>%
-                dplyr::select( GROUPING_CODE, AREA_KM2 )
-  # Survey ids for plotting/legends
-  survIDs <-  c(  QCSyn = 1, HSAss = 2, HSSyn = 3, WCVISyn=4,
-                  QCShr = 6, WCVIShr = 7, WCHGSyn = 16 )
-
-  # Read in density
-  doverDensity    <- read.csv("./density/dover_density.csv",header=T)
-  englishDensity  <- read.csv("./density/english_density.csv",header=T)
-  rockDensity     <- read.csv("./density/srock_density.csv",header=T)
-  petraleDensity  <- read.csv("./density/petrale_density.csv",header=T)
-  atoothDensity   <- read.csv("./density/atooth_density.csv",header=T)
-
-  # Combine density frames based on trip and trawl IDs
-  # First, rename the catch column in each df
-  doverDensity <- doverDensity %>% mutate(  doverCatch = CATCH_WEIGHT,
-                                            doverDensity = DENSITY_KGPM2 )
-  englishDensity <- englishDensity %>% mutate(  englishCatch = CATCH_WEIGHT,
-                                                englishDensity = DENSITY_KGPM2 )
-  rockDensity <- rockDensity %>% mutate(  rockCatch = CATCH_WEIGHT,
-                                          rockDensity = DENSITY_KGPM2 )
-  petraleDensity <- petraleDensity %>% mutate(  petraleCatch = CATCH_WEIGHT,
-                                                petraleDensity = DENSITY_KGPM2 )
-  atoothDensity <- atoothDensity %>% mutate(  atoothCatch = CATCH_WEIGHT,
-                                              atoothDensity = DENSITY_KGPM2 )
-  # Now join and select the columns we want
-  surveyData <- doverDensity %>%
-                left_join( englishDensity, by = "FISHING_EVENT_ID" ) %>%
-                left_join( rockDensity, by = "FISHING_EVENT_ID" ) %>%
-                left_join( petraleDensity, by = "FISHING_EVENT_ID" ) %>%
-                left_join( atoothDensity, by = "FISHING_EVENT_ID" ) %>%
-                left_join( stratArea, by = "GROUPING_CODE") %>%
-                dplyr::select(  year = YEAR,
-                                tripID = TRIP_ID,
-                                eventID = FISHING_EVENT_ID,
-                                lat = LATITUDE,
-                                lon = LONGITUDE,
-                                stratum = GROUPING_CODE,
-                                majorArea = MAJOR_STAT_AREA_CODE,
-                                minorArea = MINOR_STAT_AREA_CODE,
-                                survey = SURVEY_DESC,
-                                surveyID = SURVEY_ID,
-                                survSeriesID = SURVEY_SERIES_ID,
-                                stratArea = AREA_KM2,
-                                doverDensity, doverCatch,
-                                englishDensity, englishCatch,
-                                rockDensity, rockCatch,
-                                petraleDensity, petraleCatch,
-                                atoothDensity, atoothCatch  ) %>%
-                mutate( DERPAcatch =  doverCatch + 
-                                      englishCatch + 
-                                      rockCatch + 
-                                      petraleCatch + 
-                                      atoothCatch )
-
-  relativeBio <-  surveyData %>%
-                  group_by( year, survSeriesID, stratum ) %>%
-                  dplyr::summarise( doverDensity = mean(doverDensity),
-                                    englishDensity = mean(englishDensity),
-                                    rockDensity = mean(rockDensity),
-                                    petraleDensity = mean(petraleDensity),
-                                    atoothDensity = mean(atoothDensity),
-                                    area = mean(stratArea) ) %>%
-                  dplyr::summarize( relBioDover_Kt = sum( area * doverDensity),
-                                    relBioEnglish_Kt = sum( area * englishDensity),
-                                    relBioRock_Kt = sum( area * rockDensity),
-                                    relBioPetrale_Kt = sum( area * petraleDensity),
-                                    relBioAtooth_Kt = sum( area * atoothDensity),
-                                    surveyArea = sum(area) ) %>%
-                  ungroup() %>%
-                  filter( year >= years[1] & year <= years[2] )
-
-  if( collapseSyn )
-  {
-    # isolate synoptic IDs
-    synIDs <-  c( QCSyn = 1, HSSyn = 3, WCVISyn=4,
-                  WCHGSyn = 16 )
-    synStratAreas <- surveyData %>%
-                    filter( survSeriesID %in% synIDs ) %>%
-                    group_by( survSeriesID, stratum ) %>%
-                    summarise( stratArea = unique( stratArea ) ) %>%
-                    summarise( surveyArea = sum( stratArea ) ) %>%
-                    ungroup()
-
-    totalSynArea <- sum(synStratAreas $ surveyArea )
-
-    synRelativeBio <- relativeBio %>% 
-                      filter( survSeriesID %in% synIDs ) %>%
-                      group_by( year ) %>%
-                      dplyr::summarize( area = sum(surveyArea),
-                                        relBioDover_Kt = sum( relBioDover_Kt ),
-                                        relBioEnglish_Kt = sum( relBioEnglish_Kt ),
-                                        relBioRock_Kt = sum( relBioRock_Kt ),
-                                        relBioPetrale_Kt = sum( relBioPetrale_Kt ),
-                                        relBioAtooth_Kt = sum( relBioAtooth_Kt ) ) %>%
-                      dplyr::mutate(  relBioDover_Kt = relBioDover_Kt * totalSynArea / area,
-                                      relBioEnglish_Kt = relBioEnglish_Kt * totalSynArea / area,
-                                      relBioRock_Kt = relBioRock_Kt * totalSynArea / area,
-                                      relBioPetrale_Kt = relBioPetrale_Kt * totalSynArea / area,
-                                      relBioAtooth_Kt = relBioAtooth_Kt * totalSynArea / area,
-                                      survSeriesID = 1 ) %>%
-                      dplyr::select(  year,
-                                      survSeriesID,
-                                      relBioDover_Kt,
-                                      relBioEnglish_Kt,
-                                      relBioRock_Kt,
-                                      relBioPetrale_Kt,
-                                      relBioAtooth_Kt,
-                                      surveyArea = area
-                                    )
-
-    relativeBio <-  relativeBio %>%
-                    filter( !(survSeriesID %in% synIDs) ) %>%
-                    rbind( synRelativeBio )
-
-
-    survIDs <- survIDs[c(1,2,5,6)]
-
-  }
-
-  yrs <- years[1]:years[2]
-  relativeBioArray <- array(  -1, dim = c(length(survIDs),5,length(yrs)),
-                              dimnames = list(  names(survIDs), specNames,
-                                                yrs ) )
-
-  for( survIdx  in 1:length(survIDs) )
-  {
-    for( yIdx in 1:length(yrs) )
-    {
-      subRelBio <-  relativeBio %>%
-                    filter( year == yrs[yIdx], survSeriesID == survIDs[survIdx] )
-      if( nrow(subRelBio) == 0 ) next
-      relativeBioArray[ survIdx, "dover", yIdx ] <- subRelBio$relBioDover_Kt
-      relativeBioArray[ survIdx, "english", yIdx ] <- subRelBio$relBioEnglish_Kt
-      relativeBioArray[ survIdx, "rock", yIdx ] <- subRelBio$relBioRock_Kt
-      relativeBioArray[ survIdx, "petrale", yIdx ] <- subRelBio$relBioPetrale_Kt
-      relativeBioArray[ survIdx, "atooth", yIdx ] <- subRelBio$relBioAtooth_Kt
-    }
-  }
-
-  out <- list(  relBio.df = relativeBio,
-                relBio.arr = relativeBioArray)
   out
 }
 
@@ -552,14 +2228,14 @@ densityToRaster <- function(  catchDF = surveyData,
 # Start creating a function to plot the DERPA species extents as
 # a raster grid
 catchToRaster <- function(  catchDF = surveyData,
-                              yrRange = c( 1984, 2016 ),
-                              oldProj = CRS("+proj=longlat +datum=WGS84"),
-                              newProj = UTMproj,
-                              plotExt = c(  xmin = 170000, 
-                                            xmax = 820000,
-                                            ymin = 5300000, 
-                                            ymax = 6061000 ),
-                              saveFile = "surveyCatchRaster.RData" )
+                            yrRange = c( 1984, 2016 ),
+                            oldProj = CRS("+proj=longlat +datum=WGS84"),
+                            newProj = UTMproj,
+                            plotExt = c(  xmin = 170000, 
+                                          xmax = 820000,
+                                          ymin = 5300000, 
+                                          ymax = 6061000 ),
+                            saveFile = "surveyCatchRaster.RData" )
 {
   # First, convert the df to a spatial points data frame
   # Extract coordinates and data, filter by year
@@ -818,126 +2494,6 @@ plotMgmtAreas <- function( areaShp, proj )
 
 }
 
-plotCatch <- function(  df = catchAreaFleetSpecies,
-                        saveRoot = "commCatch" )
-{
-  # Create a vector of areas and their codes in the data
-  areas <- c( 'unspecified',
-              '4B',
-              '3C',
-              '3D',
-              '5A',
-              '5B',
-              '5C',
-              '5D',
-              '5E')
-  areaCodes <- c(0,1,3:9)
-  names(areaCodes) <- areas
-
-  # Create the same for the species
-  species <- c( "Dover Sole", "English Sole", "Rock Sole",
-                "Petrale Sole", "Arrowtooth Flounder" )
-  specCodes <- c( 626, 628, 621, 607, 602 )
-  names( specCodes ) <- species
-
-  # List fleets
-  fleets <- unique( df$gearType )
-
-  # Now plot a multipanel plot, with rows as species, columns as areas
-  yrs       <- unique( df$year )
-
-  # first, plot a grid of species/area catch
-  par( mfrow = c(length(specCodes), length(areaCodes) + 1 ), 
-       mar = c(1,1,1,1), oma = c(3,3,3,3) )
-  for( sIdx in 1:length(specCodes) )
-  {
-    specCatch <-  df %>%
-                  filter( specCode == specCodes[sIdx])
-    specTotalCatch <- specCatch %>%
-                      group_by(year) %>%
-                      summarise(  landedWt = sum( landedWt ),
-                                  discardWt = sum( discardWt ) ) %>%
-                      ungroup()
-    maxCatch <- max(specTotalCatch$landedWt)
-    for( aIdx in 1:length(areaCodes) )
-    {
-      specAreaCatch <-  specCatch %>%
-                        filter( majorStatArea == areaCodes[aIdx] ) %>%
-                        group_by(year) %>%
-                        summarise( landedWt = sum(landedWt),
-                                   discardWt = sum(discardWt) ) %>%
-                        ungroup()
-      plot( x = range(yrs), y = c( 0, maxCatch ),
-            type = "n", axes = F )
-        axis( side = 1 )
-        axis( side = 2, las = 1)
-        if( sIdx == 1 ) mtext(  side = 3, text = paste( names(areaCodes)[aIdx], sep = "" ), 
-                                cex = 0.8, line = 2 )
-        if( aIdx == 1 ) mtext(  side = 2, las = 0, text = names(specCodes)[sIdx], 
-                                cex = 0.8, line = 2 )
-        if( nrow(specAreaCatch) == 0 ) next
-        lines(  x = specAreaCatch$year,
-                y = specAreaCatch$landedWt, lwd = 2 )
-        lines( x = specAreaCatch$year, y = specAreaCatch$discardWt, lty = 2, lwd = 2 )
-    }
-    plot( x = range(yrs), y = c( 0, maxCatch ),
-          type = "n", axes = F )
-      axis( side = 1 )
-      axis( side = 2, las = 1)
-      if( sIdx == 1 ) mtext(  side = 3, text = "Total", 
-                              cex = 0.8, line = 2 )
-      lines(  x = specTotalCatch$year,
-              y = specTotalCatch$landedWt, lwd = 2 )
-      lines( x = specTotalCatch$year, y = specTotalCatch$discardWt, lty = 2, lwd = 2 )
-  }
-
-  dev.new()
-  # now, plot a grid of species/fleet catch
-  par( mfrow = c(length(specCodes), length(fleets) + 1 ), 
-       mar = c(1,1,1,1), oma = c(3,3,3,3) )
-  for( sIdx in 1:length(specCodes) )
-  {
-    specCatch <-  df %>%
-                  filter( specCode == specCodes[sIdx])
-    specTotalCatch <- specCatch %>%
-                      group_by(year) %>%
-                      summarise(  landedWt = sum( landedWt ),
-                                  discardWt = sum( discardWt ) ) %>%
-                      ungroup()
-    maxCatch <- max(specTotalCatch$landedWt)
-    for( fIdx in 1:length(fleets) )
-    {
-      specFleetCatch <- specCatch %>%
-                        filter( gearType == fleets[fIdx] ) %>%
-                        group_by(year) %>%
-                        summarise( landedWt = sum(landedWt),
-                                   discardWt = sum(discardWt) ) %>%
-                        ungroup()
-      plot( x = range(yrs), y = c( 0, maxCatch ),
-            type = "n", axes = F )
-        axis( side = 1 )
-        axis( side = 2, las = 1)
-        if( sIdx == 1 ) mtext(  side = 3, text = fleets[fIdx], 
-                                cex = 0.8, line = 2 )
-        if( fIdx == 1 ) mtext(  side = 2, las = 0, text = names(specCodes)[sIdx], 
-                                cex = 0.8, line = 2 )
-        if( nrow(specFleetCatch) == 0 ) next
-        lines(  x = specFleetCatch$year,
-                y = specFleetCatch$landedWt, lwd = 2 )
-        lines( x = specFleetCatch$year, y = specFleetCatch$discardWt, lty = 2, lwd = 2 )
-    }
-    plot( x = range(yrs), y = c( 0, maxCatch ),
-          type = "n", axes = F )
-      axis( side = 1 )
-      axis( side = 2, las = 1)
-      if( sIdx == 1 ) mtext(  side = 3, text = "Total", 
-                              cex = 0.8, line = 2 )
-      lines(  x = specTotalCatch$year,
-              y = specTotalCatch$landedWt, lwd = 2 )
-      lines( x = specTotalCatch$year, y = specTotalCatch$discardWt, lty = 2, lwd = 2 )
-  }
-}
-
 
 # function to sum all age observations for each year and return proportions
 ageProps <- function(year, ageObs )
@@ -1082,49 +2638,6 @@ lengthWt <- function( bioData, plot = T )
   outList 
 }
 
-# Define a NLL for optim
-vonB_nll <- function( theta,
-                      data )
-{
-  # Recover leading pars
-  Linf  <- exp(theta[1])
-  K     <- exp(theta[2])
-  t0    <- theta[3]
-  cvL   <- 1 / (1 + exp(-theta[4]))
-
-  data <- data %>%
-          mutate( expLt = vonB(AGE,K=K,Linf=Linf,t0=t0),
-                  res   = expLt - LENGTH_MM )
-
-  # browser()
-  maxLen <- max(data$LENGTH_MM)
-  lengths <- unique(data$LENGTH_MM)
-  nll <- 0
-  for( len in lengths )
-  {
-    subData <- data %>% filter( LENGTH_MM == len )
-    sigL <- cvL * LENGTH_MM
-    nll <- nll +  nrow(subData) * log(sigL*sigL) + 0.5*sum(subData$res^2)/sigL/sigL
-  }
-  
-  nll <- nll + (Linf - maxLen)^2/(maxLen/2)
-
-  return(nll)
-}
-
-# von bertalanffy growth function
-vonB <- function( age, K, Linf, t0, theta = NULL )
-{
-  if(!is.null(theta))
-  {
-    Linf <- exp(theta[1])
-    K <- exp(theta[2])
-    t0 <- theta[3]
-  }
-
-  Lt <- Linf * ( 1 - exp( -K * (age - t0)))
-  Lt
-}
 
 lengthAge <- function( bioData, plot = T, plotLeg = F )
 {

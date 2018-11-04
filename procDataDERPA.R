@@ -1,10 +1,12 @@
 # -----------------------------------------------------------------------------
 #
-# DERPAdata.R
+# procDataDERPA.R
 #
-# Reads in biological and survey CPUE data from the ./biology_with_age/
-# and ./density/ folders inside the working directory. Used to plot CPUE
-# time series, catch locations from the survey, and age compositions
+# Reads in biological index data from the ./Data/ folders inside the working 
+# directory. Processes raw data into data.frame and array objects for
+# easier plotting and passing to a TMB model. Will also plot data, but due
+# to time and memory requirements this code is intended to be run only when
+# updates to how the data is structured are required.
 # 
 # -----------------------------------------------------------------------------
 
@@ -119,6 +121,7 @@ plotIndices(save = TRUE)
 bioData <- lapply(  X = survSpecNames,
                     FUN = readBioData )
 names(bioData) <- names(commSpecNames)
+save(bioData, file = "./Data/bioData.RData")
 
 # 2. Length at age plots - stock and sex - spit out age-length freq array
 lenAge <- lapply( X = bioData, FUN = makeLenAge, stocks = names(stocksCommBio) )
@@ -142,12 +145,12 @@ plotCatch(save = TRUE)
 # 5a. Age compositions by fleet, stock, and species - spit out comp data array
 ageComps <- lapply( X = bioData, FUN = makeAgeComps )
 save(ageComps, file = "./Data/ageComps.RData")
-# plotAgeComps()
 
 # 5b. length compositions by fleet, stock, and species - spit out comp data array
+lenComps <- lapply( X = bioData, FUN = makeLenComps )
+save(lenComps, file = "./Data/lenComps.RData")
 
-
-# 7. Maturity at age by stock and species
+# 6. Maturity at age by stock and species
 
 
 
