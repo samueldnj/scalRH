@@ -679,7 +679,7 @@ plotLenAge <- function( obj = lenAge,
 
   par(  mfcol = c(nStocks, nSpec ), 
         mar = c(0,2,0,2),
-        oma = c(4,4,1,3) )
+        oma = c(7,3,2,2) )
 
   sexCols       <- brewer.pal( n = 3, "Dark2" )
   sexPch        <- c(3,1,2,3)
@@ -720,6 +720,10 @@ plotLenAge <- function( obj = lenAge,
         axis(side = 2, las = 1)
         if( mfg[1] == mfg[3] )
           axis( side = 1 )
+        if( mfg[1] == 1 )
+          mtext( side = 3, text = specName, font = 2 )
+        if(mfg[2] == mfg[4] )
+          mtext( side = 4, text = stockID, line = 1.5 )
         box()
 
         if( nrow( subData.surv ) != 0 | nrow(subData.comm) != 0)
@@ -745,13 +749,13 @@ plotLenAge <- function( obj = lenAge,
           lines( x = 1:maxAge, y = vonBBoys, lty = 1, lwd = 3, col = sexCols[1] )
           lines( x = 1:maxAge, y = vonBGirls, lty = 1, lwd = 3, col = sexCols[2] )
           text(  x = c(0.4,0.55,0.7,0.85)*maxAge, y = 0.25*maxLen,
-                 label = c(" ", "All", "Boys", "Girls" ), cex = .8 )
+                 label = c(" ", "All", "Boys", "Girls" ), cex = .6 )
           text(  x = c(0.4,0.55,0.7,0.85)*maxAge, y = 0.2*maxLen,
-                 label = c("Linf ", Linf.stock ), cex = .8 )
+                 label = c("Linf ", Linf.stock ), cex = .6 )
           text(  x = c(0.4,0.55,0.7,0.85)*maxAge, y = 0.15*maxLen,
-                 label = c("vonK ", K.stock ), cex = .8 )
+                 label = c("vonK ", K.stock ), cex = .6 )
           text(  x = c(0.4,0.55,0.7,0.85)*maxAge, y = 0.1*maxLen,
-                 label = c("L1 ", L1.stock ), cex = .8 )
+                 label = c("L1 ", L1.stock ), cex = .6 )
         } else {
           panLab( x = 0.3, y = 0.9, 
                   txt = "No Data" )
@@ -763,13 +767,17 @@ plotLenAge <- function( obj = lenAge,
 
     }
   }
-  # Add legend to bottom of plot
-  par(mfcol = c(1,1) )
+  mtext( side = 1, text = "Age", outer = T, line = 3)
+  mtext( side = 2, text = "Length (cm)", outer = T, line = 1.5)
+  # Add a legend
+  par( mfcol = c(1,1), oma = c(0,3,2,2)  )
   legend( x = "bottom",
           horiz = TRUE,
           legend = c("Male", "Female", "Unsexed", "Coastwide"),
           pch = c( 1, 2, 3, NA ),
           lty = c( 1, 1, 1, 2 ),
+          lwd = c( 2, 2, 2, 1 ),
+          pt.lwd = c( 2, 2, 2, NA),
           col = c( sexCols[1:2], "black", "grey70" ),
           bty = "n" )
   if( save )
@@ -900,7 +908,7 @@ plotWtLen <- function(  obj = wtLen,
 
   par(  mfcol = c(nStocks, nSpec ), 
         mar = c(0,2,0,2),
-        oma = c(4,4,1,3) )
+        oma = c(7,3,2,2)  )
 
   sexCols       <- brewer.pal( n = 3, "Dark2" )
   sexPch        <- c(3,1,2,3)
@@ -945,8 +953,12 @@ plotWtLen <- function(  obj = wtLen,
             type = "n", axes = F, xlab = "", ylab = "")
         mfg <- par("mfg")
         axis(side = 2, las = 1)
+        if( mfg[1] == 1)
+          mtext( side = 3, text = specName, font = 2, line = .5 )
         if( mfg[1] == mfg[3] )
           axis( side = 1 )
+        if( mfg[2] == mfg[4] )
+          mtext( side = 4, text = stockID, line = 1.5 )
         box()
 
         if( nrow( subData.surv ) != 0 | nrow(subData.comm) != 0)
@@ -985,13 +997,17 @@ plotWtLen <- function(  obj = wtLen,
 
     }
   }
+  mtext( side = 1, text = "Length (cm)", outer = T, line = 3)
+  mtext( side = 2, text = "Weight (kg)", outer = T, line = 1.5)
   # Add a legend
-  par( mfcol = c(1,1) )
+  par( mfcol = c(1,1), oma = c(0,3,2,2)  )
   legend( x = "bottom",
           horiz = TRUE,
           legend = c("Male", "Female", "Unsexed", "Coastwide"),
           pch = c( 1, 2, 3, NA ),
           lty = c( 1, 1, 1, 2 ),
+          lwd = c( 2, 2, 2, 1 ),
+          pt.lwd = c( 2, 2, 2, NA),
           col = c( sexCols[1:2], "black", "grey70" ),
           bty = "n" )
 
@@ -1000,7 +1016,7 @@ plotWtLen <- function(  obj = wtLen,
     dev.off()
     cat( "Weight-at-length plots saved to ", savePath, "\n", sep = "")
   }
-}
+} # END plotWtLen()
 
 
 # plotIndices()
@@ -1623,7 +1639,7 @@ plotComps <- function(  comps = ageComps,
                 units = "in" )
         }
         
-        .plotAgeFreq( z = subFrq[,,1] )
+        .plotFreqBars( z = subFrq[,,1] )
         mtext(  side = 3, outer = TRUE, font = 2,
                 text = paste(specID, " Males - ", stockID ," - ", gearName, sep = "") )
 
@@ -1639,7 +1655,7 @@ plotComps <- function(  comps = ageComps,
                 units = "in" )
         }
         
-        .plotAgeFreq( z = subFrq[,,2] )
+        .plotFreqBars( z = subFrq[,,2] )
         mtext(  side = 3, outer = TRUE, font = 2,
                 text = paste(specID, " Females - ", stockID ," - ", gearName, sep = "") )
 
@@ -1655,7 +1671,7 @@ plotComps <- function(  comps = ageComps,
                 units = "in" )
         }
         
-        .plotAgeFreq( z = subFrq[,,3] )
+        .plotFreqBars( z = subFrq[,,3] )
         mtext(  side = 3, outer = TRUE, font = 2,
                 text = paste(specID, " Combined - ", stockID ," - ", gearName, sep = "") )
 
@@ -1759,13 +1775,13 @@ plotComps <- function(  comps = ageComps,
 # Hidden function to plot age frequencies. Shamelessly
 # copied from ARK and SPC functions in SableOpMod.R,
 # with simplifications for our purpose.
-.plotAgeFreq <- function( z,
-                          years = NULL,
-                          ages = NULL,
-                          minAge = 1,
-                          initYear = 1954,
-                          avg = FALSE,
-                          delta = .4 )
+.plotFreqBars <- function(  z,
+                            years = NULL,
+                            ages = NULL,
+                            minAge = 1,
+                            initYear = 1954,
+                            avg = FALSE,
+                            delta = .4 )
 {
   # Get dimensions of z
   dz <- dim( z )
@@ -1823,7 +1839,7 @@ plotComps <- function(  comps = ageComps,
 
   # Get xLim and yLim
   xLim <- range(ages)
-  yLim <- c(0, 1.2*max(zz, na.rm = T) )
+
 
   for( i in 1:nrow(zz) )
   {
@@ -1837,6 +1853,7 @@ plotComps <- function(  comps = ageComps,
       numObs  <- zSum[ posYrIdx[i] ]
     }
     # Plot away
+    yLim <- c(0, 1.2*max(zz[i,], na.rm = T) )
     plot( xLim, yLim, type = "n",
           axes = F, xlab = "", ylab = "", yaxs = "i" )
       axis( side = 1 )
@@ -1853,12 +1870,12 @@ plotComps <- function(  comps = ageComps,
           text = "Age Class" )
   mtext( side = 2, line = 2, outer = TRUE, 
           text = "Proportion-at-age" )
-} # END .plotAgeFreq()
+} # END .plotFreqBars()
 
 
-# makeAgeComps()
+# makeLenComps()
 # Takes output of readBioData() for a species
-# and generates an array of age observation
+# and generates an array of length observation
 # frequencies.
 makeLenComps <- function( data = bioData$Dover,
                           stocksComm = stocksCommBio,
@@ -2076,6 +2093,342 @@ makeLenComps <- function( data = bioData$Dover,
   # Return age frequencies
   return(lenFreq)
 } # END makeLenComps()
+
+# Small function to switch maturity
+# codes to boolean indicators of maturity
+isMature <- function( mat, matThresh )
+{
+  mat[mat < matThresh]    <- 0
+  mat[mat >= matThresh ]  <- 1
+
+    
+  mat
+} # END isMature()
+
+
+# makeMatOgives()
+# Creates mat-age and mat-length ogives
+# for a given set of data.
+# Used as a part of makeSpecMat()
+makeMatOgives <- function(  matData, 
+                            maxPropMat = .99 )
+{
+
+  # First, let's make the age ogive
+  ageProps  <-  matData %>%
+                group_by( age ) %>%
+                summarise(  propMat = mean(mat),
+                            nObs = n() )
+  
+  # We want to filter out the ages that have all 100%
+  # mature, as these bias the model
+
+  # Get maximum age to be used in the logistic model
+  subAgeProps <- ageProps %>% filter( propMat >= maxPropMat )
+  maxAge      <- quantile(subAgeProps$age,prob = .5)
+  # Now reduce data from the full set
+  ageModelData <- matData %>%
+                  filter( age <= maxAge )
+
+  # Then fit the logistic model
+  ageModel <- glm( mat ~ age, family = binomial(logit), data = ageModelData )
+  a50 <- dose.p(ageModel,p=c(0.5))
+  a95 <- dose.p(ageModel,p=c(0.95))
+
+  # Collect in a list
+  ageList <- list(  model   = ageModel,
+                    props   = ageProps,
+                    data    = ageModelData,
+                    maxAge  = maxAge,
+                    x50     = a50,
+                    x95     = a95 )
+
+
+  # Now do the same for length
+  lenProps <- matData %>%
+              group_by( length ) %>%
+              summarise(  propMat = mean(mat),
+                          nObs = n() )
+  # We want to filter out the lengths that have all 100%
+  # mature, as these bias the model
+  # Get maximum length to be used in the logistic model
+  subLenProps   <- lenProps %>% filter( propMat >= maxPropMat )
+  maxLen        <- quantile(subLenProps$length,prob = .5)
+  # reduce length model data
+  lenModelData  <- matData %>% filter( length <= maxLen )
+
+  # Then fit the logistic model
+  lenModel <- glm( mat ~ length, family = binomial(logit), data = lenModelData )
+  l50 <- dose.p(lenModel,p=c(0.5))
+  l95 <- dose.p(lenModel,p=c(0.95))
+
+  # Collect length model in a list
+  lenList <- list(  model   = lenModel,
+                    props   = lenProps,
+                    data    = lenModelData,
+                    maxLen  = maxLen,
+                    x50     = l50,
+                    x95     = l95 )
+
+  # Return age and length models
+  outList <- list( age = ageList, length = lenList )
+
+  outList
+} # END makeMatOgives()
+
+
+# makeSpecMat()
+# Takes output from readBioData() and creates maturity-at-length
+# and maturity-at-age ogives for each stock and species.
+makeSpecMat <- function(  data = bioData$Dover,
+                          stocksComm = stocksCommBio,
+                          stocksSurv = stocksSurvey,
+                          survIDs = surveyIDs,
+                          maxPropMat = .99 )
+{
+  # Pull survey and commercial data
+  survData <- data$survey %>%
+              dplyr::select(  age = AGE, mat = MAT,
+                              length = LENGTH_MM,
+                              stockName, sex = SEX ) %>%
+              filter( !is.na(age), !is.na(mat),
+                      !is.na(length) ) %>%
+              mutate( length = round(length/10),
+                      mat = isMature( mat, 3)  )
+
+  commData <- data$comm %>%
+              dplyr::select(  age = AGE, mat = MAT,
+                              length = LENGTH_MM,
+                              stockName, sex = SEX ) %>%
+              filter( !is.na(age), !is.na(mat),
+                      !is.na(length) ) %>%
+              mutate( length = round(length/10),
+                      mat = isMature( mat, 3) )
+
+  # Combine data
+  combData  <- rbind( survData, commData )
+
+  stocks    <- names(stocksComm)
+  nStocks   <- length(stocks)
+
+  stockList <- vector(mode = "list", length = nStocks )
+  names( stockList ) <- stocks
+
+  # Make a coastwide model
+  coastWideAll <- makeMatOgives(  matData = combData, 
+                                  maxPropMat = maxPropMat )
+  # Subset by sex
+  cwBoys  <- combData %>% filter( sex == 1 )
+  cwGirls <- combData %>% filter( sex == 2 )
+  
+  if( nrow( cwBoys ) > 0)
+    coastWideBoys <- makeMatOgives( matData = cwBoys, 
+                                    maxPropMat = maxPropMat )
+
+  if( nrow( cwGirls ) > 0)
+    coastWideGirls <- makeMatOgives( matData = cwGirls, 
+                                    maxPropMat = maxPropMat )    
+
+  cwList <- list( all   = coastWideAll,
+                  boys  = coastWideBoys,
+                  girls = coastWideGirls  )
+  # Now loop over stocks
+  for( stockIdx in 1:nStocks )
+  {
+    stockData <-  combData %>%
+                  filter( stockName == stocks[stockIdx] )
+    # Skip if no stock data
+    if( nrow( stockData ) == 0 ) 
+      next
+
+    # Subset by sex
+    stockDataBoys   <- stockData %>% filter( sex == 1 )
+    stockDataGirls  <- stockData %>% filter( sex == 2 )
+
+    stockList[[stockIdx]]$all <- makeMatOgives( matData = stockData, 
+                                                maxPropMat = maxPropMat )
+
+    if( nrow( stockDataBoys ) > 0 )
+      stockList[[stockIdx]]$boys <- makeMatOgives(  matData = stockDataBoys,
+                                                    maxPropMat = maxPropMat )
+
+    if( nrow( stockDataGirls ) > 0 )
+      stockList[[stockIdx]]$girls <- makeMatOgives( matData = stockDataGirls,
+                                                    maxPropMat = maxPropMat )
+  }
+
+  outList <- list(  coastWide = cwList,
+                    stocks = stockList )
+
+  return(outList)
+} # END makeSpecMat
+
+# plotMatOgives()
+# Takes output from makeSpecMat() and plots the ogives
+# by species and stock, showing the data as proportions
+# with confidence intervals, and showing the coastwide models
+# overlaid on the stock specific models.
+plotMatOgives <- function(  matList = matOgives,
+                            save = FALSE,
+                            saveDir = "Outputs",
+                            type = "age" )
+{
+  # Get species names and stock names
+  specNames   <- names(matList)
+  stockNames  <- names( matList[[1]]$stocks )
+
+  # Create save directory
+  if(save)
+  {
+    graphics.off()
+    saveDir <- file.path(getwd(),saveDir)
+    if(! dir.exists(saveDir) )
+      dir.create(saveDir)
+
+    savePath <- file.path(saveDir,paste("mat",type,".png",sep = ""))
+
+    png(  savePath, width = 11, height = 8.5, 
+          units = "in", res = 300 )
+  }
+
+  # first, loop over species
+  nSpec   <- length(specNames)
+  nStocks <- length(stockNames)
+
+  cols <- brewer.pal(n = 3, "Dark2")
+
+
+
+  par( mfcol = c(nStocks, nSpec), mar = c(0,0,0,0), oma = c(4,4,3.5,3.5) )
+
+  for( specIdx in 1:nSpec )
+  {
+    specID  <- specNames[specIdx]
+    specMat <- matList[[specIdx]]
+
+    coastWide <- specMat$coastWide
+    stockFits <- specMat$stocks
+
+    cwAll     <- coastWide$all[[type]]
+    cwBoys    <- coastWide$boys[[type]]
+    cwGirls   <- coastWide$girls[[type]]
+    
+    # Get max x value (age or length)
+    maxX      <- max( cwAll$props[,type], na.rm = T )
+
+    # Create coastwide ogives
+    xSeq      <- seq(0,maxX, length = 100 )
+    cwAll.y   <- logisticAtX(xSeq,cwAll$x50[1], cwAll$x95[1])
+    cwBoys.y  <- logisticAtX(xSeq,cwBoys$x50[1], cwBoys$x95[1])
+    cwGirls.y <- logisticAtX(xSeq,cwGirls$x50[1], cwGirls$x95[1])
+
+    # Now loop over stocks
+    for( stockIdx in 1:nStocks )
+    {
+      stockID <- stockNames[stockIdx]
+      plot( x = c(0,maxX), y = c(0,1),
+          type = "n", xlab = "", ylab = "",
+          axes = FALSE )
+        mfg <- par("mfg")
+        # Add axes
+        if( mfg[1] == 1 )
+          mtext( side = 3, text = specID, font = 2, line = 2 )
+        if( mfg[2] == mfg[4] )
+          mtext( side = 4, text = stockID, font = 2, line = 2.5 )
+        if( mfg[1] == mfg[3] )
+          axis( side = 1 )
+        if( mfg[2] == mfg[4] & mfg[1] %% 2 == 0 )
+          axis( side = 4 )
+        if( mfg[2] == 1 & mfg[1] %% 2 == 1 )
+          axis( side = 2 )  
+        box()
+        # Plot coastwide models
+        lines( x = xSeq, y = cwAll.y, lty = 2, lwd = .8,
+                col = "grey50" )
+        lines( x = xSeq, y = cwBoys.y, lty = 2, lwd = .8,
+                col = cols[1] )
+        lines( x = xSeq, y = cwGirls.y, lty = 2, lwd = .8,
+                col = cols[2] )
+
+      if( is.null(stockFits[[stockIdx]] ) )
+      {
+        panLab(x = 0.5, y = 0.5, txt = "No Data", font = 2 )
+        next
+        
+      }
+
+      # Pull stock specific models
+      stockAll    <- stockFits[[stockIdx]]$all[[type]]
+      stockBoys   <- stockFits[[stockIdx]]$boys[[type]]
+      stockGirls  <- stockFits[[stockIdx]]$girls[[type]]
+
+      boyProps    <-  stockBoys$props %>%
+                      mutate( SE = sqrt(propMat*(1-propMat)/nObs) )
+      girlProps   <- stockGirls$props %>%
+                      mutate( SE = sqrt(propMat*(1-propMat)/nObs) )
+
+      # Make stock specific lines
+      stockAll.y    <- logisticAtX( xSeq, stockAll$x50[1], stockAll$x95[1]) 
+      stockBoys.y   <- logisticAtX( xSeq, stockBoys$x50[1], stockBoys$x95[1]) 
+      stockGirls.y  <- logisticAtX( xSeq, stockGirls$x50[1], stockGirls$x95[1]) 
+
+      # Back to plotting
+        # Plot data as distributions of prop mature at age
+        points( x = (boyProps[[type]]) - .3, y = boyProps$propMat,
+                pch = 16, cex = .8, col = cols[1]  )
+        segments( x0 = boyProps[[type]] - .3, 
+                  y0 = boyProps$propMat - boyProps$SE,
+                  y1 = boyProps$propMat + boyProps$SE,
+                  lwd = 1, col = cols[1]  )
+
+        points( x = girlProps[[type]] - .3, y = girlProps$propMat,
+                pch = 16, cex = .8, col = cols[2]  )
+        segments( x0 = girlProps[[type]] - .3, 
+                  y0 = girlProps$propMat - girlProps$SE,
+                  y1 = girlProps$propMat + girlProps$SE,
+                  lwd = 1, col = cols[2]  )
+
+        # Plot stock specific models
+        lines( x = xSeq, y = stockAll.y, lty = 1, lwd = 2,
+                col = "grey50" )
+        lines( x = xSeq, y = stockBoys.y, lty = 1, lwd = 2,
+                col = cols[1] )
+        lines( x = xSeq, y = stockGirls.y, lty = 1, lwd = 2,
+                col = cols[2] )
+
+      # Need to add data from props df - next
+    }
+  }
+  if( type == "age" )
+  {
+    xLab <- "Age"
+    yLab <- "Proportion Mature-at-age"
+  }
+  if( type == "length" )
+  {
+    xLab = "Length (cm)"
+    yLab <- "Proportion Mature-at-length"
+  }
+  mtext( side = 1, outer = T, text = xLab, line = 3, font = 2, cex = 1.2 )
+  mtext( side = 2, outer = T, text = yLab, line = 2, font = 2, cex = 1.2 )
+
+  if(save)
+    dev.off()
+}
+
+# logisticAtX()
+# Takes a sequence of x values, and x at 50% and 95%
+# and creates the logistic ogive across the x sequence
+# logistic function with a50 and a95 as inputs
+logisticAtX <- function( x, x50=5, x95=7 )
+{
+  # solve for step (scale), a50 is location
+  s <- (x95 - x50) / log(19)
+  # now compute logistic
+  p <- 1 / (1 + exp((-x + x50)/s))
+ 
+  p
+}
 
 # Split catch history by species and arrange in an array
 # for feeding to TMB model

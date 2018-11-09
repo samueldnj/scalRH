@@ -132,7 +132,9 @@ plotComps(  comps = lenComps, save = TRUE,
             prefix = "len", saveDir = "Outputs/lenComps" )
 
 # 7. Maturity at age and length by stock and species
-
+load("./Data/matOgives.RData" )
+plotMatOgives( type = "age", save = TRUE )
+plotMatOgives( type = "length", save = TRUE )
 
 
 

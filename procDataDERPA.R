@@ -110,11 +110,6 @@ commCPUEList <- lapply( X = commSpecNames,
 names(commCPUEList) <- names(commSpecNames)
 save(commCPUEList, file = "./Data/commCPUE.RData")
 
-# Plot stock indices
-plotIndices(save = TRUE)
-
-# Create a version that has the catch bars in it - maybe scale
-# catch by geometric mean also
 
 # Read in bio data, join survey density by tripID
 # to add data for year and location
@@ -151,6 +146,12 @@ lenComps <- lapply( X = bioData, FUN = makeLenComps )
 save(lenComps, file = "./Data/lenComps.RData")
 
 # 6. Maturity at age by stock and species
+matOgives <- lapply( X = bioData, FUN = makeSpecMat )
+save(matOgives, file = "./Data/matOgives.RData" )
+
+
+# Spatial plots: show sampling effort, relative biomass,
+# average age, weight, length etc. by survey block
 
 
 
