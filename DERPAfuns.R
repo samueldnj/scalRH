@@ -21,97 +21,6 @@ loadCRS <- function()
   invisible(NULL)
 }
 
-# Makes data and parameter lists for fitting the 
-# msProd model to DERPA data
-makeDatPar <- function( relB = relBio, Cst = Katch )
-{
-
-  # Recover model dimensions
-  nSurv   <- dim( relB )[ 1 ]
-  nStocks <- dim( relB )[ 2 ]
-  nT      <- dim( relB )[ 3 ]
-
-  # Make data list
-  data    <- list(  It              = relB, 
-                    Ct              = Cst,
-                    SigmaPriorCode  = 0,
-                    sigUPriorCode   = 0,
-                    tauqPriorCode   = 0,
-                    lnqPriorCode    = 1,
-                    lnUPriorCode    = 0,
-                    BmsyPriorCode   = 0,
-                    initT           = c(0,0,0,0,0),
-                    initBioCode     = c(1,1,1,1,1) )
-
-  
-  
-  # Sum catch for initial Bmsy guess
-  sumCat <- apply( X = Cst, FUN = sum, MARGIN = 1 )
-
-  # populate parameter list
-  para <- list( lnBmsy            = log( 2*sumCat ),
-                lnUmsy            = rep(  -2, nStocks ),
-                lntau2_o          = rep(  0, nSurv ),
-                lnq_os            = matrix( 0, nrow = nSurv, ncol = nStocks ),
-                lnBinit           = log( sumCat ),        # Start every stock fished
-                lnqbar_o          = rep( 0, nSurv ),
-                lntauq_o          = rep( 0, nSurv ),
-                mq                = .6,
-                sq                = 0.2,
-                lnUmsybar         = -2,
-                lnsigUmsy         = -1,
-                mUmsy             = 0.1,
-                sUmsy             = 0.1,
-                mBmsy             = sumCat,
-                sBmsy             = sumCat/2,
-                tau2IGa           = rep( 2, nSurv ),
-                tau2IGb           = rep( 1, nSurv ),
-                tauq2Prior        = c( 4, 0.5 ),
-                sigU2Prior        = c( 0.5, 0.15 ),
-                kappa2IG          = c( 1, 0.05 ),
-                Sigma2IG          = c( 1, 0.05 ),
-                wishScale         = diag( 1, nStocks ),
-                nu                = nStocks,
-                eps_t             = rep( 0, nT - 1 ),
-                lnkappa2          = -10,
-                zeta_st           = matrix( 0, nrow = nStocks, ncol = (nT - 1) ),
-                lnSigmaDiag       = -3,
-                SigmaDiagMult     = rep( 1, nStocks ),
-                logitSigmaOffDiag = rep( 0, length = nStocks*(nStocks-1)/2 ),
-                logit_gammaYr     = 0 )
-
-  map <- list ( mBmsy             = factor( rep( NA, nStocks ) ),
-                sBmsy             = factor( rep( NA, nStocks ) ),
-                # lnBinit           = factor( c(NA,NA,13,13,NA) ),
-                # lnq_os            = factor( matrix(NA, nSurv, nStocks) ),
-                # lnqbar_o          = factor( rep(NA,nSurv)),
-                # lntauq_o          = factor( rep(NA,nSurv)),
-                lnUmsybar         = factor( NA ),
-                lnsigUmsy         = factor( NA ),
-                mUmsy             = factor( NA ),
-                sUmsy             = factor( NA ),
-                mq                = factor( NA ),
-                sq                = factor( NA ),
-                SigmaDiagMult     = factor( rep( NA, nStocks ) ),
-                tau2IGa           = factor( rep( NA, nSurv ) ),
-                tau2IGb           = factor( rep( NA, nSurv ) ),
-                sigU2Prior        = factor( rep( NA, 2 ) ),
-                tauq2Prior        = factor( rep( NA, 2 ) ),
-                kappa2IG          = factor( rep( NA, 2 ) ),
-                Sigma2IG          = factor( rep( NA, 2 ) ),
-                wishScale         = factor( rep( NA, nStocks*nStocks ) ),
-                nu                = factor( NA ),
-                logit_gammaYr     = factor( NA ),
-                logitSigmaOffDiag = factor( rep( NA, length = nStocks*(nStocks-1)/2 ) ), 
-                lnkappa2          = factor( NA ),
-                eps_t             = factor( rep(NA, nT - 1) )
-              )
-
-  out <- list( dat = data, par = para, map = map )
-  out
-}
-
-
 
 # Calculate relative biomass by species and arrange in an array
 # for feeding to TMB model
@@ -289,14 +198,14 @@ makeRelBioStocks <- function( spec = "dover",
   out
 }
 
-appendName <- function( dataCode, stockCodeKey )
+appendName <- function( dataCode, codeKey )
 {
-  stockCodeKeyVec <- unlist(stockCodeKey)
+  codeKeyVec <- unlist(codeKey)
   nameVec <- c()
-  for( k in 1:length(stockCodeKey))
-    nameVec <- c(nameVec,rep(names(stockCodeKey)[k],length(stockCodeKey[[k]])))
+  for( k in 1:length(codeKey))
+    nameVec <- c(nameVec,rep(names(codeKey)[k],length(codeKey[[k]])))
 
-  stockCodeNum <- which( dataCode == stockCodeKeyVec )
+  stockCodeNum <- which( dataCode == codeKeyVec )
 
   if( length(stockCodeNum) > 0 )
     return(nameVec[stockCodeNum])
@@ -412,7 +321,7 @@ readCommCPUE <- function( specName = "dover-sole",
 # Quick function to scale by mean values
 transByMean <- function(x)
 {
-  x <- x -mean(x,na.rm = T)
+  x <- x - mean(x,na.rm = T)
 
   x
 }
@@ -2381,9 +2290,9 @@ plotMatOgives <- function(  matList = matOgives,
                   y1 = boyProps$propMat + boyProps$SE,
                   lwd = 1, col = cols[1]  )
 
-        points( x = girlProps[[type]] - .3, y = girlProps$propMat,
+        points( x = girlProps[[type]] + .3, y = girlProps$propMat,
                 pch = 16, cex = .8, col = cols[2]  )
-        segments( x0 = girlProps[[type]] - .3, 
+        segments( x0 = girlProps[[type]] + .3, 
                   y0 = girlProps$propMat - girlProps$SE,
                   y1 = girlProps$propMat + girlProps$SE,
                   lwd = 1, col = cols[2]  )
@@ -3389,109 +3298,3 @@ plotMat <- function( matYr, mat, yrs )
   axis( side=2, cex.axis=1, las=1 )
 } 
 
-dataPlots <- function(  specLab = "dover", stratArea = strata,
-                        survIDs = surveyIDs, minYr = 1995, save = F,
-                        maxMatAge = 25 )
-{
-  # Read in density data
-  densityFname  <- paste( specLab, "_density.csv", sep = "" )
-  densityPath   <- file.path(getwd(),"density",densityFname)
-  density       <- read.csv(densityPath, header = T)
-
-  # Read in bio data
-  bioFname  <- paste( specLab, "_bio.csv", sep = "" )
-  bioPath   <- file.path(getwd(),"biology_with_mat",bioFname)
-  bio       <- read.csv(bioPath, header = T)
-
-  # Join desnsity and bio data by trip_ID so we can plot age bubbles etc
-  survYearIDs <-  density %>%
-                  dplyr::select(  SURVEY_SERIES_ID, 
-                                  SURVEY_ID,
-                                  YEAR,
-                                  TRIP_ID,
-                                  SURVEY_DESC )
-
-  bio <-  bio %>% 
-          inner_join( survYearIDs ) %>%
-          distinct()
-
-  # get length-at-age and length-wt relationships
-  lw <- lengthWt( bio,plot = F )
-  la <- lengthAge( bio, plot = F)
-  
-
-  # weight and maturity at age (from data, not growth model)
-  # The following function estimates maturity ogives using a GLM,
-  # but it's not very good - should really model by cohort, maybe
-  # talk to Michelle
-  # Also, check Seber 1982 for maturity
-
-  # make arrays of average weight and proportion mature at time and age
-  wtMatArrays <- makeWtMat( bio, plot = F, maxMatAge = maxMatAge )
-  # Make proportions at age
-  PAA <- makePAA(bio)
-  PAAcohorts <- makeCohortMat( PAA$PAAmat)
-  
-
-  # make cohort matrices from Wta matrix
-  sizeAge_Boys <- makeSizeAge(wtMatArrays$Wtas[,,1], lwRel = lw$boys )
-  sizeAge_Girls <- makeSizeAge(wtMatArrays$Wtas[,,2], lwRel = lw$girls )
-
-  # Ford-Walford
-  # fw_Boys <- fitWalford(sizeAge_Boys$Lt, yrs = range(sizeAge_Boys$Yr, na.rm=T))
-  # fw_Girls <-fitWalford(sizeAge_Girls$Lt, yrs = range(sizeAge_Girls$Yr, na.rm=T))
-  
-  Z <- ZEstSeber(nAges = PAA$totPAA$nAge, a0 = 9, J=20)
-
-  allYrs <- range(density$YEAR)
-  if(!is.null(minYr)) allYrs[1] <- minYr
-
-  par(mar = c(2,2,2,2), oma = c(2,3,2,0))
-
-  plotLayout <- matrix( c(1,1,5,
-                          1,1,5,
-                          2,2,6,
-                          2,2,6,
-                          3,3,7,
-                          3,3,7,
-                          4,4,8,
-                          4,4,8), 
-                        ncol = 3, byrow = T)
-
-  if(save)
-  {
-    saveFile <- paste(specLab, ".pdf", sep = "" )
-    savePath <- file.path(getwd(),"figs",saveFile)
-    pdf(file = savePath )
-  }
-  
-  layout(plotLayout)
-
-  plotRelativeBio(density, yrs = allYrs)
-  plotAgeBubbles(bio, yrs = allYrs)
-  plotMat(PAAcohorts$Yr, PAAcohorts$Mt, yrs = allYrs)
-  mtext(side =2, text = "Proportion at age", line = 4, cex = 0.8 )
-  plotMat(sizeAge_Boys$Yr, sizeAge_Boys$Wt, yrs = allYrs)
-  mtext(side =2, text = "Weight at age (g)", line = 4, cex = 0.8 )
-  mtext(side = 1, text = "Year", outer = F, line = 3)
-  lengthWt(bio, plot=T)
-  lengthAge(bio,plot=T)
-  plotPAA(PAA)
-  plotMaturity( wtMatArrays )
-  mtext(side = 3, outer = T, text = specLab )
-
-  if(save) dev.off()
-
-  result <- list()
-  result$lw <- lw
-  result$la <- la
-  result$Z  <- Z
-  result$PAA <- PAA
-  result$sizeAge_Boys <- sizeAge_Boys
-  result$sizeAge_Girls <- sizeAge_Girls
-  result$bioData <- bio
-  result$densityData <- density
-  result$weightMaturity <- wtMatArrays
-
-  return(result)
-}

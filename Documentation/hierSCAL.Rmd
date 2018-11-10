@@ -1,0 +1,128 @@
+---  
+title: "Detecting technical interactions in a British Columbia flatfish complex using a hierarchical multi-species stock assessment, with an integrated growth model"
+author: 
+  - Samuel D. N. Johnson (corresponding)
+  - Sean P. Cox
+affil:
+  - School of Resource and Environmental Management,
+    Simon Fraser University,
+    8888 University Drive,
+    BC, Canada
+email:
+  - samuelj@sfu.ca
+  - spcox@sfu.ca
+date: \today
+bibliography: /Users/sdnjohnson/Work/Library/library.bib
+csl: /Users/sdnjohnson/Work/write/templates/csl/cjfas.csl 
+geometry: letterpaper
+toc: false
+fontsize: 12pt
+lineno: true
+numbersections: false
+appendix: false
+abstract: Fisheries stock assessments are typically performed for a single species or management unit at a time. This is typically because the data required to include multiple management units of a species, or multiple interacting species, are costly or difficult to collect. In this paper, we use a hierarchical multi-species stock assessment model to assess 5 flatfishes of the family Pleuronectidae off the coast of British Columbia, Canada. Each species is split into 3 stocks, defined by major commercial fishery management areas. Not all stocks of each species have the same data collecte (ages/lengths etc) so the hierarchical model estimates shared priors to share information on selectivity and growth between stocks within a species, as well as natural mortality between species in the same area. Fishing mortality is estimated as an auto-correlated process, and multiple hypotheses about the correlation between species and stocks in Fpt deviations are tested to discover whether technical interactions can be detected in the population dynamics.
+output: 
+  pdf_document:
+    citation_package: natbib
+    keep_tex: true
+    fig_caption: true
+    latex_engine: pdflatex
+    template: ~/Work/write/templates/tex/basic.latex
+  bookdown::pdf_document2:
+    citation_package: natbib
+    keep_tex: true
+    fig_caption: true
+    latex_engine: pdflatex
+    template: ~/Work/write/templates/tex/basic.latex
+  html_document:
+    self_contained: true
+    df_print: kable
+    keep_md: true
+  bookdown::html_document2:
+    self_contained: true
+    df_print: kable
+    keep_md: true
+  word_document:
+    df_print: kable
+    reference_docx: /Users/sdnjohnson/Work/write/templates/docx/basic.docx
+  bookdown::word_document2:
+    df_print: kable
+    reference_docx: /Users/sdnjohnson/Work/write/templates/docx/basic.docx
+---
+
+```{r SetupBody, message=FALSE, warning=FALSE, include=FALSE}
+knitr::opts_chunk$set(figurepos = 'p') # Places figures on their own pages
+knitr::opts_chunk$set(out.width = '100%', dpi=300)
+
+# I usually load my libraries up front to keep things organized
+library(rmarkdown)
+library(knitr)
+library(kableExtra)
+library(dplyr)
+library(stringr)
+library(bookdown)
+
+```
+
+
+# Introduction
+
+Fisheries management typically focuses on a single stock of a single species at a time. This narrow focus often implictly assumes that fish are uniformly distributed across the management area, ignoring any spatial structure, and ignores technical and trophic interactions between species, except implicitly through recruitment or mortality [@albertsen2017connecting].
+
+Increasing the scope of fisheries management to include spatial considerations or multi-species interactions can be difficult
+    - Data aren't collected for this purpose
+    - defining/delineating stocks is difficult
+    - data collection is costly and time consuming
+
+Hierarchical multi-stock and multi-species stock assessment models offer an alternative to complicated spatially explicit models/models with interactions, allowing existing stock assessment data to be used in a broader context.
+    - Detecting interactions [@albertsen2017connecting]
+    - Sharing information [@johnson2018evaluating; punt2011among; @jiao2011poor]
+
+In this paper, we apply a hierarchical multi-stock age-structured assessment model to a complex of 5 Pleuronectiforme flatfishes off the coast of British Columbia.
+    - Different historic levels of exploitation/conservation concern
+    - Multiple spatial scales?
+    - Technical interactions - caught together (though not all)
+    - estimating correlations in fishing/total mortality and recruitment (emmig/immig and technical interactions)
+    - Integrated growth model
+    - shared priors on catchability [@johnson2018evaluating], steepness [@myers1999maximum], mortality [@albertsen2017connecting]
+
+Not all stocks are surveyed equal: different stocks have large samples age structures, others have no samples at all. 
+    - Length composition data supplement the age observations [@rudd2017accounting]
+    - Integrated hierarchical growth model shares growth data between stocks and species [@cadigan2017hierarchical]
+
+
+
+
+# Methods
+
+## Study system
+
+British Columbia's groundfish fishery is a group of 7 fisheries defined by license class, which spatially and temporally overlap on the BC coast. The overlapping fisheries are managed across 8 statistical areas in one integrated individual transferrable quota system, allowing transfers of quota allocations between licenses in different fleets
+
+## Data
+
+- Relative biomass from fishery independent survey (1984 - 2017)
+- Fishery dependent CPUE (1956 - 2017)
+- Age and length composition data (surveys and commercial fleet)
+    * Explain stocks with missing data?
+- Length-at-age data
+
+
+## Stock assessment model
+
+The stock assessment model has an age structured process model that explicitly includes uncertainty in the length-at-age distribution. Length-at-age distributions for each stock are separately estimated by fitting a hierarchical growth model to length and age data for each stock and species.
+
+**Equations are given in Table XX**
+
+For stocks without age observations, length comp with separate length-at-age distributions for each stock are used in the observation model. To avoid using the same data twice, we only use length compositions in fleets and years where age observations are unavailable. In those years where age and length observations are available, the length data is used to inform the integrated Von Bertalanffy growth model
+
+Hierarchical priors:
+- Growth model
+    - vonB K parameter between species
+    - K, Linf and cvL within species
+- Steepness between stocks and species (multilevel)
+- M between stocks and species (multilevel)
+- 
+
+
+

@@ -102,12 +102,6 @@ plotIndices(save = TRUE)
 # Create a version that has the catch bars in it - maybe scale
 # catch by geometric mean also
 
-# Read in bio data, join survey density by tripID
-# to add data for year and location
-bioData <- lapply(  X = survSpecNames,
-                    FUN = readBioData )
-names(bioData) <- names(commSpecNames)
-
 # 2. Length at age plots - stock and sex - spit out age-length freq array
 load("./Data/lenAge.RData")
 plotLenAge(save = TRUE)
@@ -135,14 +129,6 @@ plotComps(  comps = lenComps, save = TRUE,
 load("./Data/matOgives.RData" )
 plotMatOgives( type = "age", save = TRUE )
 plotMatOgives( type = "length", save = TRUE )
-
-
-
-# dover <- dataPlots("dover", save = F, maxMatAge = 5 )
-# english <- dataPlots("english", save = F, maxMatAge = 5 )
-# srock <- dataPlots("srock", save = F, maxMatAge = 10)
-# petrale <- dataPlots("petrale", save = F, maxMatAge = 15)
-# atooth <- dataPlots("atooth", save = F, maxMatAge = 10)
 
 
 # Now create a raster brick object with 6 layers:

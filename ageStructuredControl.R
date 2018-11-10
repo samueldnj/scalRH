@@ -62,14 +62,13 @@ dyn.load(dynlib("scalRH"))
 # 1. Read control file that determines
 #   a. Level of detail - multistock or multispecies?
 #   b. What priors will we use?
+#   c. sex structured or not?
 fYear <- 1954
 lYear <- 2018
 
-# 2. Read in and groom data
-#   a. Organise into the management units and species groups, 
-#       lots of arrays here 
-#   b. externally estimate any parameters that need it
-
+# 2. Read in and groom data - grooming is taken care
+# of by procDataDERPA.R, and groomed objects are saved in 
+# RData files in ./Data/ 
 stocksSurvDover <- list(  HG = c(2,3,16),
                           QCS = c(1),
                           WCVI = c(4) )
@@ -78,62 +77,17 @@ stocksCommDover <- list(  HG = c(7,8,9),
                           QCS = c(5,6),
                           WCVI = c(3,4) )
 
-#stocksSurvAtooth <- list( CW = c(1,2,3,4,16))
-#stocksCommAtooth <- list( CW = 3:9 )
-
-stocksSurvAtooth <- stocksSurvDover
-stocksCommAtooth <- stocksCommDover
-
-relBioDover  <- makeRelBioStocks( years = c(fYear,lYear), spec = "dover", collapseSyn = FALSE, 
-                                  stocks = stocksSurvDover )
-catchDover   <- makeStockCatch( years = c(fYear,lYear), spec = "dover", 
-                                stocks = stocksCommDover )
-
-relBioAtooth  <- makeRelBioStocks( years = c(fYear,lYear), spec = "atooth", collapseSyn = FALSE, 
-                                  stocks = stocksSurvAtooth )
-catchAtooth   <- makeStockCatch( years = c(fYear,lYear), spec = "atooth", 
-                                stocks = stocksCommAtooth )
-
-bioDataAtooth <- makeBioDataStocks( years = c(fYear,lYear),
-                                    spec = "atooth",
-                                    surveyStocks = stocksSurvAtooth,
-                                    commStocks = stocksCommAtooth )
-
-
-
-# Number of gear types (fleets + each synoptic survey leg) - might restrict to 6
-# initially to remove LL and trap - setting it up this way allows us to use 
-# standardised fishery dep. indices later
-nG <- 6
-nP <- length(stocksSurvDover) + length(stocksSurvDover)
-nS <- 2
-s_p <- c(1,1,1,2,2,2)
-type_f <- c(0,0,0,0,0,1)
-A_s <- c(60,25)
-nL_s <- c(5,5)
-swRinit_p <- rep(1,nP)
-lenD_s <- c(30,35)
-nT <- lYear - fYear + 1
-
-I_pft <- array( -1, dim = c(nP,nG,nT))
-for( g in 1:5 )
-{
-  I_pft[1:3,g,] <- relBioDover$relBio.arr[g,,]
-  I_pft[4:6,g,] <- relBioAtooth$relBio.arr[g,,]  
-}
-
-
-C_pft <- array( 0, dim = c(nP,nG,nT) )
-C_pft[1:3,6,] <- catchDover$catch.arr
-C_pft[4:6,6,] <- catchAtooth$catch.arr
 
 # Go through bio data to get length bin midpoints and breaks
+# Need to decide on
+# 1. plus groups for the age structure for each species
+# 2. maxLen for the length/age probability matrices
+# 3. sex structured?
 
 
 
 
-
-# 3. Create data, paramater and map lists for AM
+# 3. Create data, parameter and map lists for AM
 #   a. Data is pretty self explanatory, collect 2a here
 #   b. Parameter list contains initial values for all input pars, 
 #       whether estimated or not - 2b stuff will go here
