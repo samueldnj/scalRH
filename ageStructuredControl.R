@@ -55,8 +55,8 @@ library( "stringr" )
 source("DERPAfuns.R")
 
 # compile and load scalRH objective function.
-compile ("scalRH.cpp")
-dyn.load(dynlib("scalRH"))
+compile ("hierSCAL.cpp")
+dyn.load(dynlib("hierSCAL"))
 
 
 # 1. Read control file that determines
@@ -69,21 +69,26 @@ lYear <- 2018
 # 2. Read in and groom data - grooming is taken care
 # of by procDataDERPA.R, and groomed objects are saved in 
 # RData files in ./Data/ 
-stocksSurvDover <- list(  HG = c(2,3,16),
-                          QCS = c(1),
-                          WCVI = c(4) )
-
-stocksCommDover <- list(  HG = c(7,8,9),
-                          QCS = c(5,6),
-                          WCVI = c(3,4) )
-
+load("./Data/surveyBio.RData")
+load("./Data/commCPUE.RData")
+load("./Data/lenAge.RData")
+load("./Data/wtLen.RData")
+load("./Data/ageComps.RData")
+load("./Data/lenComps.RData")
+load("./Data/matOgives.RData" )
 
 # Go through bio data to get length bin midpoints and breaks
 # Need to decide on
 # 1. plus groups for the age structure for each species
+# Dover: 30
+# English: 15
+# Rock: 20
+# Petrale: 20
+# Arrowtooth: 20
 # 2. maxLen for the length/age probability matrices
-# 3. sex structured?
 
+# 3. sex structured?
+# To start with, no.
 
 
 

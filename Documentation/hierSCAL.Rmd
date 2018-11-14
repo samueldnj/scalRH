@@ -67,7 +67,7 @@ library(bookdown)
 
 # Introduction
 
-Fisheries management typically focuses on a single stock of a single species at a time. This narrow focus often implictly assumes that fish are uniformly distributed across the management area, ignoring any spatial structure, and ignores technical and trophic interactions between species, except implicitly through recruitment or mortality [@albertsen2017connecting].
+Fisheries management typically focuses on a single stock of a single species at a time. This narrow focus often implictly assumes that fish are uniformly distributed across the management area, ignoring any spatial structure, and ignores technical and trophic interactions between species, except implicitly through recruitment or mortality [@albertsen2017connecting; @siple2017contributions].
 
 Increasing the scope of fisheries management to include spatial considerations or multi-species interactions can be difficult
     - Data aren't collected for this purpose
@@ -82,8 +82,8 @@ In this paper, we apply a hierarchical multi-stock age-structured assessment mod
     - Different historic levels of exploitation/conservation concern
     - Multiple spatial scales?
     - Technical interactions - caught together (though not all)
-    - estimating correlations in fishing/total mortality and recruitment (emmig/immig and technical interactions)
-    - Integrated growth model
+    - estimating correlations in fishing/total mortality and recruitment (emmig/immig and technical interactions) - Read Siple paper again
+    - Integrated growth model - look at integrated assessment model literature
     - shared priors on catchability [@johnson2018evaluating], steepness [@myers1999maximum], mortality [@albertsen2017connecting]
 
 Not all stocks are surveyed equal: different stocks have large samples age structures, others have no samples at all. 
@@ -97,11 +97,18 @@ Not all stocks are surveyed equal: different stocks have large samples age struc
 
 ## Study system
 
-British Columbia's groundfish fishery is a group of 7 fisheries defined by license class, which spatially and temporally overlap on the BC coast. The overlapping fisheries are managed across 8 statistical areas in one integrated individual transferrable quota system, allowing transfers of quota allocations between licenses in different fleets
+British Columbia's groundfish trawl fishery is one of 7 fisheries that operate on the BC coast. The entire groundfish fishery is managed using one integrated individual transferrable quota system, allowing transfers of quota allocations between licenses in different fleets. 
+
+DERPA complex:
+    - Dover sole, english sole, southern rock sole, petrale sole, and arrowtooth flounder.
+    - All flatfish that are subject to managed/directed removals except Halibut, which are managed by the IPHC
+    - History of DERPA??
+    - DERPA is encountered mainly by the groundfish trawl fishery, with negligible removals from the other sectors/gear types
+
 
 ## Data
 
-- Relative biomass from fishery independent survey (1984 - 2017)
+- Relative biomass from fishery independent surveys (1984 - 2017)
 - Fishery dependent CPUE (1956 - 2017)
 - Age and length composition data (surveys and commercial fleet)
     * Explain stocks with missing data?
@@ -112,7 +119,7 @@ British Columbia's groundfish fishery is a group of 7 fisheries defined by licen
 
 The stock assessment model has an age structured process model that explicitly includes uncertainty in the length-at-age distribution. Length-at-age distributions for each stock are separately estimated by fitting a hierarchical growth model to length and age data for each stock and species.
 
-**Equations are given in Table XX**
+**Equations are given in Table XX/Supplemental material**
 
 For stocks without age observations, length comp with separate length-at-age distributions for each stock are used in the observation model. To avoid using the same data twice, we only use length compositions in fleets and years where age observations are unavailable. In those years where age and length observations are available, the length data is used to inform the integrated Von Bertalanffy growth model
 
@@ -121,8 +128,52 @@ Hierarchical priors:
     - vonB K parameter between species
     - K, Linf and cvL within species
 - Steepness between stocks and species (multilevel)
+- Catchability for surveys
 - M between stocks and species (multilevel)
-- 
+- Correlations in recruitment deviations
+- Correlations in Ft deviations (auto-correlated Ft?)
+- Selectivity-at-length parameters
+
+Multifleet model: one fleet for each survey leg
+
+## Model Hypotheses / Data scenarios
+
+Here I need to include the data scenarios and model hypotheses I'm going to test. If I'm going to publish an assessment, then it needs to be a *thorough* assessment. So, what are our options:
+
+1. Different hierarchical model structures
+    a. Coastwide vs stock specific growth
+    b. Different correlation matrix structures for (i) Recruitment process errors and (ii) Ft values
+    c. Smaller or larger hyperprior variance on shared mortality/steepness priors
+
+2. Coastwide vs multistock?? Keep surveys split into multiple pieces, but lump pop dynamics
+
+3. Data scenarios:
+    a. Starting in 1956, 1984, 1996, 2003
+    b. Age only, length only [No growth model], age/length?
+
+4. Discarding? Contact Bruce Turris or Greg Workman about a grading length
+
+
+## Model selection criteria
+
+AIC is standard, but what about for choosing between two different data scenarios, e.g. coastwide vs multi-stock, different initial times?
+
+
+# Results
+
+# Discussion
+
+# References
+
+
+
+
+
+
+
+
+
+
 
 
 
