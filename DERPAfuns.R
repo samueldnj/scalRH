@@ -11,6 +11,50 @@
 # OK, we need functions to summarise the biological data 
 # for a given species, given a determined stock structure
 
+loadStockSpecNameLists <- function()
+{
+  # Survey ids for plotting/legends
+  surveyIDs <<-  c(  QCSyn = 1, 
+                    HSAss = 2, 
+                    HSSyn = 3, 
+                    WCVISyn = 4,
+                    WCHGSyn = 16 )
+
+  # Species codes
+  specCodes <<- list(  "dover" = 626,
+                      "english" = 628,
+                      "rock" = 621,
+                      "petrale" = 607,
+                      "atooth" = 602 )
+
+  # Stock IDs for grouping data
+  stocksSurvey <<- list( HSHG = c(2,3,16),
+                        QCS = c(1),
+                        WCVI = c(4) )
+  stocksCommBio <<- list(  HSHG = c(7,8,9),
+                          QCS = c(5,6),
+                          WCVI = c(3,4) )
+  stocksCommCPUE  <<- list(  HSHG = "5CDE",
+                            QCS = "5AB",
+                            WCVI = "3CD" )
+
+  # Species names for reading data
+  survSpecNames <<- c( Dover = "dover",
+                      English = "english",
+                      Rock = "srock",
+                      Petrale = "petrale",
+                      Arrowtooth = "atooth" )
+
+  commSpecNames <<- c( Dover = "dover-sole",
+                      English = "english-sole",
+                      Rock = "southern-rock-sole",
+                      Petrale = "petrale-sole",
+                      Arrowtooth = "arrowtooth-flounder" )
+
+  invisible(NULL)  
+}
+
+
 # Load CRS codes
 loadCRS <- function()
 {
@@ -20,6 +64,71 @@ loadCRS <- function()
 
   invisible(NULL)
 }
+
+# makeIndexArray()
+# Takes groomed data for each species and combines them into
+# a data array for feeding to hierSCAL.
+makeIndexArray <- function( relBio = relBioList_Survey,
+                            commCPUE = commCPUEList,
+                            nP = 3, years = 1954:2018,
+                            collapseComm = FALSE
+                          )
+{
+  nS <- length(relBio)
+  nT <- length(years)
+
+  nSurv   <- dim(relBio$Dover$relBio.arr)[1]
+  survIDs <- dimnames(relBio$Dover$relBio.arr)[[1]]
+
+  stockIDs <- dimnames(relBio$Dover$relBio.arr)[[2]]
+
+  nComm   <- dim(commCPUE$Dover$cpue.arr)[1]
+  commIDs <- dimnames(commCPUE$Dover$cpue.arr)[[1]]
+
+  nF <- nSurv + nComm
+
+  if( collapseComm )
+    nF <- nF - 1
+
+
+  I_spft <- array( NA,  dim = c( nS, nP, nF, nT ),
+                        dimnames = list(  species = names(relBio),
+                                          stocks = stockIDs,
+                                          fleets = c(commIDs,survIDs),
+                                          years = years ) )
+
+  # Now loop over species and fill
+  for( specIdx in 1:nS )
+  {
+    specID <- names(relBio)[specIdx]
+
+    subRelBio   <- relBio[[specID]]$relBio.arr[,,as.character(years),1]
+    subCommCPUE <- commCPUE[[specID]]$cpue.arr[,,as.character(years),1,1]
+
+    subCommCPUE[subCommCPUE < 0] <- NA
+    subCommCPUE <- exp(subCommCPUE)
+
+    if( collapseComm )
+    {
+      # Add the two fleets together (should be zero overlap)
+      subCommCPUE <- apply( X = subCommCPUE, FUN = sum, na.rm = T, MARGIN = c(2,3) )
+      subCommCPUE[is.na(subCommCPUE)] <- -1
+      I_spft[specID,,1,as.character(years)] <- subCommCPUE
+    } else {
+      subCommCPUE[is.na(subCommCPUE)] <- -1
+      I_spft[specID,,1,as.character(years)] <- subCommCPUE["comm.hist",,as.character(years)]
+      I_spft[specID,,2,as.character(years)] <- subCommCPUE["comm.mod",,as.character(years)]
+    }
+
+    for( survIdx in 1:nSurv )
+    {
+      survID <- survIDs[survIdx]
+      I_spft[ specID,,survID,as.character(years) ] <- subRelBio[survID,,as.character(years)]
+    }
+  }
+
+  return(I_spft)
+} # END makeIndexArray()
 
 
 # Calculate relative biomass by species and arrange in an array
@@ -242,7 +351,7 @@ readCommCPUE <- function( specName = "dover-sole",
                                 period ) %>%
                 mutate( stockName = sapply( X = area, 
                                             FUN = appendName, 
-                                            stockCodeKey = stocks ) )
+                                            codeKey = stocks ) )
 
   histData  <-  read.csv( file.path(datPath, historicName), header = T,
                           stringsAsFactors = FALSE ) %>%
@@ -252,7 +361,7 @@ readCommCPUE <- function( specName = "dover-sole",
                                 period ) %>%
                 mutate( stockName = sapply( X = area, 
                                             FUN = appendName, 
-                                            stockCodeKey = stocks ) )
+                                            codeKey = stocks ) )
 
   # Combine data for DF returning
   allData <- rbind( modData, histData )
@@ -271,7 +380,7 @@ readCommCPUE <- function( specName = "dover-sole",
                                     length(yrs),     # Number of time steps
                                     2,               # stdized/unstdized 
                                     2 ),             # Mean/SE
-                          dimnames = list(  c("historic","modern"),
+                          dimnames = list(  c("comm.hist","comm.mod"),
                                             names(stocks),
                                             yrs,
                                             c("log.mean","log.sd"),
@@ -301,17 +410,17 @@ readCommCPUE <- function( specName = "dover-sole",
 
     # Place in array
     # historic data, mean values
-    dataArray["historic",stockName,as.character(histYrs),"log.mean","stdized"] <- subHistStd$est_link
-    dataArray["historic",stockName,as.character(histYrs),"log.mean","unstdized"] <- subHistUnStd$est_link
-    # historic data, standard errors
-    dataArray["historic",stockName,as.character(histYrs),"log.sd","stdized"] <- subHistStd$se_link
-    dataArray["historic",stockName,as.character(histYrs),"log.sd","unstdized"] <- subHistUnStd$se_link
+    dataArray["comm.hist",stockName,as.character(histYrs),"log.mean","stdized"] <- subHistStd$est_link
+    dataArray["comm.hist",stockName,as.character(histYrs),"log.mean","unstdized"] <- subHistUnStd$est_link
+    # comm.hist data, standard errors
+    dataArray["comm.hist",stockName,as.character(histYrs),"log.sd","stdized"] <- subHistStd$se_link
+    dataArray["comm.hist",stockName,as.character(histYrs),"log.sd","unstdized"] <- subHistUnStd$se_link
     # Modern data, mean values
-    dataArray["modern",stockName,as.character(modYrs),"log.mean","stdized"] <- subModStd$est_link
-    dataArray["modern",stockName,as.character(modYrs),"log.mean","unstdized"] <- subModUnStd$est_link
-    # Modern data, standard errors
-    dataArray["modern",stockName,as.character(modYrs),"log.sd","stdized"] <- subModStd$se_link
-    dataArray["modern",stockName,as.character(modYrs),"log.sd","unstdized"] <- subModUnStd$se_link
+    dataArray["comm.mod",stockName,as.character(modYrs),"log.mean","stdized"] <- subModStd$est_link
+    dataArray["comm.mod",stockName,as.character(modYrs),"log.mean","unstdized"] <- subModUnStd$est_link
+    # comm.Mod data, standard errors
+    dataArray["comm.mod",stockName,as.character(modYrs),"log.sd","stdized"] <- subModStd$se_link
+    dataArray["comm.mod",stockName,as.character(modYrs),"log.sd","unstdized"] <- subModUnStd$se_link
   }
 
   return( list( cpue.df = allData,
@@ -356,7 +465,7 @@ readBioData <- function(  specName = "dover",
                 left_join( trawlInfoTab, by = c("TRIP_ID", "FE_MAJOR_LEVEL_ID" ) ) %>%
                 mutate( stockName = sapply( X = SURVEY_SERIES_ID, 
                                             FUN = appendName,
-                                            stockCodeKey = stocksSurv),
+                                            codeKey = stocksSurv),
                         stockName = unlist(stockName) )
 
   
@@ -364,7 +473,7 @@ readBioData <- function(  specName = "dover",
   commBio <-  commBio %>%
               mutate( stockName = sapply( X = MAJ, 
                                           FUN = appendName,
-                                          stockCodeKey = stocksComm ) )
+                                          codeKey = stocksComm ) )
 
 
   outList <- list(  survey = surveyBio,
@@ -1091,6 +1200,218 @@ plotIndices <- function(  survey = relBioList_Survey,
     cat("Stock indices plot saved to ", savePath,"\n",sep = "")
   }
 }
+
+# makeCatchDiscArrays()
+# Creates catch and dicard data arrays for hierSCAL model
+makeCatchDiscArrays <- function(  data = catchData,
+                                  stocks = stocksCommBio,
+                                  speciesCodes = specCodes,
+                                  years = fYear:lYear,
+                                  modernYear = 1996,
+                                  nF = 7, collapseComm = FALSE,
+                                  fleetIDs = NULL )
+{
+  data <- data %>%
+          filter( FISHERY_SECTOR == "GROUNDFISH TRAWL" ) %>%
+          mutate( stockName = sapply( X = MAJOR_STAT_AREA_CODE,
+                                      FUN = appendName,
+                                      stocks ),
+                  species = sapply( X = SPECIES_CODE,
+                                    FUN = appendName,
+                                    speciesCodes ) ) %>%
+          filter( stockName %in% names(stocks) ) %>%
+          dplyr::select(  year          = YEAR,
+                          catch         = LANDED_KG,
+                          discardWt     = DISCARDED_KG,
+                          discardNum  = DISCARDED_PCS,
+                          species, stockName ) %>%
+          group_by( species, stockName, year ) %>%
+          summarise(  catch   = sum(catch)/1e6,
+                      discWt  = sum(discardWt)/1e6,
+                      discNum = sum(discardNum) ) %>%
+          ungroup()
+
+  # Array dimensions
+  nS <- length(speciesCodes)
+  nP <- length(stocks)
+  nT <- length(years)
+
+  specIDs <- names(speciesCodes)
+  stockIDs <- names(stocks)
+
+  if( collapseComm )
+    nF <- nF - 1
+
+  # initialise arrays
+  C_spft <- array( 0, dim = c(nS, nP, nF, nT),
+                      dimnames = list(  species = specIDs,
+                                        stocks = stockIDs,
+                                        fleets = fleetIDs,
+                                        years = years ) )
+
+  D_spft <- C_spft
+
+
+  # Now loop over species
+  for( specIdx in 1:nS )
+  {
+    specID <- specIDs[specIdx]
+    for( stockIdx in 1:nP )
+    {
+      stockID <- stockIDs[stockIdx]
+      subData <-  data %>%
+                  filter( species == specID, stockName == stockID )
+
+      obsYrs <- subData$year
+      if( collapseComm )
+      {
+        C_spft[specID, stockID, 1, as.character(obsYrs) ] <- subData$catch
+        D_spft[specID, stockID, 1, as.character(obsYrs) ] <- subData$discWt
+      } else {
+        histYrs <- obsYrs[obsYrs < modernYear ]
+        modYrs  <- obsYrs[obsYrs >= modernYear ]
+        # historic fleet
+        C_spft[specID, stockID, 1, as.character(histYrs) ] <- subData$catch[obsYrs < modernYear ]
+        D_spft[specID, stockID, 1, as.character(histYrs) ] <- subData$discWt[obsYrs < modernYear ]
+
+        # modern fleet
+        C_spft[specID, stockID, 2, as.character(modYrs) ] <- subData$catch[obsYrs >= modernYear ]
+        D_spft[specID, stockID, 2, as.character(modYrs) ] <- subData$discWt[obsYrs >= modernYear ]        
+      }
+
+    }
+  } 
+
+  # return arrays
+  outList <- list(  C_spft = C_spft,
+                    D_spft = D_spft)
+
+  outList
+} # END makeCatchDiscArrays()
+
+# makeALFreq()
+# Makes the time-averaged Age-length frequency
+# array for the hierSCAL integrated vonB growth model
+makeALFreq <- function( lenAgeList = lenAge,
+                        combineSex = TRUE )
+{
+  nS <- length(lenAgeList)
+  specIDs <- names( lenAgeList )
+
+  ALfreqList <- vector(mode = "list", length = nS)
+  maxA <- 0
+  maxL <- 0
+
+  if( combineSex )
+  {
+    nSex <- 1
+    sexIDs <- "All"
+  }
+  else {
+    nSex <- 2
+    sexIDs <- c("Male", "Female")
+  }
+
+  for( sIdx in 1:nS)
+  {
+    ALfreqList[[sIdx]] <- lenAgeList[[sIdx]]$ALfreq
+    maxA <- max(maxA, dim(lenAgeList[[sIdx]]$ALfreq)[2] )
+    maxL <- max(maxL, dim(lenAgeList[[sIdx]]$ALfreq)[3] )
+  }
+  nP <- dim(ALfreqList[[1]])[1]
+  stockIDs <- dimnames(ALfreqList[[1]])[[1]]
+
+  ALK_spalx <- array( 0, dim = c( nS, nP, maxA, maxL, nSex),
+                          dimnames = list(  species = specIDs,
+                                            stocks = stockIDs,
+                                            ages = 1:maxA,
+                                            lengths = 1:maxL,
+                                            sex = sexIDs ) )
+
+  for( sIdx in 1:nS )
+  {
+    specID <- specIDs[sIdx]
+    specAL <- ALfreqList[[sIdx]]
+    specAL[specAL < 0] <- NA
+    specA <- dim(specAL)[2]
+    specL <- dim(specAL)[3]
+
+    if(combineSex)
+    {
+      specAL <- apply( X = specAL, FUN = sum, MARGIN = c(1,2,3), na.rm = T)
+      ALK_spalx[specID, stockIDs, 1:specA, 1:specL, 1 ] <- specAL[stockIDs,1:specA,1:specL]
+    } else
+      ALK_spalx[specID, stockIDs, 1:specA, 1:specL, 1 ] <- specAL[stockIDs,1:specA,1:specL,]
+  }
+
+  return(ALK_spalx)
+} # END makeALFreq()
+
+# makeCompsArray()
+# Function to transform age or length comps into 
+# multidimensional array for feeding to hierSCAL
+makeCompsArray <- function( compList = ageComps,
+                            plusGroups = plusA_s,
+                            collapseComm = FALSE,
+                            fleetIDs = fleetIDs,
+                            combineSex = TRUE,
+                            years = fYear:lYear,
+                            xName = "ages" )
+{
+  # Get species names
+  specIDs <- names(compList)
+  # Array dimensions
+  nX      <- max(plusGroups)
+  nS      <- length(compList)
+  nP      <- dim(compList[[1]])[1]
+  nF      <- dim(compList[[1]])[2]
+  nT      <- length(years)
+
+  stockIDs <- dimnames(compList[[1]])[[1]]
+  # Create dimension names
+  dimNames <- list( 1:nX, specIDs, stockIDs, fleetIDs, years )
+  names(dimNames) <- c(xName, "species", "stock", "fleet", "years")
+
+  # Initialise array
+  comps_xspft <- array( -1, dim = c(nX, nS, nP, nF, nT ),
+                            dimnames = dimNames )
+
+  for( specIdx in 1:nS )
+  {
+    # Get species specific info
+    specID <- specIDs[specIdx]
+    specA <- plusA_s[specID]
+
+    specComps <- compList[[specID]]
+    obsA      <- dim(specComps)[4]
+
+    # Now loop over fleetIDs
+    for( fleetIdx in 1:nF )
+    { 
+      fleetID <- fleetIDs[fleetIdx]
+      # Need to aggregate plus group
+      for( stockIdx in 1:nP )
+      {
+        stockID <- stockIDs[stockIdx]
+        for( tIdx in 1:nT)
+        {
+          yearLab <- as.character(years[tIdx])
+          sumComps <- sum(specComps[stockID,fleetID,yearLab,1:(specA-1),1],na.rm = T)
+          if(sumComps == 0)
+            comps_xspft[ , specID, stockID ,fleetID, yearLab ] <- -1
+          else {
+            comps_xspft[1:(specA-1), specID, stockID ,fleetID,yearLab] <- specComps[stockID,fleetID,yearLab,1:(specA-1),1]
+            comps_xspft[specA, specID, stockID ,fleetID,yearLab] <- sum(specComps[stockID,fleetID,yearLab,specA:obsA,1],na.rm = T)
+          }
+          
+        }
+      }
+    }
+  }
+  comps_xspft[is.na(comps_xspft)] <- -1
+  return(comps_xspft)
+} # END makeCompsArray()
+
 
 # Plot catch bars with discarding stacked on top
 # Need to do some work to improve these - maybe

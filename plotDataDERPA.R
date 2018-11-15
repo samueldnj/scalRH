@@ -52,42 +52,7 @@ stratData <- read.csv( "Data/derpa_strata.csv", header=T )
 stratData <-  stratData %>%
               dplyr::select( GROUPING_CODE, AREA_KM2 )
 # Survey ids for plotting/legends
-surveyIDs <-  c(  QCSyn = 1, 
-                  HSAss = 2, 
-                  HSSyn = 3, 
-                  WCVISyn = 4,
-                  WCHGSyn = 16 )
-
-# Species codes
-specCodes <- list(  "dover" = 626,
-                    "english" = 628,
-                    "rock" = 621,
-                    "petrale" = 607,
-                    "atooth" = 602 )
-
-# Stock IDs for grouping data
-stocksSurvey <- list( HSHG = c(2,3,16),
-                      QCS = c(1),
-                      WCVI = c(4) )
-stocksCommBio <- list(  HSHG = c(7,8,9),
-                        QCS = c(5,6),
-                        WCVI = c(3,4) )
-stocksCommCPUE  <- list(  HSHG = "5CDE",
-                          QCS = "5AB",
-                          WCVI = "3CD" )
-
-# Species names for reading data
-survSpecNames <- c( Dover = "dover",
-                    English = "english",
-                    Rock = "srock",
-                    Petrale = "petrale",
-                    Arrowtooth = "atooth" )
-
-commSpecNames <- c( Dover = "dover-sole",
-                    English = "english-sole",
-                    Rock = "southern-rock-sole",
-                    Petrale = "petrale-sole",
-                    Arrowtooth = "arrowtooth-flounder" )
+loadStockSpecNameLists()
 
 
 # Plots that we want to make - and may not
