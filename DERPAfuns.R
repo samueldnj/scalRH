@@ -1380,10 +1380,10 @@ makeCompsArray <- function( compList = ageComps,
   {
     # Get species specific info
     specID <- specIDs[specIdx]
-    specA <- plusA_s[specID]
+    specX <- plusGroups[specID]
 
     specComps <- compList[[specID]]
-    obsA      <- dim(specComps)[4]
+    obsX      <- dim(specComps)[4]
 
     # Now loop over fleetIDs
     for( fleetIdx in 1:nF )
@@ -1396,12 +1396,14 @@ makeCompsArray <- function( compList = ageComps,
         for( tIdx in 1:nT)
         {
           yearLab <- as.character(years[tIdx])
-          sumComps <- sum(specComps[stockID,fleetID,yearLab,1:(specA-1),1],na.rm = T)
+          sumComps <- sum(specComps[stockID,fleetID,yearLab,1:(specX-1),1],na.rm = T)
           if(sumComps == 0)
             comps_xspft[ , specID, stockID ,fleetID, yearLab ] <- -1
           else {
-            comps_xspft[1:(specA-1), specID, stockID ,fleetID,yearLab] <- specComps[stockID,fleetID,yearLab,1:(specA-1),1]
-            comps_xspft[specA, specID, stockID ,fleetID,yearLab] <- sum(specComps[stockID,fleetID,yearLab,specA:obsA,1],na.rm = T)
+            comps_xspft[1:(specX-1), specID, stockID ,fleetID,yearLab] <- specComps[stockID,fleetID,yearLab,1:(specX-1),1]
+            comps_xspft[specX, specID, stockID ,fleetID,yearLab] <- sum(specComps[stockID,fleetID,yearLab,specX:obsX,1],na.rm = T)
+            if( specX < nX )
+              comps_xspft[(specX+1):nX, specID, stockID ,fleetID,yearLab] <- 0
           }
           
         }

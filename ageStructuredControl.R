@@ -155,7 +155,8 @@ dat <- list(  I_spft = I_spft,
               A_s = as.integer(plusA_s),
               L_s = as.integer(plusL_s),
               lenD_s = rep(0,nS),
-              swRinit_sp = matrix(0,nrow = nS, ncol = nP) )
+              swRinit_sp = matrix(0,nrow = nS, ncol = nP),
+              parSwitch = 0 )
 #   b. Parameter list contains initial values for all input pars, 
 #       whether estimated or not - 2b stuff will go here
 par <- list(  lnB0_sp = array(5,dim =c(nS,nP)),
@@ -201,7 +202,7 @@ par <- list(  lnB0_sp = array(5,dim =c(nS,nP)),
               lnsigmaM  = -2,
               omegaR_spt = array(0, dim = c(nS,nP,nT-1)) ,
               omegaRinit_spa = array(0, dim = c(nS,nP,max(plusA_s))) ,
-              lnsigmaR_sp = array(0, dim = c(nS,nP))  ,
+              lnsigmaR_sp = array(0, dim = c(nS,nP)),
               logitRCorr_chol = rep(0, nS * nP),
               logitRgamma_sp  = array(0, dim = c(nS,nP))  )
 
@@ -209,7 +210,7 @@ par <- list(  lnB0_sp = array(5,dim =c(nS,nP)),
 #       by the estimator, and also allows us to turn off parameters
 #       (negative phase in ADMB)
 map <- list(  # lnB0_sp = factor(array(NA,dim =c(nS,nP))),
-              logitSteep_sp = factor(array(NA,dim =c(nS,nP)) ),
+              # logitSteep_sp = factor(array(NA,dim =c(nS,nP)) ),
               lnM_sp = factor(array(NA,dim =c(nS,nP))),
               lnRinit_sp = factor(array(NA,dim =c(nS,nP))),
               lnLinf_sp = factor(array(NA,dim =c(nS,nP))),
@@ -219,11 +220,11 @@ map <- list(  # lnB0_sp = factor(array(NA,dim =c(nS,nP))),
               LWb_s = factor(rep(NA,nS)),
               xMat50_s = factor(rep(NA,nS)),
               xMat95_s = factor(rep(NA,nS)),
-              lnq_spf = factor(array(NA,dim =c(nS,nP,nF))),
+              # lnq_spf = factor(array(NA,dim =c(nS,nP,nF))),
               lntau_spf = factor(array(NA,dim =c(nS,nP,nF))),
-              lnlenSel50_sf = factor(array(NA,dim =c(nS,nF))),
-              lnlenSel95_sf = factor(array(NA,dim =c(nS,nF))),
-              lnF_spft  = factor(array(NA,dim =c(nS,nP,nF,nT))),
+              # lnlenSel50_sf = factor(array(NA,dim =c(nS,nF))),
+              # lnlenSel95_sf = factor(array(NA,dim =c(nS,nF))),
+              # lnF_spft  = factor(array(NA,dim =c(nS,nP,nF,nT))),
               lntauC_f  = factor(rep(NA,nF)),
               lntauD_f  = factor(rep(NA,nF)),
               muLinf_s  = factor(rep(NA,nS)),
@@ -249,7 +250,7 @@ map <- list(  # lnB0_sp = factor(array(NA,dim =c(nS,nP))),
               lnsigmaM_s  = factor(rep(NA, nS ) ),
               ln_muM  = factor(NA),
               lnsigmaM  = factor(NA),
-              omegaR_spt = factor(array(NA, dim = c(nS,nP,nT-1))),
+              # omegaR_spt = factor(array(NA, dim = c(nS,nP,nT-1))),
               omegaRinit_spa = factor(array(NA, dim = c(nS,nP,max(plusA_s)))),
               lnsigmaR_sp = factor(array(NA, dim = c(nS,nP)) ),
               logitRCorr_chol = factor(rep(NA, nS * nP)),
@@ -261,12 +262,12 @@ obj <- MakeADFun (  dat = dat, parameters = par, map = map,
                     silent = FALSE )
 
 # Set max no of function/gradient evaluations
-ctrl = list ( eval.max = 1000, iter.max = 1000 )
+ctrl = list ( eval.max = 10000, iter.max = 10000 )
 
-# # optimise the model
-# fit <- try( nlminb (  start = obj$par,
-#                       objective = obj$fn,
-#                       gradient = obj$gr,
-#                       control = ctrl,
-#                       lower = -Inf,
-#                       upper= Inf ) )
+# optimise the model
+fit <- try( nlminb (  start = obj$par,
+                      objective = obj$fn,
+                      gradient = obj$gr,
+                      control = ctrl,
+                      lower = -Inf,
+                      upper= Inf ) )

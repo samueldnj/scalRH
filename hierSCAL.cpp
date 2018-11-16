@@ -44,6 +44,9 @@
 // link personal library of TMB stock assessment functions
 #include "/Users/sdnjohnson/Work/code/tmbFuns/stockAssessmentFuns.hpp"  
 
+
+
+
 // objective function
 template<class Type>
 Type objective_function<Type>::operator() ()
@@ -75,7 +78,8 @@ Type objective_function<Type>::operator() ()
   int nA = age_aspft.dim(0);        // max no of age bins (for creating state arrays)
 
   // Model switches - fill these in when we know what we want
-  DATA_MATRIX(swRinit_sp)           // pop-spec fished initialisation switch (0 == unfished, 1 == fished)
+  DATA_MATRIX(swRinit_sp);          // pop-spec fished initialisation switch (0 == unfished, 1 == fished)
+  DATA_INTEGER(parSwitch);          // parallel accumulator switch for faster run time
 
   /*parameter section*/
   // Leading Parameters
@@ -217,9 +221,13 @@ Type objective_function<Type>::operator() ()
   array<Type> R_spt(nS,nP,nT);          // Recruits by pop-time
   array<Type> F_aspft(nA,nS,nP,nF,nT);  // Fishing mortality by age, fleet, population and time
   array<Type> Z_aspt(nA,nS,nP,nT);      // Total mortality by age, population and time
-  array<Type> C_aspft(nA,nS,nP,nF,nT);  // Predicted catch (in numbers) by age, fleet, population and time
-  array<Type> Cw_aspft(nA,nS,nP,nF,nT); // Predicted catch (in weight) by age, population and time
+  array<Type> C_aspft(nA,nS,nP,nF,nT);  // Predicted catch-at-age (in numbers), fleet, population and time
+  array<Type> Cw_aspft(nA,nS,nP,nF,nT); // Predicted catch-at-age (in weight), population and time
   array<Type> predCw_spft(nS,nP,nF,nT); // Predicted catch (in weight) by population and time
+  array<Type> predC_spft(nS,nP,nF,nT);  // Predicted catch (in numbers) by population and time
+  array<Type> B_spt(nS,nP,nT);          // Total biomass by species, pop, time
+  array<Type> SB_spt(nS,nP,nT);         // Spawning biomass by species, pop, time
+  array<Type> Bv_spft(nS,nP,nF,nT);     // Vulnerable biomass by species, pop, time
 
 
   // derived variables
@@ -364,6 +372,9 @@ Type objective_function<Type>::operator() ()
   Z_aspt.setZero();
   C_aspft.setZero();
   Cw_aspft.setZero();
+  B_spt.setZero();
+  SB_spt.setZero();
+  Bv_spft.setZero();
 
   // Loop over species
   for( int s = 0; s < nS; s++ )
@@ -410,7 +421,7 @@ Type objective_function<Type>::operator() ()
         if( t > 0 )
         {
           // Generate recruitment
-          Type SBt = B_aspt.col(t-1).col(p).col(s).sum();
+          Type SBt = (B_aspt.col(t-1).col(p).col(s) * matAge_asp.col(p).col(s) ).sum();
           N_aspt(0,s,p,t) = Type(4) * R0_sp(s,p) * SBt / ( B0_sp(s,p) * (Type(1) - h_sp(s,p) ) + (Type(5)*h_sp(s,p) - Type(1)) * SBt );
           N_aspt(0,s,p,t) *= exp( omegaR_spt(s,p,t-1) - square(sigmaR_sp(s,p)) / 2 );
 
@@ -440,14 +451,28 @@ Type objective_function<Type>::operator() ()
         // Loop over fleets and compute catch
         for( int f =0; f < nF; f++ )
         {
-          C_aspft.col(t).col(f).col(p).col(s) = N_aspt.col(t).col(p).col(s);
-          C_aspft.col(t).col(f).col(p).col(s) *= (Type(1) - exp( Z_aspt.col(t).col(p).col(s) ) * F_aspft.col(t).col(f).col(p).col(s) / Z_aspt.col(t).col(p).col(s) );  
-          Cw_aspft.col(t).col(f).col(p).col(s) = C_aspft.col(t).col(f).col(p).col(s) * meanWtAge_asp.col(p).col(s);
-          predCw_spft(s,p,f,t) = Cw_aspft.col(t).col(f).col(p).col(s).sum();
+          predCw_spft(s,p,f,t) = 0.;
+          predC_spft(s,p,f,t) = 0.;
+          // Have to loop over ages here to avoid adding NaNs
+          for(int a = 0; a < A; a++ )
+          {
+            C_aspft(a,s,p,f,t) = N_aspt(a,s,p,t);
+            C_aspft(a,s,p,f,t) *= (Type(1) - exp( Z_aspt(a,s,p,t) ) * F_aspft(a,s,p,f,t) / Z_aspt(a,s,p,t) );  
+            Cw_aspft(a,s,p,f,t) = C_aspft(a,s,p,f,t) * meanWtAge_asp(a,s,p);
+            predCw_spft(s,p,f,t) += Cw_aspft(a,s,p,f,t);
+            predC_spft(s,p,f,t) += C_aspft(a,s,p,f,t);
+
+            // Calculate vulnerable biomass for this fleet
+            Bv_spft(s,p,f,t) += N_aspt(a,s,p,t) * sel_afsp(a,f,s,p) * meanWtAge_asp(a,s,p);
+          }
+          
         }
 
-        // Compute Biomass
+        // Compute total and spawning biomass
         B_aspt.col(t).col(p).col(s) = N_aspt.col(t).col(p).col(s) * meanWtAge_asp.col(p).col(s);
+        B_spt(s,p,t) = B_aspt.col(t).col(p).col(s).sum();
+        SB_spt(s,p,t) = (B_aspt.col(t).col(p).col(s) * matAge_asp.col(p).col(s)).sum();
+
 
       }
 
@@ -476,7 +501,13 @@ Type objective_function<Type>::operator() ()
           I_spft_hat(s,p,f,t) = q_spf(s,p,f) * expBio;  
 
           // Create array of predicted age distributions - this should just be catch-at-age props
-          aDist_aspft_hat.col(t).col(f).col(p).col(s) = C_aspft.col(t).col(f).col(p).col(s) / C_aspft.col(t).col(f).col(p).col(s).sum();
+          // Calculate total catch
+          Type totCatch = 0.;
+          for( int a = 0; a < A; a ++ )
+            totCatch += C_aspft(a,s,p,f,t);
+          // Convert catch-at-age to proportions-at-age
+          for( int a = 0; a < A; a ++ )
+            aDist_aspft_hat(a,s,p,f,t) = C_aspft(a,s,p,f,t) / totCatch;
 
           // Create array of predicted length distributions
           // Need to do some thinking here... follow LIME to start with...
@@ -559,9 +590,24 @@ Type objective_function<Type>::operator() ()
     for( int p = 0; p < nP; p++ )
     {
       int A      = A_s(s);
+      int L      = L_s(s);
       // Loop over fleets
       for( int f = 0; f < nF; f++ )
       {
+        // tmp vectors to hold age and length observed and
+        // predicted values
+        vector<Type> fleetAgeObs(A);
+        vector<Type> fleetAgePred(A);
+
+        vector<Type> fleetLenObs(L);
+        vector<Type> fleetLenPred(L);     
+
+        // Set tmp vectors to zero 
+        fleetAgeObs.setZero();
+        fleetAgePred.setZero();
+        fleetLenObs.setZero();
+        fleetLenPred.setZero();
+
         // Now loop over time steps
         for( int t = 0; t < nT; t++ )
         {
@@ -573,27 +619,47 @@ Type objective_function<Type>::operator() ()
             CPUEnll_sp(s,p) += Type(0.5) * ( pow(lntau_spf(s,p,f),2) + pow(res - lnq_spf(s,p,f), 2 ) / pow(lntau_spf(s,p,f),2) );
           }
 
+          // Now compute the catch and discards likelihoods
+          if( C_spft(s,p,f,t) > 0 & predCw_spft(s,p,f,t) > 0 )
+            Ctnll_sp(s,p) += 0.5* ( 2 * log(tauC_f(f)) +  square( (log(C_spft(s,p,f,t)) - log(predCw_spft(s,p,f,t)) ) / tauC_f(f)) ) ;
+
+          // Loop and fill age obs and pred matrices
+          for( int a = 0; a < A; a++ )
+          {
+            fleetAgeObs(a)  = age_aspft(a,s,p,f,t);
+            fleetAgePred(a) = aDist_aspft_hat(a,s,p,f,t);
+          }
+
+          // Loop and fill length obs and pred matrices
+          for( int l = 0; l < L; l++ )
+          {
+            fleetLenObs(l)  = len_lspft(l,s,p,f,t);
+            fleetLenPred(l) = lDist_lspft_hat(l,s,p,f,t);
+          }
+
           // Now for compositional data. First, check if ages are being used (or exist), if so
           // compute multinomial likelihood
-          vector<Type> currAgeObs = age_aspft.col(t).col(f).col(p).col(s);
-          vector<Type> predAgeDist = aDist_aspft_hat.col(t).col(f).col(p).col(s);
-          if( currAgeObs.sum() > 0 )
+          if( fleetAgeObs.sum() > 0 )
           {
-            ageCompsnll_sp(s,p) += dmultinom(currAgeObs, predAgeDist, true );
-          }
+            // Code a general comps likelhood function
+            // to use here, and add a switch to the
+            // function inputs to choose comps model
+            ageCompsnll_sp(s,p) -= dmultinom(fleetAgeObs, fleetAgePred, true );
+          }     
+
           // If ages aren't being used, but lengths exist, then compute multinomial likelihood
-          vector<Type> currLenObs = len_lspft.col(t).col(f).col(p).col(s);
-          vector<Type> predLenDist = lDist_lspft_hat.col(t).col(f).col(p).col(s);
-          if( currAgeObs.sum() <= 0 & currLenObs.sum() > 0 )
+          if( fleetAgeObs.sum() <= 0 & fleetLenObs.sum() > 0 )
           {
-            lenCompsnll_sp(s,p) += dmultinom(currLenObs, predLenDist , true);
-          }
-          predAgeDist.setZero();
-          predLenDist.setZero();
-          // Now compute the catch and discards likelihoods
-          Type predCt = Cw_aspft.col(t).col(f).col(p).col(s).sum();
-          Ctnll_sp(s,p) += 0.5* square( (log(C_spft(s,p,f,t)) - log(predCt) ) / tauC_f(f)) ;
+            lenCompsnll_sp(s,p) -= dmultinom(fleetLenObs, fleetLenPred, true);
+          }     
+          
         }
+        // Set tmp vectors to zero 
+        fleetAgeObs.setZero();
+        fleetAgePred.setZero();
+        fleetLenObs.setZero();
+        fleetLenPred.setZero();
+
       }
     }
 
@@ -672,9 +738,14 @@ Type objective_function<Type>::operator() ()
   // spec_nlp += steepnessnlp_s.sum() + Mnlp_s.sum() + qnlp_s.sum();
   
 
-  // // Now take the sum of all the likelihoods, keep separate
-  // // in case we want to weight data later
+  // Now take the sum of all the likelihoods, keep separate
+  // in case we want to weight data later
+  // if( parSwitch == 1 )
+  //   parallel_accumulator<Type> joint_nlp(this);
+  // else
   Type joint_nlp = 0.0;
+
+  
   // Observations
   joint_nlp += Ctnll_sp.sum();       // Catch
   joint_nlp += lenCompsnll_sp.sum(); // Length compositions
@@ -706,12 +777,16 @@ Type objective_function<Type>::operator() ()
   REPORT(L1_sp); 
   REPORT(sigmaL_s);
   REPORT(sigmaR_sp);
+  REPORT(tauC_f);
+  REPORT(tauD_f);
   // Fishery model pars
   REPORT(q_spf)           // Catchability
   REPORT(tau_spf)         // Observation error
   REPORT(lenSel50_sf)     // length at 50% sel by species
   REPORT(lenSel95_sf)     // length at 95% sel by specie
   REPORT(F_spft)          // Fishing mortality
+  REPORT(sel_lfsp);
+  REPORT(sel_afsp);
   // Model states
   REPORT(B_aspt);
   REPORT(N_aspt);
@@ -720,6 +795,11 @@ Type objective_function<Type>::operator() ()
   REPORT(Z_aspt);
   REPORT(C_aspft);
   REPORT(Cw_aspft);
+  REPORT(predCw_spft);
+  REPORT(predC_spft);
+  REPORT(Bv_spft);
+  REPORT(SB_spt);
+  REPORT(B_spt);
   // Stock recruit parameters
   REPORT(R0_sp);
   REPORT(phi_sp);
@@ -739,6 +819,7 @@ Type objective_function<Type>::operator() ()
   // REPORT(vonBnll_sp);
   REPORT(CPUEnll_sp);
   REPORT(ageCompsnll_sp);
+  REPORT(lenCompsnll_sp);
   REPORT(Ctnll_sp);
 
   // Data
@@ -753,9 +834,10 @@ Type objective_function<Type>::operator() ()
   REPORT( L_s );
   REPORT( lenD_s );
 
-  // Simualted observations
+  // Simulated observations
   REPORT( lDist_lspft_hat );
   REPORT( aDist_aspft_hat );
+  REPORT( I_spft_hat );
 
 
   // sd report for standard errors
