@@ -53,6 +53,7 @@ library( "parallel" )
 library( "stringr" )
 
 source("DERPAfuns.R")
+source("SCALfuns.R")
 # Survey ids for plotting/legends/array dims
 loadStockSpecNameLists()
 
@@ -142,6 +143,8 @@ load("./Data/matOgives.RData" )
 # 3. sex structured?
 # To start with, no.
 
+nPosCatch <- length(which(catchDiscArrays$C_spft > 0) )
+
 
 # 3. Create data, parameter and map lists for AM
 #   a. Data is pretty self explanatory, collect 2a here
@@ -170,13 +173,13 @@ par <- list(  lnB0_sp = array(5,dim =c(nS,nP)),
               LWb_s = c(3.19,3.19,3.19,3.19,3.19),
               xMat50_s = c(26.2,26.2,26.2,26.2,26.2),
               xMat95_s = c(48,48,48,48,48),
-              lnq_spf = array(-1,dim =c(nS,nP,nF)),
+              lnq_spf = array(0,dim =c(nS,nP,nF)),
               lntau_spf = array(-1,dim =c(nS,nP,nF)),
               lnlenSel50_sf = array(3.4,dim =c(nS,nF)),
               lnlenSel95_sf = array(4.5,dim =c(nS,nF)),
-              lnF_spft  = array(-4,dim =c(nS,nP,nF,nT)),
-              lntauC_f  = rep(-3,nF),
-              lntauD_f  = rep(-3,nF),
+              lnF_spft  = rep(-2,length = nPosCatch),
+              lntauC_f  = rep(-5,nF),
+              lntauD_f  = rep(-5,nF),
               muLinf_s  = c(70,70,70,70,70),
               sigmaLinf_s = rep(.2,nS),
               muvonK_s  = rep(.2,nS),
@@ -222,9 +225,9 @@ map <- list(  # lnB0_sp = factor(array(NA,dim =c(nS,nP))),
               xMat95_s = factor(rep(NA,nS)),
               # lnq_spf = factor(array(NA,dim =c(nS,nP,nF))),
               lntau_spf = factor(array(NA,dim =c(nS,nP,nF))),
-              # lnlenSel50_sf = factor(array(NA,dim =c(nS,nF))),
-              # lnlenSel95_sf = factor(array(NA,dim =c(nS,nF))),
-              # lnF_spft  = factor(array(NA,dim =c(nS,nP,nF,nT))),
+              lnlenSel50_sf = factor(array(NA,dim =c(nS,nF))),
+              lnlenSel95_sf = factor(array(NA,dim =c(nS,nF))),
+              # lnF_spft  = factor(rep(NA,nPosCatch)),
               lntauC_f  = factor(rep(NA,nF)),
               lntauD_f  = factor(rep(NA,nF)),
               muLinf_s  = factor(rep(NA,nS)),
@@ -250,7 +253,7 @@ map <- list(  # lnB0_sp = factor(array(NA,dim =c(nS,nP))),
               lnsigmaM_s  = factor(rep(NA, nS ) ),
               ln_muM  = factor(NA),
               lnsigmaM  = factor(NA),
-              # omegaR_spt = factor(array(NA, dim = c(nS,nP,nT-1))),
+              omegaR_spt = factor(array(NA, dim = c(nS,nP,nT-1))),
               omegaRinit_spa = factor(array(NA, dim = c(nS,nP,max(plusA_s)))),
               lnsigmaR_sp = factor(array(NA, dim = c(nS,nP)) ),
               logitRCorr_chol = factor(rep(NA, nS * nP)),
@@ -259,7 +262,7 @@ map <- list(  # lnB0_sp = factor(array(NA,dim =c(nS,nP))),
 
 # Make the AD function
 obj <- MakeADFun (  dat = dat, parameters = par, map = map,
-                    silent = FALSE )
+                    silent = FALSE, random = "lnF_spft" )
 
 # Set max no of function/gradient evaluations
 ctrl = list ( eval.max = 10000, iter.max = 10000 )

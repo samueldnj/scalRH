@@ -104,7 +104,7 @@ Type objective_function<Type>::operator() ()
   PARAMETER_ARRAY(lnlenSel50_sf);   // Selectivity Alpha parameter by species/fleet
   PARAMETER_ARRAY(lnlenSel95_sf);   // Selectivity Beta parameter by species/fleet
   // Fishing mortality
-  PARAMETER_ARRAY(lnF_spft);        // Fishing mortality by species/population/fleet/time
+  PARAMETER_VECTOR(lnF_spft);       // Fishing mortality as a long vector by species/population/fleet/time
   PARAMETER_VECTOR(lntauC_f);       // Catch observation SD by fleet
   PARAMETER_VECTOR(lntauD_f);       // Discards observation SD by fleet
 
@@ -205,11 +205,16 @@ Type objective_function<Type>::operator() ()
   // Fishing mortality
   array<Type>   F_spft(nS,nP,nF,nT);
   F_spft.setZero();
+  int vecIdx = 0;
   for( int s = 0; s < nS; s++ )
     for( int f = 0; f < nF; f++ )
       for( int p = 0; p < nP; p++ )
         for( int t = 0; t < nT; t++ )
-          F_spft(s,p,f,t) = exp( lnF_spft(s,p,f,t));
+          if( C_spft(s,p,f,t) > 0)
+          {
+            F_spft(s,p,f,t) = exp( lnF_spft(vecIdx) );
+            vecIdx++;
+          }
   
   // Probably concentrate these out later....
   vector<Type>  tauC_f        = exp(lntauC_f);    
