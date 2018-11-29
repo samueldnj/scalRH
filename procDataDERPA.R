@@ -2,7 +2,7 @@
 #
 # procDataDERPA.R
 #
-# Reads in biological index data from the ./Data/ folders inside the working 
+# Reads in biological and index data from the ./Data/ folders inside the working 
 # directory. Processes raw data into data.frame and array objects for
 # easier plotting and passing to a TMB model. Will also plot data, but due
 # to time and memory requirements this code is intended to be run only when
@@ -43,18 +43,12 @@ source("DERPAfuns.R")
 fYear <- 1954
 lYear <- 2018
 
-# Read in management areas shape file
-readShapeSpatial("./Data/ShapeFiles/MajorMinorSQL_geo.shp")
-mgmtAreas <- readOGR(dsn = "./Data/ShapeFiles/", layer = "MajorMinorSQL_geo")
-proj4string(mgmtAreas)
-mgmtAreas <- spTransform (mgmtAreas, CRS("+proj=longlat +datum=WGS84"))
-
 # Read in strata areas
 stratData <- read.csv( "Data/derpa_strata.csv", header=T )
 stratData <-  stratData %>%
               dplyr::select( GROUPING_CODE, AREA_KM2 )
 # Survey ids for plotting/legends
-surveyIDs <-  c(  QCSyn = 1, 
+surveyIDs <-  c(  QCSSyn = 1, 
                   HSAss = 2, 
                   HSSyn = 3, 
                   WCVISyn = 4,
@@ -119,23 +113,27 @@ names(bioData) <- names(commSpecNames)
 save(bioData, file = "./Data/bioData.RData")
 
 # 2. Length at age plots - stock and sex - spit out age-length freq array
-lenAge <- lapply( X = bioData, FUN = makeLenAge, stocks = names(stocksCommBio) )
-names(lenAge) <- names(commSpecNames)
-# Save data out
-save(lenAge, file = "./Data/lenAge.RData")
-plotLenAge(save = TRUE)
+# lenAge <- lapply( X = bioData, FUN = makeLenAge, stocks = names(stocksCommBio) )
+# names(lenAge) <- names(commSpecNames)
+# # Save data out
+# save(lenAge, file = "./Data/lenAge.RData")
+# plotLenAge(save = TRUE)
 
 # 3. Length/wt plots - stock and sex
-wtLen <- lapply( X = bioData, FUN = makeWtLen, stocks = names(stocksCommBio))
-names(wtLen) <- names(commSpecNames)
-# Save data out
-save(wtLen, file = "./Data/wtLen.RData")
-plotWtLen(save = TRUE)
+# wtLen <- lapply( X = bioData, FUN = makeWtLen, stocks = names(stocksCommBio))
+# names(wtLen) <- names(commSpecNames)
+# # Save data out
+# save(wtLen, file = "./Data/wtLen.RData")
+# plotWtLen(save = TRUE)
 
 # 4. Catch and discards - Species and area
 catchData <- read.csv(  "./Data/catch_by_maj.csv", header = TRUE,
                         stringsAsFactors = FALSE )
 plotCatch(save = TRUE)
+# Get survey removals
+surveyCatch <- lapply( X = survSpecNames, FUN = makeSurveyCatchStocks )
+names(surveyCatch) <- names(survSpecNames)
+save( surveyCatch, file = "./Data/surveyCatch.RData" )
 
 # 5a. Age compositions by fleet, stock, and species - spit out comp data array
 ageComps <- lapply( X = bioData, FUN = makeAgeComps )

@@ -13,6 +13,14 @@
 //          systems in closed loop simulation
 // 
 // 
+// To Do:
+//  1. Check recruitment function is correct
+//  2. Start uncommenting the shared priors
+//  3. Add other likelihoods for compositions - see SJDM
+//      stuff in ISCAM
+//  4. 
+// 
+// 
 // Intended features:
 // - Multistock and multispecies (DERPA)
 //     - Species made up of a single stock have only species level 
@@ -20,6 +28,9 @@
 //     - Different initialisation times for each stock - wishlist
 // - Multi-sector
 //     - Fleets are fisheries by gear type (including surveys)
+//     - Selectivity is length based at fleet/species level,
+//        but a random stock effect for each species/stock combo
+//        is added - could correlate if time-varying
 // - Multi-level RH priors on:
 //     - Growth (vonB or F-W undecided)
 //     - Fishing mortality (correlation in REs if estimated)
@@ -80,6 +91,9 @@ Type objective_function<Type>::operator() ()
   // Model switches - fill these in when we know what we want
   DATA_MATRIX(swRinit_sp);          // pop-spec fished initialisation switch (0 == unfished, 1 == fished)
   DATA_INTEGER(parSwitch);          // parallel accumulator switch for faster run time
+  DATA_ARRAY(calcIndex_spf);        // Switches to calculate indices
+  DATA_SCALAR(ageLikeWt);           // Scalar modifying the weight of the age likelihood
+  DATA_SCALAR(lenLikeWt);           // Scalar modifying the weight of the length likelihood
 
   /*parameter section*/
   // Leading Parameters
@@ -291,7 +305,8 @@ Type objective_function<Type>::operator() ()
     for( int p = 0; p < nP; p++ )
     {
       // Calc Linf CV
-      Type  lenAgeCV  = sigmaL_s( s ) / Linf_sp ( s, p );
+      // TODO: Update this to use true logN
+      Type  lenAgeCV  = sigmaL_s( s );
       for( int a = 0; a < A_s(s); a ++ )
       {
         Type  sumProbs  = 0;
@@ -345,11 +360,12 @@ Type objective_function<Type>::operator() ()
       // Loop over fleets, create selectivities
       for( int f = 0; f < nF; f++ )
       {
+        Type tmpStep = ( lenSel95_sf(s,f) - lenSel50_sf(s,f) );
         // selectivity-at-length
         for( int l = 0; l < L_s(s); l++ )
         {
           sel_lfsp(l,f,s,p) = 1;
-          sel_lfsp(l,f,s,p) /= ( 1 + exp( - log(Type(19.)) * ( l+1 - lenSel50_sf(s,f) ) / ( lenSel95_sf(s,f) - lenSel50_sf(s,f) ) ) );
+          sel_lfsp(l,f,s,p) /= ( 1 + exp( - log(Type(19.)) * ( l+1 - lenSel50_sf(s,f) ) / tmpStep  ) );
         }
         // convert selectivity-at-length to selectivity-at-age using probability matrix
         for( int a = 0; a < A_s(s); a++ )
@@ -396,17 +412,18 @@ Type objective_function<Type>::operator() ()
         {
           // Initialise population either at unfished
           // or using the estimated fished initialisation
-          Type InitRtmp;
-          if( swRinit_sp(s,p) == 0 ) InitRtmp = R0_sp(s,p);
-
           // Populate first year
           for( int a = 0; a < A; a++ )
           {
             // Produce recruits
-            N_aspt(a,s,p,t) = InitRtmp * exp(-Type(a) * M_sp(s,p) );
+            N_aspt(a,s,p,t) = R0_sp(s,p) * exp(-Type(a) * M_sp(s,p) );
+            // Correct plus mortality for accumulation
+            if( a == A - 1)
+              N_aspt(A-1,s,p,t) /= (Type(1) - exp(-M_sp(s,p)));
             // Non-eqbm initialisation
             if(swRinit_sp(s,p) == 1)
               N_aspt(a,s,p,t) *= exp( omegaRinit_spa(s,p,a) - square(sigmaR_sp(s,p)) / 2 );
+            
             // Compute total mortality at age (for catch later)
             Z_aspt(a,s,p,t) = M_sp(s,p);
             for( int f = 0; f < nF; f++ )
@@ -416,10 +433,7 @@ Type objective_function<Type>::operator() ()
               // Add to Z
               Z_aspt(a,s,p,t) += F_aspft(a,s,p,f,t);  
             }
-          }
-          // Correct plus-group numbers at eqbm if initialised at unfished
-          if( swRinit_sp(s,p) == 0 ) 
-            N_aspt(A-1,s,p,t) /= (Type(1) - exp(-M_sp(s,p)));
+          }            
         }
 
         // time series history
@@ -462,7 +476,7 @@ Type objective_function<Type>::operator() ()
           for(int a = 0; a < A; a++ )
           {
             C_aspft(a,s,p,f,t) = N_aspt(a,s,p,t);
-            C_aspft(a,s,p,f,t) *= (Type(1) - exp( Z_aspt(a,s,p,t) ) * F_aspft(a,s,p,f,t) / Z_aspt(a,s,p,t) );  
+            C_aspft(a,s,p,f,t) *= (Type(1) - exp( -Z_aspt(a,s,p,t) )) * F_aspft(a,s,p,f,t) / Z_aspt(a,s,p,t);  
             Cw_aspft(a,s,p,f,t) = C_aspft(a,s,p,f,t) * meanWtAge_asp(a,s,p);
             predCw_spft(s,p,f,t) += Cw_aspft(a,s,p,f,t);
             predC_spft(s,p,f,t) += C_aspft(a,s,p,f,t);
@@ -490,7 +504,7 @@ Type objective_function<Type>::operator() ()
   array<Type> I_spft_hat(nS,nP,nF,nT);
   array<Type> aDist_aspft_hat(nA,nS,nP,nF,nT);
   array<Type> lDist_lspft_hat(nL,nS,nP,nF,nT);
-  I_spft_hat.setZero();
+  I_spft_hat.fill(-1);
   for(int s = 0; s < nS; s++ )
     for( int p = 0; p < nP; p++ )
     {
@@ -501,9 +515,11 @@ Type objective_function<Type>::operator() ()
         for( int t = 0; t < nT; t++ )
         {
           // Predict CPUE for surveys
-          Type expBio = 0.;
-          expBio = ( N_aspt.col(t).col(p).col(s) * meanWtAge_asp.col(p).col(s)*sel_afsp.col(p).col(s).col(f) ).sum();
-          I_spft_hat(s,p,f,t) = q_spf(s,p,f) * expBio;  
+          if( calcIndex_spf(s,p,f) == 1)
+          {
+            Type expBio = 0.;
+            I_spft_hat(s,p,f,t) = q_spf(s,p,f) * Bv_spft(s,p,f,t);  
+          }
 
           // Create array of predicted age distributions - this should just be catch-at-age props
           // Calculate total catch
@@ -554,12 +570,12 @@ Type objective_function<Type>::operator() ()
     {
       // First initialisation deviations
       int A = A_s(s);
-      // for( int a = 0; a < A; A++ )
-      //   recnll_sp(s,p) += Type(0.5) * (2 * lnsigmaR_sp(s,p) + square(omegaRinit_spa(s,p,a)/sigmaR_sp(s,p)) );
+      for( int a = 0; a < A; a++)
+        recnll_sp(s,p) -= dnorm( omegaRinit_spa(s,p,a),Type(0),sigmaR_sp(s,p),true);
 
       // then yearly recruitment deviations
       for( int t = 1; t <  nT; t++ )
-        recnll_sp(s,p) += Type(0.5) * (2 * lnsigmaR_sp(s,p) + square(omegaR_spt(s,p,t-1)/sigmaR_sp(s,p)) ); 
+        recnll_sp(s,p) -= dnorm( omegaR_spt(s,p,t-1), Type(0.), sigmaR_sp(s,p),true);
     }
 
   // // vonB growth model likelihood //
@@ -581,12 +597,12 @@ Type objective_function<Type>::operator() ()
   //   }
 
   // Observation likelihoods
-  array<Type> CPUEnll_sp(nS,nP);       // CPUE
-  array<Type> ageCompsnll_sp(nS,nP);   // Age observations
-  array<Type> lenCompsnll_sp(nS,nP);   // length observations
-  array<Type> Ctnll_sp(nS,nP);         // Catch
-  array<Type> Dtnll_sp(nS,nP);         // Discards
-  CPUEnll_sp.setZero();
+  array<Type> CPUEnll_spft(nS,nP,nF,nT);// CPUE
+  array<Type> ageCompsnll_sp(nS,nP);    // Age observations
+  array<Type> lenCompsnll_sp(nS,nP);    // length observations
+  array<Type> Ctnll_sp(nS,nP);          // Catch
+  array<Type> Dtnll_sp(nS,nP);          // Discards
+  CPUEnll_spft.setZero();
   ageCompsnll_sp.setZero();
   lenCompsnll_sp.setZero();
   Ctnll_sp.setZero();
@@ -614,19 +630,16 @@ Type objective_function<Type>::operator() ()
         fleetLenPred.setZero();
 
         // Now loop over time steps
+
         for( int t = 0; t < nT; t++ )
         {
           // Only use a year if the data exists and that fleet is used as a survey
-          if( (I_spft(s,p,f,t) > 0) & (type_f(f) == 0) )
-          {
-            Type res = 0.;
-            res = log(I_spft(s,p,f,t)) - log(I_spft_hat(s,p,f,t));
-            CPUEnll_sp(s,p) += Type(0.5) * ( pow(lntau_spf(s,p,f),2) + pow(res - lnq_spf(s,p,f), 2 ) / pow(lntau_spf(s,p,f),2) );
-          }
+          if( (I_spft(s,p,f,t) > 0) & (calcIndex_spf(s,p,f) > 0) )
+            CPUEnll_spft(s,p,f,t) += -dnorm( log(I_spft(s,p,f,t)), log(I_spft_hat(s,p,f,t)),tau_spf(s,p,f),true);
 
           // Now compute the catch and discards likelihoods
           if( C_spft(s,p,f,t) > 0 & predCw_spft(s,p,f,t) > 0 )
-            Ctnll_sp(s,p) += 0.5* ( 2 * log(tauC_f(f)) +  square( (log(C_spft(s,p,f,t)) - log(predCw_spft(s,p,f,t)) ) / tauC_f(f)) ) ;
+            Ctnll_sp(s,p) += - dnorm( log(C_spft(s,p,f,t)), log(predCw_spft(s,p,f,t)), tauC_f(f),true);
 
           // Loop and fill age obs and pred matrices
           for( int a = 0; a < A; a++ )
@@ -644,7 +657,7 @@ Type objective_function<Type>::operator() ()
 
           // Now for compositional data. First, check if ages are being used (or exist), if so
           // compute multinomial likelihood
-          if( fleetAgeObs.sum() > 0 )
+          if( fleetAgeObs.sum() > 0 & fleetAgePred.sum() > 0 )
           {
             // Code a general comps likelhood function
             // to use here, and add a switch to the
@@ -653,7 +666,7 @@ Type objective_function<Type>::operator() ()
           }     
 
           // If ages aren't being used, but lengths exist, then compute multinomial likelihood
-          if( fleetAgeObs.sum() <= 0 & fleetLenObs.sum() > 0 )
+          if( fleetAgeObs.sum() <= 0 & fleetLenObs.sum() > 0 & fleetLenPred.sum() > 0 )
           {
             lenCompsnll_sp(s,p) -= dmultinom(fleetLenObs, fleetLenPred, true);
           }     
@@ -755,7 +768,7 @@ Type objective_function<Type>::operator() ()
   joint_nlp += Ctnll_sp.sum();       // Catch
   joint_nlp += lenCompsnll_sp.sum(); // Length compositions
   joint_nlp += ageCompsnll_sp.sum(); // Age compositions
-  joint_nlp += CPUEnll_sp.sum();     // Survey CPUE
+  joint_nlp += CPUEnll_spft.sum();     // Survey CPUE
   // Growth model
   // joint_nlp += vonBnll_sp.sum();     // Growth model
   // Recruitment errors
@@ -817,12 +830,15 @@ Type objective_function<Type>::operator() ()
   REPORT( Wlen_ls );
   REPORT( matLen_ls );
   REPORT( matAge_asp );
+  REPORT( xMat50_s );
+  REPORT( xMat95_s );
+  REPORT( meanWtAge_asp );
 
   // Likelihood values
   REPORT(joint_nlp);
   REPORT(recnll_sp);
   // REPORT(vonBnll_sp);
-  REPORT(CPUEnll_sp);
+  REPORT(CPUEnll_spft);
   REPORT(ageCompsnll_sp);
   REPORT(lenCompsnll_sp);
   REPORT(Ctnll_sp);
@@ -838,8 +854,9 @@ Type objective_function<Type>::operator() ()
   REPORT( A_s );
   REPORT( L_s );
   REPORT( lenD_s );
+  REPORT( calcIndex_spf );
 
-  // Simulated observations
+  // Predicted observations
   REPORT( lDist_lspft_hat );
   REPORT( aDist_aspft_hat );
   REPORT( I_spft_hat );

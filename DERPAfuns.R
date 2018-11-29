@@ -14,18 +14,18 @@
 loadStockSpecNameLists <- function()
 {
   # Survey ids for plotting/legends
-  surveyIDs <<-  c( QCSyn = 1, 
+  surveyIDs <<-  c( QCSSyn = 1, 
                     HSAss = 2, 
                     HSSyn = 3, 
                     WCVISyn = 4,
                     WCHGSyn = 16 )
 
   # Species codes
-  specCodes <<- list( "dover" = 626,
-                      "english" = 628,
-                      "rock" = 621,
-                      "petrale" = 607,
-                      "atooth" = 602 )
+  specCodes <<- list( "Dover" = 626,
+                      "English" = 628,
+                      "Rock" = 621,
+                      "Petrale" = 607,
+                      "Arrowtooth" = 602 )
 
   # Stock IDs for grouping data
   stocksSurvey <<- list(  HSHG = c(2,3,16),
@@ -50,6 +50,9 @@ loadStockSpecNameLists <- function()
                         Rock = "southern-rock-sole",
                         Petrale = "petrale-sole",
                         Arrowtooth = "arrowtooth-flounder" )
+
+  commFleetYrRange <<- c( comm.hist = 1954:1995,
+                          comm.mod = 1996:2018 )
 
   invisible(NULL)  
 }
@@ -129,6 +132,47 @@ makeIndexArray <- function( relBio = relBioList_Survey,
 
   return(I_spft)
 } # END makeIndexArray()
+
+# makeSurveyCatchStocks()
+# Sum the catch in the surveys, arrange by year
+# etc
+makeSurveyCatchStocks <- function(  spec = "dover",
+                                    years = c(fYear, lYear), 
+                                    stocks = stocksSurvey,
+                                    survIDs = surveyIDs )
+{
+  # Read in density
+  specDensityFile <- paste(spec,"density.csv",sep = "_")
+  specDensityPath <- file.path(getwd(),"Data","density",specDensityFile)
+  densityTab <- read.csv(specDensityPath, header = T)
+
+  # Now join and select the columns we want
+  surveyCatch <-  densityTab %>%
+                  dplyr::select(  year = YEAR,
+                                  tripID = TRIP_ID,
+                                  eventID = FISHING_EVENT_ID,
+                                  majorArea = MAJOR_STAT_AREA_CODE,
+                                  minorArea = MINOR_STAT_AREA_CODE,
+                                  survey = SURVEY_DESC,
+                                  surveyID = SURVEY_ID,
+                                  survSeriesID = SURVEY_SERIES_ID,
+                                  catch = CATCH_WEIGHT ) %>%
+                  filter( survSeriesID %in% survIDs ) %>%
+                  mutate( catch = catch/1e6,
+                          stockName = sapply( X = survSeriesID, 
+                                              FUN = appendName, 
+                                              stocks ),
+                          surveyName = sapply(  X = survSeriesID,
+                                                FUN = appendName,
+                                                survIDs ) ) %>%
+                  group_by( stockName, surveyName, year ) %>%
+                  summarise( catch = sum(catch) ) %>%
+                  ungroup()
+
+
+  surveyCatch
+} # makeSurveyCatchStocks()
+
 
 
 # Calculate relative biomass by species and arrange in an array
@@ -1203,7 +1247,8 @@ plotIndices <- function(  survey = relBioList_Survey,
 
 # makeCatchDiscArrays()
 # Creates catch and dicard data arrays for hierSCAL model
-makeCatchDiscArrays <- function(  data = catchData,
+makeCatchDiscArrays <- function(  commData = catchData,
+                                  survData = surveyCatch,
                                   stocks = stocksCommBio,
                                   speciesCodes = specCodes,
                                   years = fYear:lYear,
@@ -1211,25 +1256,25 @@ makeCatchDiscArrays <- function(  data = catchData,
                                   nF = 7, collapseComm = FALSE,
                                   fleetIDs = NULL )
 {
-  data <- data %>%
-          filter( FISHERY_SECTOR == "GROUNDFISH TRAWL" ) %>%
-          mutate( stockName = sapply( X = MAJOR_STAT_AREA_CODE,
-                                      FUN = appendName,
-                                      stocks ),
-                  species = sapply( X = SPECIES_CODE,
-                                    FUN = appendName,
-                                    speciesCodes ) ) %>%
-          filter( stockName %in% names(stocks) ) %>%
-          dplyr::select(  year          = YEAR,
-                          catch         = LANDED_KG,
-                          discardWt     = DISCARDED_KG,
-                          discardNum  = DISCARDED_PCS,
-                          species, stockName ) %>%
-          group_by( species, stockName, year ) %>%
-          summarise(  catch   = sum(catch)/1e6,
-                      discWt  = sum(discardWt)/1e6,
-                      discNum = sum(discardNum) ) %>%
-          ungroup()
+  commData <- commData %>%
+              filter( FISHERY_SECTOR == "GROUNDFISH TRAWL" ) %>%
+              mutate( stockName = sapply( X = MAJOR_STAT_AREA_CODE,
+                                          FUN = appendName,
+                                          stocks ),
+                      species = sapply( X = SPECIES_CODE,
+                                        FUN = appendName,
+                                        speciesCodes ) ) %>%
+              filter( stockName %in% names(stocks) ) %>%
+              dplyr::select(  year          = YEAR,
+                              catch         = LANDED_KG,
+                              discardWt     = DISCARDED_KG,
+                              discardNum  = DISCARDED_PCS,
+                              species, stockName ) %>%
+              group_by( species, stockName, year ) %>%
+              summarise(  catch   = sum(catch)/1e6,
+                          discWt  = sum(discardWt)/1e6,
+                          discNum = sum(discardNum) ) %>%
+              ungroup()
 
   # Array dimensions
   nS <- length(speciesCodes)
@@ -1256,27 +1301,53 @@ makeCatchDiscArrays <- function(  data = catchData,
   for( specIdx in 1:nS )
   {
     specID <- specIDs[specIdx]
+    specSurvData <- survData[[specID]] %>%
+                    filter( surveyName %in% fleetIDs )
     for( stockIdx in 1:nP )
     {
       stockID <- stockIDs[stockIdx]
-      subData <-  data %>%
+      subComm <-  commData %>%
                   filter( species == specID, stockName == stockID )
 
-      obsYrs <- subData$year
+      obsYrs    <- subComm$year
+      obsYrIdx  <- which(obsYrs %in% years)
+      datYrs    <- obsYrs[obsYrs %in% years]
       if( collapseComm )
       {
-        C_spft[specID, stockID, 1, as.character(obsYrs) ] <- subData$catch
-        D_spft[specID, stockID, 1, as.character(obsYrs) ] <- subData$discWt
+        C_spft[specID, stockID, 1, as.character(datYrs) ] <- subComm$catch[obsYrIdx]
+        D_spft[specID, stockID, 1, as.character(datYrs) ] <- subComm$discWt[obsYrIdx]
       } else {
-        histYrs <- obsYrs[obsYrs < modernYear ]
-        modYrs  <- obsYrs[obsYrs >= modernYear ]
+        histObsIdx  <- intersect( which( obsYrs < modernYear ), obsYrIdx)
+        histYrs     <- datYrs[ datYrs < modernYear ]
+        modObsIdx   <- intersect( which( obsYrs >= modernYear ), obsYrIdx)
+        modYrs      <- datYrs[ datYrs >= modernYear ]
         # historic fleet
-        C_spft[specID, stockID, 1, as.character(histYrs) ] <- subData$catch[obsYrs < modernYear ]
-        D_spft[specID, stockID, 1, as.character(histYrs) ] <- subData$discWt[obsYrs < modernYear ]
+        C_spft[specID, stockID, 1, as.character(histYrs) ] <- subComm$catch[histObsIdx ]
+        D_spft[specID, stockID, 1, as.character(histYrs) ] <- subComm$discWt[histObsIdx ]
 
         # modern fleet
-        C_spft[specID, stockID, 2, as.character(modYrs) ] <- subData$catch[obsYrs >= modernYear ]
-        D_spft[specID, stockID, 2, as.character(modYrs) ] <- subData$discWt[obsYrs >= modernYear ]        
+        C_spft[specID, stockID, 2, as.character(modYrs) ] <- subComm$catch[modObsIdx ]
+        D_spft[specID, stockID, 2, as.character(modYrs) ] <- subComm$discWt[modObsIdx ]        
+      }
+
+      # Now do the survey catch
+      specStockSurvData <- specSurvData %>%
+                           filter( stockName == stockID )
+
+      surveyGears <- unique(specStockSurvData$surveyName)
+
+      for( gIdx in 1:length(surveyGears))
+      {
+        surveyID        <- surveyGears[gIdx]
+        subSurvData_spg <-  specStockSurvData %>%
+                            filter( surveyName == surveyID )
+
+        # Get years
+        obsYrs    <- subSurvData_spg$year
+        obsYrIdx  <- which(obsYrs %in% years)
+        datYrs    <- obsYrs[ obsYrs %in% years ]
+
+        C_spft[ specID, stockID, surveyID, as.character(datYrs) ] <- subSurvData_spg$catch[obsYrIdx]
       }
 
     }
@@ -1359,12 +1430,12 @@ makeCompsArray <- function( compList = ageComps,
                             xName = "ages" )
 {
   # Get species names
-  specIDs <- names(compList)
+  specIDs   <- names(compList)
   # Array dimensions
   nX      <- max(plusGroups)
   nS      <- length(compList)
   nP      <- dim(compList[[1]])[1]
-  nF      <- dim(compList[[1]])[2]
+  nF      <- length(fleetIDs)
   nT      <- length(years)
 
   stockIDs <- dimnames(compList[[1]])[[1]]
