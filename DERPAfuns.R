@@ -51,8 +51,8 @@ loadStockSpecNameLists <- function()
                         Petrale = "petrale-sole",
                         Arrowtooth = "arrowtooth-flounder" )
 
-  commFleetYrRange <<- c( comm.hist = 1954:1995,
-                          comm.mod = 1996:2018 )
+  commFleetYrRange <<- list(  comm.hist = 1954:1995,
+                              comm.mod = 1996:2018 )
 
   invisible(NULL)  
 }
@@ -74,7 +74,8 @@ loadCRS <- function()
 makeIndexArray <- function( relBio = relBioList_Survey,
                             commCPUE = commCPUEList,
                             nP = 3, years = 1954:2018,
-                            collapseComm = FALSE
+                            collapseComm = FALSE,
+                            scaleComm = 1e3
                           )
 {
   nS <- length(relBio)
@@ -116,11 +117,11 @@ makeIndexArray <- function( relBio = relBioList_Survey,
       # Add the two fleets together (should be zero overlap)
       subCommCPUE <- apply( X = subCommCPUE, FUN = sum, na.rm = T, MARGIN = c(2,3) )
       subCommCPUE[is.na(subCommCPUE)] <- -1
-      I_spft[specID,,1,as.character(years)] <- subCommCPUE
+      I_spft[specID,,1,as.character(years)] <- subCommCPUE/scaleComm
     } else {
       subCommCPUE[is.na(subCommCPUE)] <- -1
-      I_spft[specID,,1,as.character(years)] <- subCommCPUE["comm.hist",,as.character(years)]
-      I_spft[specID,,2,as.character(years)] <- subCommCPUE["comm.mod",,as.character(years)]
+      I_spft[specID,,1,as.character(years)] <- subCommCPUE["comm.hist",,as.character(years)]/scaleComm
+      I_spft[specID,,2,as.character(years)] <- subCommCPUE["comm.mod",,as.character(years)]/scaleComm
     }
 
     for( survIdx in 1:nSurv )

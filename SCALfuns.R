@@ -7,8 +7,6 @@
 # To Do:
 #   4. Post-processing for report objects: add dimension names
 #       for use in plotting code
-#   5. Create a calcIndex_spf array - pass it into
-#       the model, and use it to block off q values
 #   6. Add in joint priors - be clever about it, we need to avoid
 #       joint q priors on 
 #
@@ -39,11 +37,16 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt", folder=NULL, quiet=TRUE )
     stamp <- paste( format(Sys.time(),format="%d%m%Y%H%M%S" ),sep="" )
     folder <- paste ( "fit_",stamp, sep = "" )
   } else folder <- paste ("fit_", folder, sep = "")
+  
   # Now paste together the path to the folder and create it
   path <- file.path (getwd(),"Outputs","fits",folder)
   dir.create ( path )
-  cat( "\nMSG (saveSim) Created assessment fit folder ",folder,"in ./Outputs/fits/.\n" )
-  # Save blob
+  cat( "\nMSG (saveFit) Created assessment fit folder ",folder,"in ./Outputs/fits/.\n" )
+  
+  # Save path so we can access it later
+  reports$path <- path
+
+  # Save reports object
   save(reports,file = file.path(path,paste(folder,".RData",sep="")))
   # Save plots
   # Choose whether we're using initial parameters
@@ -51,6 +54,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt", folder=NULL, quiet=TRUE )
   if( controlList$ctrl$opt )
     rep <- "FE"
   else rep <- "init"
+
   savePlots(  fitObj = reports,
               useRep = rep,
               saveDir = path  )
@@ -59,6 +63,48 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt", folder=NULL, quiet=TRUE )
   file.copy(from=ctlFile,to=file.path(path,"fitCtlFile.txt"))
   # Done
 } # END fitHierSCAL()
+
+# loadFit()
+# Loads the nominated fit reports object into memory, 
+# so that plot functions can be called
+# inputs:   fit=ordinal indicator of sim in project folder
+# ouputs:   NULL
+# usage:    Prior to plotting simulation outputs
+.loadFit <- function( fit = 1 )
+{
+  # List directories in project folder, remove "." from list
+  dirList <- list.dirs (path="./Outputs/fits",full.names = FALSE,
+                        recursive=FALSE)
+  # Restrict to sim_ folders, pick the nominated simulation
+  fitList <- dirList[grep(pattern="fit",x=dirList)]
+  folder <- fitList[fit]
+
+  # Load the nominated blob
+  reportsFileName <- paste(folder,".RData",sep="")
+  reportsPath <- file.path(getwd(),"Outputs/fits",folder,reportsFileName)
+  load ( file = reportsPath )
+
+  assign( "reports",reports,pos=1 )
+  cat("MSG (loadFit) Reports in ", folder, " loaded from ./Outputs/fits/\n", sep="" )
+
+}
+
+
+# rerunPlots()
+# Function to redo all plots from a given
+# fit report object
+rerunPlots <- function( fitID = 1, rep = "FE" )
+{
+  # Load the fit object
+  .loadFit(fitID)
+
+  # rerun savePlots
+  savePlots(  fitObj = reports,
+              useRep = rep,
+              saveDir = reports$path )
+
+  cat("MSG (rerunPlots) Plots redone in ", reports$path, "\n", sep = "")
+}
 
 # .runHierSCAL()
 # Procedure to create data, parameter and map 
@@ -122,7 +168,6 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt", folder=NULL, quiet=TRUE )
   commCatch <- read.csv(  file.path("./Data/",dataObj$catchData["comm"]), 
                           header = TRUE,
                           stringsAsFactors = FALSE )
-  browser()
 
   survCatchPath  <- file.path("./Data",dataObj$catchData["survey"])
   load(  file = survCatchPath )
@@ -219,12 +264,22 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt", folder=NULL, quiet=TRUE )
   nPosCatch <- length(which(catchDiscArrays$C_spft > 0) )
 
   # Initialised in a fished state (0 == unfished, 1 == fished)
-  initFished_s     <- hypoObj$initFished
+  initFished_s     <- hypoObj$initFished[useSpecies]
   yFirstRecDev_s   <- hypoObj$yFirstRecDev[useSpecies]
+  yLastRecDev_s    <- hypoObj$yLastRecDev[useSpecies]
+
+  # Non-eq initialisation deviations
+  nInitDevs <- sum( nP * (nA_s[useSpecIdx] * initFished_s ) )
 
   # Generate tFirstRecDev from yFirstRecDev and fYear
   tFirstRecDev_s <- yFirstRecDev_s - fYear 
   tFirstRecDev_s[ tFirstRecDev_s < 1 ] <- 1
+  # same for last rec deviation
+  tLastRecDev_s <- yLastRecDev_s - fYear
+  tLastRecDev_s[ tLastRecDev_s > nT ] <- nT
+
+  nRecDevs <- nP * sum( (tLastRecDev_s - tFirstRecDev_s + 1))
+
 
   calcIndex_spf <- array(0, dim = c(nS,nP,nF) )
   for( s in 1:nS )
@@ -235,6 +290,15 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt", folder=NULL, quiet=TRUE )
 
   # Use useSpec, useStocks, useFleets and yrChar to
   # reduce the data arrays so that the fits are dynamic
+
+  # Pull prior mean values from hypoObj to keep pars list tidier
+  mh    <- hypoObj$hPriorMean
+  sdh   <- hypoObj$hPriorSD
+
+  # Observation errors
+  tau2ObsIGa  <- hypoObj$tau2ObsIGa[useFleetsIdx]
+  tau2ObsMode <- hypoObj$tau2ObsPriorMode[useFleetsIdx]
+  tau2ObsIGb  <- (tau2ObsIGa + 1) * tau2ObsMode
 
   # Generate the data list
   data <- list( I_spft = I_spft,
@@ -247,19 +311,20 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt", folder=NULL, quiet=TRUE )
                 A_s = as.integer(nA_s),
                 L_s = as.integer(nL_s),
                 lenD_s = rep(0,nS),
-                swRinit_sp = matrix(1,nrow = nS, ncol = nP),
+                swRinit_s = as.integer(initFished_s[useSpecies]),
                 parSwitch = 0,
                 calcIndex_spf = calcIndex_spf,
                 ageLikeWt = 1,
-                lenLikeWt = 1 )
+                lenLikeWt = 1,
+                tFirstRecDev_s = as.integer(tFirstRecDev_s),
+                tLastRecDev_s = as.integer(tLastRecDev_s) )
 
   
 
   # Generate parameter list
   pars <- list( lnB0_sp = log(sumCat_sp),
-                logitSteep_sp = array(0,dim =c(nS,nP)) ,
-                lnM_sp = array(-4,dim =c(nS,nP)),
-                lnRinit_sp = array(0,dim =c(nS,nP)),
+                logitSteep_sp = array(log((mh - .2)/(1 - mh)),dim =c(nS,nP)) ,
+                lnM_sp = array(log(.04),dim =c(nS,nP)),
                 lnLinf_sp = log(vonBFits$Linf_sp[useSpecIdx,useStockIdx,drop=FALSE]),
                 lnvonK_sp = log(vonBFits$VonK_sp[useSpecIdx,useStockIdx,drop=FALSE]),
                 lnL1_sp   = log(matrix(vonBFits$L1_s[useSpecIdx],nrow = nS, ncol = nP, byrow = FALSE)),
@@ -268,9 +333,9 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt", folder=NULL, quiet=TRUE )
                 xMat50_s = xMat50,
                 xMat95_s = xMat95,
                 lnq_spf = array(0,dim =c(nS,nP,nF)),
-                lntau_spf = array(-1,dim =c(nS,nP,nF)),
+                lntau_spf = array(log(0.1),dim =c(nS,nP,nF)),
                 lnlenSel50_sf = array(3.5,dim =c(nS,nF)),
-                lnlenSel95_sf = array(4.2,dim =c(nS,nF)),
+                lnlenSelStep_sf = array(1.5,dim =c(nS,nF)),
                 lnF_spft  = rep(-2,length = nPosCatch),
                 lntauC_f  = rep(log(0.1),nF),
                 lntauD_f  = rep(log(0.1),nF),
@@ -285,38 +350,53 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt", folder=NULL, quiet=TRUE )
                 mulenSel95_f  = rep(4.2,nF),
                 sigmalenSel50_f = rep(.2,nF),
                 sigmalenSel95_f = rep(.2,nF),
-                lnqbar_fs = array(-2,dim =c(nF,nS)),
-                lntauq_fs = array(-2,dim =c(nF,nS)),
-                lnqbar_f  = rep(-2,nF),
-                lntauq_f  = rep(-2,nF),
-                logitSteep_s  = rep(0,nS),
-                lnsigmaSteep_s  = rep(-2,nS),
-                logitSteep  = 0,
-                lnsigmaSteep  = -2,
-                lnM_s = rep(-2,nS),
+                lnqbar_fs = array(log(0.5),dim =c(nF,nS)),
+                lntauq_fs = array(log(.5),dim =c(nF,nS)),
+                lnqbar_f  = rep(log(0.5),nF),
+                lntauq_f  = rep(log(0.5),nF),
+                logitSteep_s  = rep(log((mh - .2)/(1 - mh)),nS),
+                lnsigmah_s  = rep(log(sdh),nS),
+                logitSteep  = log((mh - .2)/(1 - mh)),
+                lnsigmah  = log(sdh),
+                lnM_s = rep(log(0.04),nS),
                 lnsigmaM_s  = rep( -2, nS ),
-                ln_muM  = -2,
+                ln_muM  = log(0.04),
                 lnsigmaM  = -2,
-                omegaR_spt = array(0, dim = c(nS,nP,nT-1)) ,
-                omegaRinit_spa = array(0, dim = c(nS,nP,max(nA_s))) ,
+                IGatau_f = tau2ObsIGa,
+                IGbtau_f = tau2ObsIGb,
+                omegaR_vec = rep(0, nRecDevs),
+                omegaRinit_vec = rep( 0, nInitDevs ),
                 lnsigmaR_sp = array(0, dim = c(nS,nP)),
                 logitRCorr_chol = rep(0, nS * nP),
-                logitRgamma_sp  = array(0, dim = c(nS,nP))  )
+                logitRgamma_sp  = array(0, dim = c(nS,nP)),
+                deltaLenSel50_p = rep(0,nP),
+                deltaLenSelStep_p = rep(0,nP),
+                lnsigmaSel = log(0.05),
+                pmLenSel95_sf = array(45,dim = c(nS,nF)),
+                cvLenSel95 = 0.3  )
 
   # Generate map list - this will have to be updated
   # so that it's sensitive to useFleetsIdx
   qmap_spf <- array(  sample(1:100,1) + 1:(nS*nP*nF),
                       dim = c(nS,nP,nF) )
-  qmap_spf[calcIndex_spf == 0] <- NA
+  for( fIdx in 1:nF)
+    qmap_spf[,,fIdx] <- fIdx + sample(1:100,1)
 
+  qmap_spf[calcIndex_spf == 0] <- NA
+  # map out the observation error SD
   taumap_spf <- array(  sample(1:100,1) + 1:(nS*nP*nF),
-                      dim = c(nS,nP,nF) )
+                        dim = c(nS,nP,nF) )
+
+  for( fIdx in 1:nF)
+    taumap_spf[,,fIdx] <- fIdx + sample(101:200,1)
+
   taumap_spf[calcIndex_spf == 0] <- NA
+
+  # 
 
   map <- list(  # lnB0_sp = factor(array(NA,dim =c(nS,nP))),
                 # logitSteep_sp = factor(array(NA,dim =c(nS,nP)) ),
                 lnM_sp = factor(array(NA,dim =c(nS,nP))),
-                lnRinit_sp = factor(array(NA,dim =c(nS,nP))),
                 lnLinf_sp = factor(array(NA,dim =c(nS,nP))),
                 lnvonK_sp = factor(array(NA,dim =c(nS,nP))),
                 lnL1_sp = factor(array(NA,dim =c(nS,nP))),
@@ -327,7 +407,9 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt", folder=NULL, quiet=TRUE )
                 lnq_spf = factor(qmap_spf),
                 lntau_spf = factor(taumap_spf),
                 # lnlenSel50_sf = factor(array(NA,dim =c(nS,nF))),
-                # lnlenSel95_sf = factor(array(NA,dim =c(nS,nF))),
+                # lnlenSelStep_sf = factor(array(NA,dim =c(nS,nF))),
+                deltaLenSel50_p = factor(rep(NA,nP)),
+                deltaLenSelStep_p = factor(rep(NA,nP)),
                 # lnF_spft  = factor(rep(NA,nPosCatch)),
                 lntauC_f  = factor(rep(NA,nF)),
                 lntauD_f  = factor(rep(NA,nF)),
@@ -346,24 +428,30 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt", folder=NULL, quiet=TRUE )
                 lntauq_fs = factor(array(NA,dim =c(nF,nS))),
                 lnqbar_f  = factor(rep(NA,nF)),
                 lntauq_f  = factor(rep(NA,nF)),
-                logitSteep_s  = factor(rep(NA,nS)),
-                lnsigmaSteep_s  = factor(rep(-NA,nS)),
+                # logitSteep_s  = factor(rep(NA,nS)),
+                lnsigmah_s  = factor(rep(-NA,nS)),
                 logitSteep  = factor(NA),
-                lnsigmaSteep  = factor(NA),
+                lnsigmah  = factor(NA),
                 lnM_s = factor(rep(NA,nS)),
                 lnsigmaM_s  = factor(rep(NA, nS ) ),
                 ln_muM  = factor(NA),
                 lnsigmaM  = factor(NA),
-                # omegaR_spt = factor(array(NA, dim = c(nS,nP,nT-1))),
-                # omegaRinit_spa = factor(array(NA, dim = c(nS,nP,max(nA_s)))),
+                IGatau_f = factor(rep(NA,nF)),
+                IGbtau_f = factor(rep(NA,nF)),
+                # omegaR_vec = factor( rep( NA, nRecDevs ) ),
+                # omegaRinit_vec = factor( rep( NA, nInitDevs ) ),
                 lnsigmaR_sp = factor(array(NA, dim = c(nS,nP)) ),
                 logitRCorr_chol = factor(rep(NA, nS * nP)),
-                logitRgamma_sp  = factor(array(NA, dim = c(nS,nP))) ) 
+                logitRgamma_sp  = factor(array(NA, dim = c(nS,nP))),
+                lnsigmaSel = factor(NA),
+                pmLenSel95_sf = factor(array(NA,dim = c(nS,nF))),
+                cvLenSel95 = factor(NA) ) 
 
 
   # Create a control list for the assessment model
   tmbCtrl <- list(  eval.max = ctrlObj$maxFunEval, 
                     iter.max = ctrlObj$maxIterations  )
+
 
   # Now create the AD fun object, assuming all fixed effects
   cat("Creating objective function object\n")
@@ -414,6 +502,30 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt", folder=NULL, quiet=TRUE )
   return(outList)
 } # END .runHierSCAL()
 
+# renameReportArrays()
+# Updates the dimension names of the arrays in the 
+# report lists, as a way of making plot code more efficient later.
+renameReportArrays <- function( repObj = repInit, datObj = data )
+{
+  # Just go down the list, but first do the objects with the same names
+
+  repNames <- names(repObj)
+  datNames <- names(datObj)
+
+  bothNames <- repNames[ repNames %in% datNames ]
+
+  for( itemName in bothNames )
+  {
+    dimnames(repObj[[itemName]]) <- dimnames(datObj[[itemName]])
+  }
+
+  # Ok, that's the data taken care of. There are still all the
+  # new arrays that we created
+  dimnames()
+
+  return(report)
+}
+
 # savePlots()
 savePlots <- function(  fitObj = reports,
                         useRep = "FE",
@@ -444,6 +556,12 @@ savePlots <- function(  fitObj = reports,
   plotRspt( repObj = report, initYear = fYear )
   dev.off()
 
+  # Plot recruitment deviations
+  png(  file.path(saveDir,"plotRsptDev.png"),
+        width = 11, height = 8.5, units = "in", res = 300)
+  plotRsptDev( repObj = report, initYear = fYear )
+  dev.off()
+
   # Plot spawning biomass with catch 
   png(  file.path(saveDir,"plotSBspt.png"),
         width = 11, height = 8.5, units = "in", res = 300)
@@ -460,6 +578,12 @@ savePlots <- function(  fitObj = reports,
   png(  file.path(saveDir,"plotCatchFit.png"),
         width = 11, height = 8.5, units = "in", res = 300)
   plotCatchFit_spt( repObj = report, initYear = fYear )
+  dev.off()
+
+  # Plot catch fits
+  png(  file.path(saveDir,"plotSRsp.png"),
+        width = 11, height = 8.5, units = "in", res = 300)
+  plotSRsp( repObj = report, initYear = fYear )
   dev.off()
 
   for( sIdx in 1:nS )
@@ -535,13 +659,11 @@ savePlots <- function(  fitObj = reports,
       dev.off()
 
       # Plot age comp fits
-      png(  file.path(stockPath,"plotFitAgeYrs.png"),
-            width = 8.5, height = 8.5, units = "in", res = 300)
       plotCompFitYrs( repObj = report,
                       initYear = fYear,
                       sIdx = sIdx, pIdx = pIdx,
-                      comps = "age", save = TRUE )
-      dev.off()
+                      comps = "age", save = TRUE,
+                      savePath = file.path(stockPath,"plotFitAgeYrs") )
 
       # Plot age comp fits (average)
       png(  file.path(stockPath,"plotFitAgeAvg.png"),
@@ -553,13 +675,11 @@ savePlots <- function(  fitObj = reports,
       dev.off()
 
       # Plot length comp fits
-      png(  file.path(stockPath,"plotFitLenYrs.png"),
-            width = 8.5, height = 8.5, units = "in", res = 300)
       plotCompFitYrs( repObj = report,
                       initYear = fYear,
                       sIdx = sIdx, pIdx = pIdx,
-                      comps = "length", save = TRUE )
-      dev.off()
+                      comps = "length", save = TRUE,
+                      savePath = file.path(stockPath,"plotFitLenYrs") )
 
       # Plot length comp fits (average)
       png(  file.path(stockPath,"plotFitLenAvg.png"),
@@ -576,7 +696,13 @@ savePlots <- function(  fitObj = reports,
             width = 8.5, height = 11, units = "in", res = 300)
       plotCatchFit_ft(  repObj = report,
                         initYear = fYear,
-                        sIdx = 1, pIdx = 1 )
+                        sIdx = sIdx, pIdx = pIdx )
+      dev.off()
+
+      png(  file.path(stockPath,"plotStockRecruit.png"),
+            width = 8.5, height = 8.5, units = "in", res = 300)
+      plotSR( repObj = report,
+              sIdx = sIdx, pIdx = pIdx )
       dev.off()
 
     }
@@ -584,5 +710,6 @@ savePlots <- function(  fitObj = reports,
 
 
 } # END savePlots()
+
 
 

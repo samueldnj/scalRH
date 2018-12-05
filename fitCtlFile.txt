@@ -2,7 +2,7 @@
 # written Friday, Nov 23, 2018 
 parameter value
 ctrl$dataScenarioName 'noWCHG_DoverOnly'
-ctrl$modelHypName 'noJointPriors'
+ctrl$modelHypName 'noJointPriors_nonEqInit'
 ctrl$maxFunEval 10000
 ctrl$maxIterations 10000
 ctrl$quiet FALSE
@@ -26,17 +26,19 @@ data$matFiles c("matOgives.RData")
 data$growthFiles c(len="lenAge.RData",wt="wtLen.RData",vB="vBFits.RData")
 hypo$growthPars "stock"
 hypo$matX "length"
-hypo$selX "age"
+hypo$selX "length"
 hypo$selFun rep(0,13)
 hypo$initFished c(Dover=0,English=0,Rock=0,Petrale=0,Arrowtooth=0)
 hypo$mq rep(1,13)
 hypo$sdq rep(1,13)
 hypo$initMprior c(0.03,0.003)
 hypo$yFirstRecDev c(Dover=1955,English=1955,Rock=1955,Petrale=1955,Arrowtooth=1955)
+hypo$yLastRecDev c(Dover=2015,English=2016,Rock=2016,Petrale=2016,Arrowtooth=2016)
 hypo$sigmaR 1
 hypo$sigmaM 0.1
-hypo$tau2ObsIGa c(10)
-hypo$tau2ObsPriorMode rep(0.01,13)
-hypo$selModePriorMean rep(25,13)
-hypo$selModePriorCV 2
-hypo$RE c("recDevs_t")
+hypo$tau2ObsIGa rep(4,7)
+hypo$tau2ObsPriorMode rep(0.04,7)
+hypo$hPriorMean 0.75
+hypo$hPriorSD 0.1
+hypo$fleetGroups list(comm=c("comm.hist","comm.mod"),Ass=c("HSAss"),Syn=c("WCHGSyn","QCSSyn","WCVISyn"))
+hypo$RE c("omegaRinit_vec","omegaR_vec","F_spt")
