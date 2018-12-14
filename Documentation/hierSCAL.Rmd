@@ -20,7 +20,7 @@ fontsize: 12pt
 lineno: true
 numbersections: false
 appendix: false
-abstract: Fisheries stock assessments are typically performed for a single species or management unit at a time. This is typically because the data required to include multiple management units of a species, or multiple interacting species, are costly or difficult to collect. In this paper, we use a hierarchical multi-species stock assessment model to assess 5 flatfishes of the family Pleuronectidae off the coast of British Columbia, Canada. Each species is split into 3 stocks, defined by major commercial fishery management areas. Not all stocks of each species have the same data collecte (ages/lengths etc) so the hierarchical model estimates shared priors to share information on selectivity and growth between stocks within a species, as well as natural mortality between species in the same area. Fishing mortality is estimated as an auto-correlated process, and multiple hypotheses about the correlation between species and stocks in Fpt deviations are tested to discover whether technical interactions can be detected in the population dynamics.
+abstract: Fisheries stock assessments are typically performed for a single species or management unit at a time. This is typically because the data required to include multiple management units of a species, or multiple interacting species, are costly or difficult to collect. In this paper, we use a hierarchical multi-species stock assessment model to assess 5 Pleuronectidae flatfishes off the coast of British Columbia, Canada. Each species is split into 3 stocks, defined by major commercial fishery management areas. Not all stocks of each species have the same data collecte (ages/lengths etc) so the hierarchical model estimates shared priors to share information on selectivity and growth between stocks within a species, as well as natural mortality between species in the same area.
 output: 
   pdf_document:
     citation_package: natbib
@@ -69,6 +69,8 @@ library(bookdown)
 
 Fisheries management typically focuses on a single stock of a single species at a time. This narrow focus often implictly assumes that fish are uniformly distributed across the management area, ignoring any spatial structure, and ignores technical and trophic interactions between species, except implicitly through recruitment or mortality [@albertsen2017connecting; @siple2017contributions].
 
+Fisheries stock assessment is concerned with determining the status of exploited fish stocks. Stock assessment models are fit to multiple sources of data
+
 Increasing the scope of fisheries management to include spatial considerations or multi-species interactions can be difficult
     - Data aren't collected for this purpose
     - defining/delineating stocks is difficult
@@ -89,6 +91,7 @@ In this paper, we apply a hierarchical multi-stock age-structured assessment mod
 Not all stocks are surveyed equal: different stocks have large samples age structures, others have no samples at all. 
     - Length composition data supplement the age observations [@rudd2017accounting]
     - Integrated hierarchical growth model shares growth data between stocks and species [@cadigan2017hierarchical]
+    - Can use hierarchical models to extend growth hypotheses to stocks with missing data in a data-driven way (e.g. estimating a growth model for the stocks with missing age data), allowing for an age structured model for stocks with missing age data
 
 
 
@@ -124,17 +127,25 @@ The stock assessment model has an age structured process model that explicitly i
 For stocks without age observations, length comp with separate length-at-age distributions for each stock are used in the observation model. To avoid using the same data twice, we only use length compositions in fleets and years where age observations are unavailable. In those years where age and length observations are available, the length data is used to inform the integrated Von Bertalanffy growth model
 
 Hierarchical priors:
-- Growth model
+- Growth model - this is now outside the model, is there room to add it and account for selectivity in the observations??
     - vonB K parameter between species
     - K, Linf and cvL within species
 - Steepness between stocks and species (multilevel)
 - Catchability for surveys
 - M between stocks and species (multilevel)
-- Correlations in recruitment deviations
-- Correlations in Ft deviations (auto-correlated Ft?)
-- Selectivity-at-length parameters
+- Correlations in recruitment deviations?
+- Correlations in Ft deviations (auto-correlated Ft?)?
+- Selectivity-at-length parameters - this will probably play well with the compositional data issues below
 
 Multifleet model: one fleet for each survey leg
+
+Compositional data: This might be the crux of this paper/analysis, i.e. what to do about compositional data 
+- what kind of likelihood to use? How to avoid swamping the abundance index likelihood?
+- What to do about selectivity - time-varying to follow bad fitting compositions?
+- Papers:
+    + @francis2017revisiting, @francis2016estimating; @francis2014replacing; @stewart2017implications; @thorson2014standardizing; @thorson2018spatiotemporal; @thorson2014mixed;...
+
+
 
 ## Model Hypotheses / Data scenarios
 
@@ -146,9 +157,10 @@ Here I need to include the data scenarios and model hypotheses I'm going to test
     c. Smaller or larger hyperprior variance on shared mortality/steepness priors
 
 2. Coastwide vs multistock?? Keep surveys split into multiple pieces, but lump pop dynamics
+3. Multi-species vs single species/multi-stock
 
 3. Data scenarios:
-    a. Starting in 1956, 1984, 1996, 2003
+    a. Starting in 1956, 1969, 1984, 1996, 2003
     b. Age only, length only [No growth model], age/length?
 
 4. Discarding? Contact Bruce Turris or Greg Workman about a grading length
@@ -162,6 +174,8 @@ AIC is standard, but what about for choosing between two different data scenario
 # Results
 
 # Discussion
+
+In this paper we fit a 
 
 # References
 

@@ -1424,11 +1424,13 @@ makeALFreq <- function( lenAgeList = lenAge,
 # multidimensional array for feeding to hierSCAL
 makeCompsArray <- function( compList = ageComps,
                             plusGroups = plusA_s,
+                            minX  = minA_s,
                             collapseComm = FALSE,
                             fleetIDs = fleetIDs,
                             combineSex = TRUE,
                             years = fYear:lYear,
-                            xName = "ages" )
+                            xName = "ages",
+                            minSampSize = 100 )
 {
   # Get species names
   specIDs   <- names(compList)
@@ -1445,7 +1447,7 @@ makeCompsArray <- function( compList = ageComps,
   names(dimNames) <- c(xName, "species", "stock", "fleet", "years")
 
   # Initialise array
-  comps_xspft <- array( -1, dim = c(nX, nS, nP, nF, nT ),
+  comps_xspft <- array( 0, dim = c(nX, nS, nP, nF, nT ),
                             dimnames = dimNames )
 
   for( specIdx in 1:nS )
@@ -1453,9 +1455,11 @@ makeCompsArray <- function( compList = ageComps,
     # Get species specific info
     specID <- specIDs[specIdx]
     specX <- plusGroups[specID]
+    specMin <- minX[specID]
 
     specComps <- compList[[specID]]
     obsX      <- dim(specComps)[4]
+
 
     # Now loop over fleetIDs
     for( fleetIdx in 1:nF )
@@ -1469,10 +1473,10 @@ makeCompsArray <- function( compList = ageComps,
         {
           yearLab <- as.character(years[tIdx])
           sumComps <- sum(specComps[stockID,fleetID,yearLab,1:(specX-1),1],na.rm = T)
-          if(sumComps == 0)
+          if(sumComps <= minSampSize )
             comps_xspft[ , specID, stockID ,fleetID, yearLab ] <- -1
           else {
-            comps_xspft[1:(specX-1), specID, stockID ,fleetID,yearLab] <- specComps[stockID,fleetID,yearLab,1:(specX-1),1]
+            comps_xspft[specMin:(specX-1), specID, stockID ,fleetID,yearLab] <- specComps[stockID,fleetID,yearLab,specMin:(specX-1),1]
             comps_xspft[specX, specID, stockID ,fleetID,yearLab] <- sum(specComps[stockID,fleetID,yearLab,specX:obsX,1],na.rm = T)
             if( specX < nX )
               comps_xspft[(specX+1):nX, specID, stockID ,fleetID,yearLab] <- 0
@@ -2189,12 +2193,23 @@ makeLenComps <- function( data = bioData$Dover,
 {
   # Pull survey and commercial data
   survData <- data$survey %>%
+              filter(is.na(AGE)) %>%
               mutate( survID = sapply(  X = SURVEY_SERIES_ID,
                                         FUN = appendName,
                                         survIDs),
                       length = round(LENGTH_MM/10) )
+
   commData <- data$comm %>%
+              filter(is.na(AGE)) %>%
               mutate( length = round(LENGTH_MM/10) )
+
+  commTrips <-  commData %>%
+                group_by(stockName,YEAR,SAMPLE_ID) %>%
+                summarise(nSamples = n()) %>%
+                ungroup() %>%
+                filter( nSamples >= 4 ) 
+
+
 
   # We want to make an array to hold age comps,
   # so we need the largest observed age
@@ -2226,10 +2241,14 @@ makeLenComps <- function( data = bioData$Dover,
       gearID <- gearNames[gearIdx]
       if( gearID %in% c("comm.hist","comm.mod") )
       {
+        stockTrips <- commTrips %>%
+                      filter(stockName == stockID)
+
         # Filter down to this gear 
         gearData <- commData %>%
                     filter( !is.na(length), 
-                            stockName == stockID ) %>%
+                            stockName == stockID,
+                            YEAR %in% stockTrips$YEAR ) %>%
                     dplyr::select(  length,
                                     year = YEAR,
                                     sex = SEX ) 
@@ -2313,8 +2332,8 @@ makeLenComps <- function( data = bioData$Dover,
       }
 
       gearData <- survData %>%
-                  filter( !is.na(AGE), 
-                          stockName == stockID ) %>%
+                  filter( stockName == stockID,
+                          !is.na(length) ) %>%
                   dplyr::select(  length,
                                   year = YEAR,
                                   survID,
