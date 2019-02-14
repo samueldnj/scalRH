@@ -122,6 +122,8 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   # Get model dimensions
   nA_s      <- dataObj$nA_s
   minA_s    <- dataObj$minA_s
+  A1_s      <- dataObj$A1_s
+  A2_s      <- dataObj$A2_s
   nL_s      <- dataObj$nL_s
   minL_s    <- dataObj$minL_s
   fYear     <- dataObj$fYearData
@@ -189,7 +191,11 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   # Extract catch and discards
   C_spft <- catchDiscArrays$C_spft[useSpecies,useStocks,,, drop = FALSE]
   D_spft <- catchDiscArrays$D_spft[useSpecies,useStocks,,, drop = FALSE]
-  # Sum catch
+
+  if( !dataObj$modelDisc )
+    C_spft <- C_spft + D_spft
+
+  # Sum catch for initial B0 estimate
   sumCat_sp <- apply( X = C_spft, FUN = sum, MARGIN = c(1,2) )
 
   # Load growth data - use this
@@ -210,11 +216,17 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
     sigmaLb_s = rep(0,nS)
   }
 
-  # # Make the age-length key - this might be useful,
-  # # or we can include it so we can integrate a growth
-  # # model
-  # ALK_spalx <- makeALFreq(  lenAgeList = lenAge,
-  #                           combineSex = TRUE )[useSpecies, useStocks,,,drop = FALSE]
+  # Make the age-length key - this might be useful,
+  # or we can include it so we can integrate a growth
+  # model
+  ALFreq_spalftx <- makeALFreq( ALFreqList = ALfreq,
+                                years = years,
+                                gears = useFleets,
+                                maxA = max(nA_s), maxL = max(nL_s) )
+
+  # Combine sexes for now
+  ALFreq_spalft <- ALFreq_spalftx[,,,,,,1] + ALFreq_spalftx[,,,,,,2]
+  ALFreq_spalft <- ALFreq_spalft[useSpecies,useStocks,,,useFleets,yrChar,drop = FALSE]
 
 
   # Load age and length compositions
@@ -339,7 +351,7 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   if( hypoObj$selX == "length")
   {
     # length at Sel50_sf initial value
-    xSel50_sf <- matrix(  c(  41, 39, 29, 31, 33, 33,
+    xSel50_sf <- matrix(  c(    41, 39, 29, 31, 33, 33,
                                 35, 35, 35, 35, 35, 35,
                                 35, 35, 35, 35, 35, 35,
                                 35, 35, 35, 35, 35, 35,
@@ -350,7 +362,7 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
     xSel50_sf <- xSel50_sf[useSpecIdx,]
 
     # length at SelStep_sf initial value
-    xSelStep_sf <- matrix(  c(  2, 2, 2, 2, 2, 2,
+    xSelStep_sf <- matrix(  c(    2, 2, 2, 2, 2, 2,
                                   2, 2, 2, 2, 2, 2,
                                   2, 2, 2, 2, 2, 2,
                                   2, 2, 2, 2, 2, 2,
@@ -410,12 +422,41 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   nSurv       <- length(dataObj$survNames_g)
   group_f     <- c(rep(0,nComm),1,rep(2,nSurv-1))
 
+  # Generate initial L1 and L2 values
+  initL1_s    <- numeric( length = nS )
+  initL2_s    <- numeric( length = nS )
+
+  calcMeanLenAge <- function( sIdx = 1, ALK = ALFreq_spalft,
+                              age = A1_s )
+  {
+    # Pull length at the given age
+    lenAtAge <- ALK[sIdx,,age[sIdx],,,]
+    lenAtAge <- apply(X = lenAtAge, FUN = sum, MARGIN = c(2))
+    # Calculate number of observations
+    nLenAtAge <- sum(lenAtAge,na.rm = T)
+    # Multiply length bin by freq
+    totLenAtAge <- sum((1:length(lenAtAge)) * lenAtAge )
+    # Calc mean
+    meanLenAge <- sum(totLenAtAge)/nLenAtAge
+
+    meanLenAge
+  }
+
+  initL1_s <- sapply( X = 1:nS, 
+                      FUN = calcMeanLenAge, 
+                      ALK = ALFreq_spalft, 
+                      age = A1_s[useSpecies] )
+  initL2_s <- sapply( X = 1:nS, 
+                      FUN = calcMeanLenAge, 
+                      ALK = ALFreq_spalft, 
+                      age = A2_s[useSpecies] )
+
 
   # Generate the data list
   data <- list( I_spft          = I_spft,
                 C_spft          = C_spft,
                 D_spft          = D_spft,
-                # ALK_spal        = ALK_spalx,
+                ALK_spalft      = ALFreq_spalft,
                 age_aspft       = age_aspft,
                 len_lspft       = len_lspft,
                 group_f         = as.integer(group_f),
@@ -434,17 +475,22 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                 tLastRecDev_s   = as.integer(tLastRecDev_s),
                 minAgeProp      = dataObj$minAgeProp,
                 minLenProp      = dataObj$minLenProp,
+                minPAAL         = dataObj$minPAAL,
                 matX            = hypoObj$matX,
-                selX            = hypoObj$selX )
+                selX            = hypoObj$selX,
+                A1_s            = A1_s[useSpecies],
+                A2_s            = A2_s[useSpecies] )
 
 
   # Generate parameter list
   pars <- list( lnB0_sp           = log(sumCat_sp),
-                logitSteep_sp     = array(log((mh - .2)/(1 - mh)),dim =c(nS,nP)) ,
-                lnM_sp            = array(log(mM),dim =c(nS,nP)),
-                lnLinf_sp         = log(vonBFits$Linf_sp[useSpecIdx,useStockIdx,drop=FALSE]),
-                lnvonK_sp         = log(vonBFits$VonK_sp[useSpecIdx,useStockIdx,drop=FALSE]),
-                lnL1_sp           = log(matrix(vonBFits$L1_s[useSpecIdx],nrow = nS, ncol = nP, byrow = FALSE)),
+                logitSteep        = log((mh - .2)/(1 - mh)),
+                lnM               = log(mM),
+                lnL2step_s        = log(initL2_s - initL1_s),
+                lnvonK_s          = log(rep(.2,nS)),
+                lnL1_s            = log(initL1_s[useSpecIdx]),
+                deltaL2_sp        = log(array(0,dim = c(nS,nP))),
+                deltaVonK_sp      = log(array(0,dim = c(nS,nP))),
                 sigmaLa_s         = sigmaLa_s,
                 sigmaLb_s         = sigmaLb_s,
                 LWa_s             = LWa_s,
@@ -468,11 +514,13 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                 lntauqSyn         = log(.2),
                 mqSurveys         = 1,
                 sdqSurveys        = 1,
-                logitSteep_s      = rep(log((mh - .2)/(1 - mh)),nS),
+                epsSteep_s        = rep(0,nS),
+                epsM_s            = rep(0,nS),
+                epsSteep_sp       = array(0, dim = c(nS,nP)),
+                epsM_sp           = array(0, dim = c(nS,nP)),
                 lnsigmah_s        = rep(log(sdh),nS),
-                logitSteep        = log((mh - .2)/(1 - mh)),
+                logit_muSteep     = log((mh - .2)/(1 - mh)),
                 lnsigmah          = log(sdh),
-                lnM_s             = rep(log(mM),nS),
                 lnsigmaM_s        = rep( log(sdM), nS ),
                 ln_muM            = log(mM),
                 lnsigmaM          = log(sdM),
@@ -507,7 +555,7 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
 
   # Map selectivity at length
   selMap <- array(NA, dim = c(nS,nF))
-  # Turn on selectivity estimation of asked for
+  # Turn on selectivity estimation if asked for
   if( hypoObj$estSel )
     for(s in 1:nS)
       for(f in 1:nF)
@@ -516,28 +564,30 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
 
   map <- list(  
                 lnB0_sp           = factor(array(NA,dim =c(nS,nP))),
-                logitSteep_sp     = factor(array(NA,dim =c(nS,nP)) ),
-                lnM_sp            = factor(array(NA,dim =c(nS,nP))),
-                lnLinf_sp         = factor(array(NA,dim =c(nS,nP))),
-                lnvonK_sp         = factor(array(NA,dim =c(nS,nP))),
-                lnL1_sp           = factor(array(NA,dim =c(nS,nP))),
+                logitSteep        = factor(NA),
+                lnM               = factor(NA),
+                lnL2step_s        = factor(array(NA,dim =c(nS,1))),
+                # lnvonK_s          = factor(array(NA,dim =c(nS,1))),
+                lnL1_s            = factor(array(NA,dim =c(nS,1))),
+                deltaL2_sp        = factor(matrix(NA,nrow = nS, ncol = nP)),
+                deltaVonK_sp      = factor(matrix(NA,nrow = nS, ncol = nP)),
                 LWa_s             = factor(rep(NA,nS)),
                 LWb_s             = factor(rep(NA,nS)),
                 xMat50_s          = factor(rep(NA,nS)),
                 xMat95_s          = factor(rep(NA,nS)),
                 lnq_spf           = factor(qmap_spf),
                 lntau_spf         = factor(taumap_spf),
-                lnxSel50_sf     = factor(selMap),
-                lnxSelStep_sf   = factor(selMap + 100),
+                lnxSel50_sf       = factor(selMap),
+                lnxSelStep_sf     = factor(selMap + 100),
                 # lnF_spft          = factor(rep(NA,nPosCatch)),
                 lntauC_f          = factor(rep(NA,nF)),
                 lntauD_f          = factor(rep(NA,nF)),
                 sigmaLa_s         = factor(rep(NA,nS)),
                 sigmaLb_s         = factor(rep(NA,nS)),
-                muxSel50_sg     = factor(array(NA, dim = c(nS,3))),
-                muxSel95_sg     = factor(array(NA, dim = c(nS,3))),
-                sigmaxSel50_sg  = factor(array(NA, dim = c(nS,3))),
-                sigmaxSel95_sg  = factor(array(NA, dim = c(nS,3))),
+                muxSel50_sg       = factor(array(NA, dim = c(nS,3))),
+                muxSel95_sg       = factor(array(NA, dim = c(nS,3))),
+                sigmaxSel50_sg    = factor(array(NA, dim = c(nS,3))),
+                sigmaxSel95_sg    = factor(array(NA, dim = c(nS,3))),
                 lnqbarSyn_s       = factor(rep(NA,nS)),
                 lntauqSyn_s       = factor(rep(NA,nS)),
                 lnqbarSyn         = factor(NA),

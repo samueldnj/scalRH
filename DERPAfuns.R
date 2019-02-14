@@ -1364,41 +1364,41 @@ makeCatchDiscArrays <- function(  commData = catchData,
 # makeALFreq()
 # Makes the time-averaged Age-length frequency
 # array for the hierSCAL integrated vonB growth model
-makeALFreq <- function( lenAgeList = lenAge,
-                        combineSex = TRUE )
+makeALFreq <- function( ALFreqList = ALfreq,
+                        years = 1954:2018,
+                        gears = gearNames,
+                        maxA = 35, maxL = 80 )
 {
-  nS <- length(lenAgeList)
-  specIDs <- names( lenAgeList )
+  nS <- length(ALFreqList)
+  specIDs <- names( ALFreqList )
 
   ALfreqList <- vector(mode = "list", length = nS)
-  maxA <- 0
-  maxL <- 0
-
-  if( combineSex )
-  {
-    nSex <- 1
-    sexIDs <- "All"
-  }
-  else {
-    nSex <- 2
-    sexIDs <- c("Male", "Female")
-  }
+  
+  nGears <- length(gears)
+  nYears <- length(years)
 
   for( sIdx in 1:nS)
   {
-    ALfreqList[[sIdx]] <- lenAgeList[[sIdx]]$ALfreq
-    maxA <- max(maxA, dim(lenAgeList[[sIdx]]$ALfreq)[2] )
-    maxL <- max(maxL, dim(lenAgeList[[sIdx]]$ALfreq)[3] )
+    ALfreqList[[sIdx]] <- ALFreqList[[sIdx]]$ALfreq
+    maxA <- max(maxA, dim(ALfreqList[[sIdx]])[2])
+    maxL <- max(maxL, dim(ALfreqList[[sIdx]])[3])
   }
-  nP <- dim(ALfreqList[[1]])[1]
-  stockIDs <- dimnames(ALfreqList[[1]])[[1]]
 
-  ALK_spalx <- array( 0, dim = c( nS, nP, maxA, maxL, nSex),
-                          dimnames = list(  species = specIDs,
-                                            stocks = stockIDs,
-                                            ages = 1:maxA,
-                                            lengths = 1:maxL,
-                                            sex = sexIDs ) )
+
+  nP <- dim(ALfreqList[[1]])[1]
+  stockIDs  <- dimnames(ALfreqList[[1]])[[1]]
+  sexIDs    <-dimnames(ALfreqList[[1]])[[6]]
+
+  years <- as.character(years)
+
+  ALK_spalftx <- array( 0, dim = c( nS, nP, maxA, maxL, nGears, nYears, 2),
+                            dimnames = list(  species = specIDs,
+                                              stocks = stockIDs,
+                                              ages = 1:maxA,
+                                              lengths = 1:maxL,
+                                              fleet = gears,
+                                              years = years,
+                                              sex = sexIDs ) )
 
   for( sIdx in 1:nS )
   {
@@ -1407,16 +1407,10 @@ makeALFreq <- function( lenAgeList = lenAge,
     specAL[specAL < 0] <- NA
     specA <- dim(specAL)[2]
     specL <- dim(specAL)[3]
-
-    if(combineSex)
-    {
-      specAL <- apply( X = specAL, FUN = sum, MARGIN = c(1,2,3), na.rm = T)
-      ALK_spalx[specID, stockIDs, 1:specA, 1:specL, 1 ] <- specAL[stockIDs,1:specA,1:specL]
-    } else
-      ALK_spalx[specID, stockIDs, 1:specA, 1:specL, 1 ] <- specAL[stockIDs,1:specA,1:specL,]
+    ALK_spalftx[specID, stockIDs, 1:specA, 1:specL, gears, years, ] <- specAL[stockIDs,1:specA,1:specL, gears, years, ]
   }
 
-  return(ALK_spalx)
+  return(ALK_spalftx)
 } # END makeALFreq()
 
 # makeCompsArray()
@@ -1609,6 +1603,170 @@ plotCatch <- function(  data = catchData,
   } 
 }
 
+# appendCommFleetName
+# Helper function to append historical/modern
+# commercial fleet ID
+appendCommFleetName <- function(year)
+{
+  if( year < 1996 )
+    fleet <- "comm.hist"
+  else fleet <- "comm.mod"
+
+  fleet
+}
+
+# makeALFreq_FleetYear()
+# Conducts the length at age analysis for a given set of data,
+# splitting over stocks and estimating vonB functions
+# for each stock area, species, and sex. Spits out a length
+# at age frequency array (species,stock,sex)
+# inputs: data = output of readBioData()
+# outputs:  vonB = list of vonB fits, 
+#           data = input data  
+#           ALfreq = array of age-length freq, indexed by 
+#                     stock and species
+makeALFreq_FleetYear <- function( data = bioData$Dover,
+                                  stocksComm = stocksCommBio,
+                                  stocksSurv = stocksSurvey,
+                                  survIDs = surveyIDs,
+                                  years = 1954:2018  )
+{
+  # Get survey and commercial data
+  survData <- data$survey %>%
+              mutate(fleetID = sapply( X = SURVEY_SERIES_ID,
+                                      FUN = appendName,
+                                      survIDs) )
+  commData <- data$comm %>%
+              mutate( fleetID = sapply( X = YEAR, FUN = appendCommFleetName) )
+
+  # We want to make an array to hold age comps,
+  # so we need the largest observed age
+  maxAge <- max(survData$AGE, commData$AGE, na.rm = T)
+  maxLen <- round(max(survData$LENGTH_MM, commData$LENGTH_MM, na.rm = T)/10)
+
+  # Make a vector of gear names - split
+  # commercial data into modern and historic
+  gearNames <- c(names(survIDs),"comm.hist","comm.mod")
+  stockNames <- names(stocksComm)
+
+  # Count dimensions
+  nGears  <- length(gearNames)
+  nYears  <- length(years)
+  nStocks <- length(stocksSurv)
+
+
+  # We want to filter down to cases where there are age/length
+  # observations
+  survData <- survData %>%
+              filter( YEAR %in% years) %>%
+              dplyr::select(  age = AGE, length = LENGTH_MM,
+                              stockName, sex = SEX, fleetID,
+                              year = YEAR ) %>%
+              mutate( length = length/10 ) %>%
+              filter( !is.na(age),
+                      !is.na(length),
+                      length > 0 )
+
+  commData <- commData %>%
+              filter( YEAR %in% years) %>%
+              dplyr::select(  age = AGE, length = LENGTH_MM,
+                              stockName, sex = SEX, fleetID,
+                              year = YEAR ) %>%
+              filter( !is.na(age),
+                      !is.na(length),
+                      length > 0 ) %>%
+              mutate( length = length/10 )
+
+  data$survey <- survData
+  data$comm   <- commData 
+
+  # combine total data for likelihood
+  combData <- rbind(survData,commData)
+
+  bioDataBoys   <- combData %>% filter( sex == 1 )
+  bioDataGirls  <- combData %>% filter( sex == 2 )
+
+  # initialise age-length freq
+  # First, get array dimensions
+  lengths <- unique(combData$length)
+  ages    <- unique(combData$age)
+
+  allAges     <- 1:max(ages)
+  allLengths  <- 1:max(lengths)
+
+  # initialise array
+  ALfreq <- array( 0,  dim = c(  nStocks,
+                                  length(allAges),
+                                  length(allLengths),
+                                  nGears,
+                                  nYears,
+                                  2 ),
+                        dimnames = list(  stock = stockNames, 
+                                          age = allAges, 
+                                          length = allLengths, 
+                                          fleet = gearNames,
+                                          year = years,
+                                          sex = c("boys","girls") ) )
+
+
+  # Now populate the array - round length to nearest cm
+  # might need to aggregate further
+  frqData <-  combData %>%
+              mutate( length = round(length) ) %>%
+              group_by( stockName, year, age, length, sex, fleetID ) %>%
+              filter( sex %in% c(1,2), !is.na(fleetID) ) %>%
+              summarise( nObs = n() ) %>%
+              ungroup()
+
+
+  # Now loop over stocks
+  for( stockIdx in 1:length(stockNames) )
+  {
+    for( gearIdx in 1:length(gearNames))
+    {
+      gearName <- gearNames[gearIdx]
+      gearData <- frqData %>% 
+                  filter( stockName == stockNames[stockIdx],
+                          fleetID == gearNames[gearIdx] )
+
+      gearAges <- unique( gearData$age )
+      gearLengths <- unique( gearData$length )
+
+      for( a in gearAges )
+        for( l in gearLengths )
+        {
+
+          boyObs <- gearData %>% 
+                    filter( sex == 1, 
+                            age == a, 
+                            length == l )
+          girlObs <-  gearData %>% 
+                      filter( sex == 2, 
+                              age == a, 
+                              length == l )
+
+          if(nrow(boyObs) > 0)
+          {
+            ALfreq[ stockNames[stockIdx], a, l, gearName, as.character(boyObs$year), "boys" ] <- boyObs$nObs
+          }
+          if(nrow(girlObs) > 0)
+          {
+            ALfreq[ stockNames[stockIdx], a, l, gearName, as.character(girlObs$year), "girls" ] <- girlObs$nObs
+          }
+
+        }
+    }
+  }
+
+  outList <- list(  data = data,
+                    ALfreq = ALfreq )
+
+  outList
+} # END makeALFreq_FleetYear()
+
+
+
+
 # makeAgeComps()
 # Takes output of readBioData() for a species
 # and generates an array of age observation
@@ -1641,13 +1799,12 @@ makeAgeComps <- function( data = bioData$Dover,
   nStocks <- length(stocksSurv)
 
   # initialise array
-  ageFreq <- array(NA,  dim = c(nStocks,nGears,nYears,maxAge,3),
-                        dimnames = list(  stockNames,
-                                          gearNames,
-                                          as.character(years),
-                                          as.character(1:maxAge),
-                                          c("all", "boys", "girls" ) ) ) 
-
+  compFreq <- array(0,  dim = c(nStocks,nGears,nYears,maxAge,3),
+                        dimnames = list(  stock = stockNames,
+                                          fleets = gearNames,
+                                          years = as.character(years),
+                                          age = as.character(1:maxAge),
+                                          sex = c("all", "boys", "girls" ) ) ) 
   for( stockIdx in 1:nStocks )
   {
     stockID <- stockNames[stockIdx]
@@ -1663,26 +1820,32 @@ makeAgeComps <- function( data = bioData$Dover,
                     dplyr::select(  age = AGE,
                                     year = YEAR,
                                     sex = SEX ) 
-
+        # Skip if zero observations
         if( nrow(gearData) == 0 )
           next
 
         # Summarise all data
         allData <-  gearData %>%
                     group_by( year, age ) %>%
-                    summarise( nObs = n() ) %>%
+                    summarise(  nObs = n(),
+                                meanAge = mean(age),
+                                sdAge = sd(age) ) %>%
                     ungroup()
         # Boys
         boyData <-  gearData %>%
                     filter( sex == 1 ) %>%
                     group_by( year, age ) %>%
-                    summarise( nObs = n() ) %>%
+                    summarise(  nObs = n(),
+                                meanAge = mean(age),
+                                sdAge = sd(age) ) %>%
                     ungroup()
         # Girls
         girlData <- gearData %>%
                     filter( sex == 2 ) %>%
                     group_by( year, age ) %>%
-                    summarise( nObs = n() ) %>%
+                    summarise(  nObs = n(),
+                                meanAge = mean(age),
+                                sdAge = sd(age) ) %>%
                     ungroup()
 
         # Pull those years with observations
@@ -1704,11 +1867,11 @@ makeAgeComps <- function( data = bioData$Dover,
           if( nrow(yrData.all) > 0)
           {
             # Replace NAs with 0s, as we have some observations
-            ageFreq[stockID, gearID, yrChar, ,"all" ] <- 0  
+            compFreq[stockID, gearID, yrChar, ,"all" ] <- 0  
             # Get vector of ages with positive observations
             obsAges <- as.character(yrData.all$age)
-            # Save into ageFreq
-            ageFreq[stockID, gearID, yrChar, obsAges, "all" ]<- yrData.all$nObs
+            # Save into compFreq
+            compFreq[stockID, gearID, yrChar, obsAges, "all" ] <- yrData.all$nObs            
           }
           
           # Subset to that year's data
@@ -1717,11 +1880,11 @@ makeAgeComps <- function( data = bioData$Dover,
           if( nrow(yrData.boy) > 0)
           {
             # Replace NAs with 0s, as we have some observations
-            ageFreq[stockID, gearID, yrChar, ,"boys" ] <- 0  
+            compFreq[stockID, gearID, yrChar, ,"boys" ] <- 0  
             # Get vector of ages with positive observations
             obsAges <- as.character(yrData.boy$age)
-            # Save into ageFreq
-            ageFreq[stockID, gearID, yrChar, obsAges, "boys" ]<- yrData.boy$nObs
+            # Save into compFreq
+            compFreq[stockID, gearID, yrChar, obsAges, "boys" ]  <- yrData.boy$nObs
           }
 
           # Subset to that year's data
@@ -1730,11 +1893,11 @@ makeAgeComps <- function( data = bioData$Dover,
           if( nrow(yrData.girl) > 0)
           {
             # Replace NAs with 0s, as we have some observations
-            ageFreq[stockID, gearID, yrChar, ,"girls" ] <- 0  
+            compFreq[stockID, gearID, yrChar, ,"girls" ] <- 0  
             # Get vector of ages with positive observations
             obsAges <- as.character(yrData.girl$age)
-            # Save into ageFreq
-            ageFreq[stockID, gearID, yrChar, obsAges, "girls" ]<- yrData.girl$nObs
+            # Save into compFreq
+            compFreq[stockID, gearID, yrChar, obsAges, "girls" ]  <- yrData.girl$nObs
           }   
 
         }
@@ -1750,27 +1913,47 @@ makeAgeComps <- function( data = bioData$Dover,
                                   survID,
                                   sex = SEX ) %>%
                   filter( survID == gearID ) 
-
+      # Skip if zero observations
       if( nrow(gearData) == 0 )
           next
+
+      # Take mean and SD of ages for this gear
+      gearMeanSD <- gearData %>%
+                    summarise(  meanAge = mean(age),
+                                sdAge = sd(age) )
+
+
+      # Filter mean and sd by sex
+      gearMeanSD.sex <- gearData %>%
+                        filter( sex %in% c(1,2)) %>%
+                        group_by( sex ) %>%
+                        summarise(  meanAge = mean(age),
+                                    sdAge = sd(age) )
+      
 
       # Summarise combined sexes
       allData <-  gearData %>%
                   group_by( year, age ) %>%
-                  summarise( nObs = n() ) %>%
+                  summarise(  nObs = n(),
+                              meanAge = mean(age),
+                              sdAge = sd(age) ) %>%
                   ungroup()
 
       # Boys
       boyData <-  gearData %>%
                   filter( sex == 1 ) %>%
                   group_by( year, age ) %>%
-                  summarise( nObs = n() ) %>%
+                  summarise(  nObs = n(),
+                              meanAge = mean(age),
+                              sdAge = sd(age) ) %>%
                   ungroup()
       # Girls
       girlData <- gearData %>%
                   filter( sex == 2 ) %>%
                   group_by( year, age ) %>%
-                  summarise( nObs = n() ) %>%
+                  summarise(  nObs = n(),
+                              meanAge = mean(age),
+                              sdAge = sd(age) ) %>%
                   ungroup()
 
       # Pull those years with observations
@@ -1786,11 +1969,11 @@ makeAgeComps <- function( data = bioData$Dover,
         if( nrow(yrData.all) > 0)
         {
           # Replace NAs with 0s, as we have some observations
-          ageFreq[stockID, gearID, yrChar, ,"all" ] <- 0  
+          compFreq[stockID, gearID, yrChar, ,"all" ] <- 0  
           # Get vector of ages with positive observations
           obsAges <- as.character(yrData.all$age)
-          # Save into ageFreq
-          ageFreq[stockID, gearID, yrChar, obsAges, "all" ]<- yrData.all$nObs
+          # Save into compFreq
+          compFreq[stockID, gearID, yrChar, obsAges, "all"] <- yrData.all$nObs
         }
         
         # Subset to that year's data
@@ -1799,11 +1982,11 @@ makeAgeComps <- function( data = bioData$Dover,
         if( nrow(yrData.boy) > 0)
         {
           # Replace NAs with 0s, as we have some observations
-          ageFreq[stockID, gearID, yrChar, ,"boys" ] <- 0  
+          compFreq[stockID, gearID, yrChar, ,"boys" ] <- 0  
           # Get vector of ages with positive observations
           obsAges <- as.character(yrData.boy$age)
-          # Save into ageFreq
-          ageFreq[stockID, gearID, yrChar, obsAges, "boys" ]<- yrData.boy$nObs
+          # Save into compFreq
+          compFreq[stockID, gearID, yrChar, obsAges, "boys" ]<- yrData.boy$nObs
         }
 
         # Subset to that year's data
@@ -1812,11 +1995,11 @@ makeAgeComps <- function( data = bioData$Dover,
         if( nrow(yrData.girl) > 0)
         {
           # Replace NAs with 0s, as we have some observations
-          ageFreq[stockID, gearID, yrChar, ,"girls" ] <- 0  
+          compFreq[stockID, gearID, yrChar, ,"girls" ] <- 0  
           # Get vector of ages with positive observations
           obsAges <- as.character(yrData.girl$age)
-          # Save into ageFreq
-          ageFreq[stockID, gearID, yrChar, obsAges, "girls" ]<- yrData.girl$nObs
+          # Save into compFreq
+          compFreq[stockID, gearID, yrChar, obsAges, "girls" ]<- yrData.girl$nObs
         }   
 
       }
@@ -1825,7 +2008,7 @@ makeAgeComps <- function( data = bioData$Dover,
   }
 
   # Return age frequencies
-  return(ageFreq)
+  return(compFreq)
 } # END makeAgeComps()
 
 
@@ -1867,7 +2050,8 @@ plotComps <- function(  comps = ageComps,
     }
 
     # pull age freq array
-    ageFrq <- comps[[specIdx]]
+    freq    <- comps[[specIdx]]$freq
+    meanSD  <- comps[[specIdx]]$meanSD
 
     # Count stocks, gears, age classes
     nStocks <- dim(ageFrq)[1]
@@ -1891,49 +2075,68 @@ plotComps <- function(  comps = ageComps,
           dir.create( stockDir )
       }
 
+      # Here I want to refactor and create 2 functions:
+      # 1. Bubble plots
+      if( save )
+      {
+        fileName <- paste( prefix,"BubblesByGear.png", sep = "" )
+        png(  file = file.path(stockDir,fileName),
+              width = 8.5, height = 11, res = 300,
+              units = "in" )
+      }
+
+
+      # Set up multipanel region
+      par(mfrow = c(nGears,3), oma = c(4,4,4,2), mar = c(0,0,0,0) )
+
       # Now loop over gears
       for( gearIdx in 1:nGears )
       {
         # Get gear name
         gearName <- gearNames[gearIdx]
-        # Skip if there are no observations
-        if( all(is.na(ageFrq[stockIdx,gearIdx,,,])) )
-          next
 
-        # Here I want to refactor and create 2 functions:
-        # 1. Bubble plots
-        if( save )
-        {
-          fileName <- paste( prefix,"Bubbles",gearName,".png", sep = "" )
-          png(  file = file.path(stockDir,fileName),
-                width = 8.5, height = 11, res = 300,
-                units = "in" )
-        }
         # Pull subset
-        subFrq <- ageFrq[ stockIdx, gearIdx,,,]
+        subFrq <- freq[ stockIdx, gearIdx,,,,]
 
-        # Set up multipanel region
-        par(mfrow = c(3,1), oma = c(4,4,3,2), mar = c(1,1,1,1) )
+        
         # Plot boys
-        .plotBubbles( z = subFrq[,,1])
-        mtext( side = 4, text = "Male", line = 2 )
+        .plotBubbles( z = subFrq[,,"boys","freq"])
+        mfg <- par("mfg")
+        if(mfg[1] == 1)
+          mtext( side = 3, text = "Male", line = 1 )
         # Plot girls
-        .plotBubbles( z = subFrq[,,2])
-        mtext( side = 4, text = "Female", line = 2 )
+        .plotBubbles( z = subFrq[,,"girls","freq"])
+        mfg <- par("mfg")
+        if(mfg[1] == 1)
+          mtext( side = 3, text = "Female", line = 1 )
         # Plot combined
-        .plotBubbles( z = subFrq[,,3])
-        mtext(  side = 4, text = "Both + Unsexed", line = 2 )
+        .plotBubbles( z = subFrq[,,"all","freq"])
+        mfg <- par("mfg")
+        if(mfg[1] == 1)
+          mtext(  side = 3, text = "Both + Unsexed", line = 1 )
+
+        mtext( side = 4, text = gearName, font = 2, line = 1 )
         # Add title
-        mtext(  side = 3, text = paste(specID, stockID, gearName, sep = " - " ),
-                outer = T, line = 1, cex = 2, font = 2 )
+        mtext(  side = 3, text = paste(specID, stockID, sep = " - " ),
+                outer = T, line = 3, cex = 1, font = 2 )
 
-        if( save )
-          dev.off()
+      }
+      # Turn save output off
+      if( save )
+        dev.off()
 
-        if(!save)
-          dev.new()
+      # 2. age freqency plots
+      # Now loop over gears
+      for( gearIdx in 1:nGears )
+      {
+        # Get gear name
+        gearName <- gearNames[gearIdx]
 
-        # 2. age freqency plots
+        # Pull subset
+        subFrq <- freq[ stockIdx, gearIdx,,,]
+
+        if( sum(subFrq, na.rm = TRUE) == 0 )
+          next
 
         # Now we want to plot the age frequency plots
         # but we can't plot the three groups (boys, girls, unsexed)
@@ -1947,7 +2150,7 @@ plotComps <- function(  comps = ageComps,
                 units = "in" )
         }
         
-        .plotFreqBars( z = subFrq[,,1] )
+        .plotFreqBars( z = subFrq[,,"boys","freq"] )
         mtext(  side = 3, outer = TRUE, font = 2,
                 text = paste(specID, " Males - ", stockID ," - ", gearName, sep = "") )
 
@@ -1963,7 +2166,7 @@ plotComps <- function(  comps = ageComps,
                 units = "in" )
         }
         
-        .plotFreqBars( z = subFrq[,,2] )
+        .plotFreqBars( z = subFrq[,,"girls","freq"] )
         mtext(  side = 3, outer = TRUE, font = 2,
                 text = paste(specID, " Females - ", stockID ," - ", gearName, sep = "") )
 
@@ -1979,7 +2182,7 @@ plotComps <- function(  comps = ageComps,
                 units = "in" )
         }
         
-        .plotFreqBars( z = subFrq[,,3] )
+        .plotFreqBars( z = subFrq[,,"all","freq"] )
         mtext(  side = 3, outer = TRUE, font = 2,
                 text = paste(specID, " Combined - ", stockID ," - ", gearName, sep = "") )
 
@@ -2005,7 +2208,8 @@ plotComps <- function(  comps = ageComps,
                           hide0 = TRUE,
                           lwd = 1,
                           pwr = .5,
-                          size = .1 )
+                          size = .1,
+                          forceAxes = FALSE )
 {
   # Get dimensions of z
   dz <- dim( z )
@@ -2053,8 +2257,11 @@ plotComps <- function(  comps = ageComps,
 
   plot( x = range(years), y = range(ages,nAges+1),
         type = "n", xlab = "", ylab = "", axes = F )
-    axis( side = 1 )
-    axis( side = 2, las = 1 )
+    mfg <- par("mfg")
+    if( mfg[1] == mfg[3] | forceAxes )
+      axis( side = 1 )
+    if( mfg[2] == 1 | forceAxes )
+      axis( side = 2, las = 1 )
     box()
 
     if( !hide0 && !all(is.na(z3)) ) 
@@ -2075,8 +2282,9 @@ plotComps <- function(  comps = ageComps,
             inches = sz1, fg = clrs[1], lwd = lwd, add = TRUE), 
             checkpar = TRUE)
     }
-    text( x = years[zSum > 0], y = nAges + 1, labels = zSum[zSum > 0],
-          srt = 45, cex = .5 )
+    if( any(zSum > 0) )
+      text( x = years[zSum > 0], y = nAges + 1, labels = zSum[zSum > 0],
+            srt = 45, cex = .5 )
 
 } # END .plotBubbles()
 
@@ -2124,7 +2332,9 @@ plotComps <- function(  comps = ageComps,
   # If not averaging, set up multi-panel
   if( !avg )
   {
-    if ( nPanels <= 9 )
+    if( nPanels == 1 )
+      par( oma = myOma, mar = myMar, mfcol = c( 1, 1 ) )
+    if( nPanels <= 9 )
       par( oma=myOma, mar=myMar, mfcol=c(3,3) )
     else if ( nPanels > 9 & nPanels <= 12 )
       par( oma=myOma, mar=myMar, mfcol=c(4,3) )
@@ -2226,12 +2436,15 @@ makeLenComps <- function( data = bioData$Dover,
   nStocks <- length(stocksSurv)
 
   # initialise array
-  lenFreq <- array(NA,  dim = c(nStocks,nGears,nYears,maxLen,3),
-                        dimnames = list(  stockNames,
-                                          gearNames,
-                                          as.character(years),
-                                          as.character(1:maxLen),
-                                          c("all", "boys", "girls" ) ) ) 
+  compFreq <- array(NA, dim = c(nStocks,nGears,nYears,maxLen,3),
+                        dimnames = list(  stock = stockNames,
+                                          fleets = gearNames,
+                                          years = as.character(years),
+                                          length = as.character(1:maxLen),
+                                          sex = c("all", "boys", "girls" ) ) ) 
+  
+  
+
 
   for( stockIdx in 1:nStocks )
   {
@@ -2259,19 +2472,25 @@ makeLenComps <- function( data = bioData$Dover,
         # Summarise all data
         allData <-  gearData %>%
                     group_by( year, length ) %>%
-                    summarise( nObs = n() ) %>%
+                    summarise(  nObs = n(),
+                                meanLen = mean(length),
+                                sdLen = sd(length) ) %>%
                     ungroup()
         # Boys
         boyData <-  gearData %>%
                     filter( sex == 1 ) %>%
                     group_by( year, length ) %>%
-                    summarise( nObs = n() ) %>%
+                    summarise(  nObs = n(),
+                                meanLen = mean(length),
+                                sdLen = sd(length)  ) %>%
                     ungroup()
         # Girls
         girlData <- gearData %>%
                     filter( sex == 2 ) %>%
                     group_by( year, length ) %>%
-                    summarise( nObs = n() ) %>%
+                    summarise(  nObs = n(),
+                                meanLen = mean(length),
+                                sdLen = sd(length)  ) %>%
                     ungroup()
 
         # Pull those years with observations
@@ -2293,11 +2512,11 @@ makeLenComps <- function( data = bioData$Dover,
           if( nrow(yrData.all) > 0)
           {
             # Replace NAs with 0s, as we have some observations
-            lenFreq[stockID, gearID, yrChar, ,"all" ] <- 0  
+            compFreq[stockID, gearID, yrChar, ,"all" ] <- 0  
             # Get vector of ages with positive observations
             obsLens <- as.character(yrData.all$length)
-            # Save into lenFreq
-            lenFreq[stockID, gearID, yrChar, obsLens, "all" ]<- yrData.all$nObs
+            # Save into compFreq
+            compFreq[stockID, gearID, yrChar, obsLens, "all" ]<- yrData.all$nObs
           }
           
           # Subset to that year's data
@@ -2306,11 +2525,11 @@ makeLenComps <- function( data = bioData$Dover,
           if( nrow(yrData.boy) > 0)
           {
             # Replace NAs with 0s, as we have some observations
-            lenFreq[stockID, gearID, yrChar, ,"boys" ] <- 0  
+            compFreq[stockID, gearID, yrChar, ,"boys" ] <- 0  
             # Get vector of ages with positive observations
             obsLens <- as.character(yrData.boy$length)
-            # Save into lenFreq
-            lenFreq[stockID, gearID, yrChar, obsLens, "boys" ]<- yrData.boy$nObs
+            # Save into compFreq
+            compFreq[stockID, gearID, yrChar, obsLens, "boys" ]<- yrData.boy$nObs
           }
 
           # Subset to that year's data
@@ -2319,11 +2538,11 @@ makeLenComps <- function( data = bioData$Dover,
           if( nrow(yrData.girl) > 0)
           {
             # Replace NAs with 0s, as we have some observations
-            lenFreq[stockID, gearID, yrChar, ,"girls" ] <- 0  
+            compFreq[stockID, gearID, yrChar, ,"girls" ] <- 0  
             # Get vector of ages with positive observations
             obsLens <- as.character(yrData.girl$length)
-            # Save into lenFreq
-            lenFreq[stockID, gearID, yrChar, obsLens, "girls" ]<- yrData.girl$nObs
+            # Save into compFreq
+            compFreq[stockID, gearID, yrChar, obsLens, "girls" ]<- yrData.girl$nObs
           }   
 
         }
@@ -2346,20 +2565,26 @@ makeLenComps <- function( data = bioData$Dover,
       # Summarise combined sexes
       allData <-  gearData %>%
                   group_by( year, length ) %>%
-                  summarise( nObs = n() ) %>%
+                  summarise(  nObs = n(),
+                              meanLen = mean(length),
+                              sdLen = sd(length)  ) %>%
                   ungroup()
 
       # Boys
       boyData <-  gearData %>%
                   filter( sex == 1 ) %>%
                   group_by( year, length ) %>%
-                  summarise( nObs = n() ) %>%
+                  summarise(  nObs = n(),
+                              meanLen = mean(length),
+                              sdLen = sd(length)  ) %>%
                   ungroup()
       # Girls
       girlData <- gearData %>%
                   filter( sex == 2 ) %>%
                   group_by( year, length ) %>%
-                  summarise( nObs = n() ) %>%
+                  summarise(  nObs = n(),
+                              meanLen = mean(length),
+                              sdLen = sd(length)  ) %>%
                   ungroup()
 
       # Pull those years with observations
@@ -2375,11 +2600,11 @@ makeLenComps <- function( data = bioData$Dover,
         if( nrow(yrData.all) > 0)
         {
           # Replace NAs with 0s, as we have some observations
-          lenFreq[stockID, gearID, yrChar, ,"all" ] <- 0  
+          compFreq[stockID, gearID, yrChar, ,"all" ] <- 0  
           # Get vector of ages with positive observations
           obsLens <- as.character(yrData.all$length)
-          # Save into lenFreq
-          lenFreq[stockID, gearID, yrChar, obsLens, "all" ]<- yrData.all$nObs
+          # Save into compFreq
+          compFreq[stockID, gearID, yrChar, obsLens, "all" ]<- yrData.all$nObs
         }
         
         # Subset to that year's data
@@ -2388,11 +2613,12 @@ makeLenComps <- function( data = bioData$Dover,
         if( nrow(yrData.boy) > 0)
         {
           # Replace NAs with 0s, as we have some observations
-          lenFreq[stockID, gearID, yrChar, ,"boys" ] <- 0  
+          compFreq[stockID, gearID, yrChar, ,"boys" ] <- 0  
           # Get vector of ages with positive observations
           obsLens <- as.character(yrData.boy$length)
-          # Save into lenFreq
-          lenFreq[stockID, gearID, yrChar, obsLens, "boys" ]<- yrData.boy$nObs
+          # Save into compFreq
+          compFreq[stockID, gearID, yrChar, obsLens, "boys" ]<- yrData.boy$nObs
+          
         }
 
         # Subset to that year's data
@@ -2401,11 +2627,12 @@ makeLenComps <- function( data = bioData$Dover,
         if( nrow(yrData.girl) > 0)
         {
           # Replace NAs with 0s, as we have some observations
-          lenFreq[stockID, gearID, yrChar, ,"girls" ] <- 0  
+          compFreq[stockID, gearID, yrChar, ,"girls" ] <- 0  
           # Get vector of ages with positive observations
           obsLens <- as.character(yrData.girl$length)
-          # Save into lenFreq
-          lenFreq[stockID, gearID, yrChar, obsLens, "girls" ]<- yrData.girl$nObs
+          # Save into compFreq
+          compFreq[stockID, gearID, yrChar, obsLens, "girls" ]<- yrData.girl$nObs
+          
         }   
 
       }
@@ -2414,7 +2641,7 @@ makeLenComps <- function( data = bioData$Dover,
   }
 
   # Return age frequencies
-  return(lenFreq)
+  return(compFreq)
 } # END makeLenComps()
 
 # Small function to switch maturity

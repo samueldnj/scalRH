@@ -113,11 +113,10 @@ names(bioData) <- names(commSpecNames)
 save(bioData, file = "./Data/bioData.RData")
 
 # 2. Length at age plots - stock and sex - spit out age-length freq array
-# lenAge <- lapply( X = bioData, FUN = makeLenAge, stocks = names(stocksCommBio) )
-# names(lenAge) <- names(commSpecNames)
-# # Save data out
-# save(lenAge, file = "./Data/lenAge.RData")
-# plotLenAge(save = TRUE)
+ALfreq <- lapply( X = bioData, FUN = makeALFreq_FleetYear )
+names(ALfreq) <- names(commSpecNames)
+# Save data out
+save(ALfreq, file = "./Data/ALfreq.RData")
 
 # 3. Length/wt plots - stock and sex
 # wtLen <- lapply( X = bioData, FUN = makeWtLen, stocks = names(stocksCommBio))
