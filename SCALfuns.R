@@ -49,14 +49,9 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt", folder=NULL, quiet=TRUE )
   # Save reports object
   save(reports,file = file.path(path,paste(folder,".RData",sep="")))
   # Save plots
-  # Choose whether we're using initial parameters
-  # or the fixed effects (extend to RE model later)
-  if( controlList$ctrl$opt )
-    rep <- "FE"
-  else rep <- "init"
 
   savePlots(  fitObj = reports,
-              useRep = rep,
+              useRep = reports$plotRep,
               saveDir = path  )
 
   # Copy control file to sim folder for posterity
@@ -98,9 +93,18 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   # Load the fit object
   .loadFit(fitID)
 
+  if(!is.null(reports$repFE))
+    reports$repFE <- renameReportArrays( reports$repFE, reports$data )
+
+  if(!is.null(reports$repInit))
+    reports$repInit <- renameReportArrays( reports$repInit, reports$data )
+
+  if(!is.null(reports$repRE))
+    reports$repRE <- renameReportArrays( reports$repRE, reports$data )
+
   # rerun savePlots
   savePlots(  fitObj = reports,
-              useRep = rep,
+              useRep = reports$plotRep,
               saveDir = reports$path )
 
   cat("MSG (rerunPlots) Plots redone in ", reports$path, "\n", sep = "")
@@ -170,6 +174,13 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                             scaleComm = dataObj$commCPUEscalar )
   I_spft <- I_spft[useSpecies,useStocks,useFleets,, drop = FALSE]
 
+  minTimeIdx_spf <- array(nT-1, dim = c(nS,nP,nF) )
+  for( sIdx in 1:nS )
+    for( pIdx in 1:nP )
+      for( fIdx in 1:nF )
+        if( any(I_spft[sIdx,pIdx,fIdx,]>0))
+          minTimeIdx_spf[sIdx,pIdx,fIdx] <- min(which(I_spft[sIdx,pIdx,fIdx,]>0)) - 1
+
   # Load catch data
   commCatch <- read.csv(  file.path("./Data/",dataObj$catchData["comm"]), 
                           header = TRUE,
@@ -223,6 +234,13 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                                 years = years,
                                 gears = useFleets,
                                 maxA = max(nA_s), maxL = max(nL_s) )
+
+  # Pare down to specific fleets for growth
+  # CAAL data - Lee et al 2019+ (shared privately)
+  ALfleetNames    <- dimnames(ALFreq_spalftx)[[5]]
+  growthFleetIdx  <- which(ALfleetNames %in% dataObj$growthFleets)
+  # Set all observations outside those fleets to 0
+  ALFreq_spalftx[,,,,-growthFleetIdx,,] <- 0
 
   # Combine sexes for now
   ALFreq_spalft <- ALFreq_spalftx[,,,,,,1] + ALFreq_spalftx[,,,,,,2]
@@ -280,12 +298,24 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
         nSelDevs <- nSelDevs + length( union( lenYrs, ageYrs ) )
       } 
 
+  # Calculate number of q deviations
+  nqDevs <- 0
+  for( fIdx in which( useFleets %in% hypoObj$tvqFleets ) )
+    for( sIdx in 1:nS )
+      for( pIdx in 1:nP )
+        nqDevs <- nqDevs + (length( which( I_spft[sIdx,pIdx,fIdx,] > 0) ) - 1)
+
+      
   # Now make a vector to switch time varying selectivity
   # on and off
   tvSelFleets <- rep(0,nF)
   names(tvSelFleets) <- useFleets
   tvSelFleets[ useFleets %in% hypoObj$tvSelFleets ] <- 1 
 
+  # And the same for time-varying catchability
+  tvqFleets <- rep(0,nF)
+  names(tvqFleets) <- useFleets
+  tvqFleets[ useFleets %in% hypoObj$tvqFleets ] <- 1 
 
   # Load maturity ogives
   load(file.path("./Data",dataObj$matFiles))
@@ -351,51 +381,55 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   if( hypoObj$selX == "length")
   {
     # length at Sel50_sf initial value
-    xSel50_sf <- matrix(  c(    41, 39, 29, 31, 33, 33,
-                                35, 35, 35, 35, 35, 35,
-                                35, 35, 35, 35, 35, 35,
-                                35, 35, 35, 35, 35, 35,
-                                35, 35, 35, 35, 35, 35 ), 
+    xSel50_sf <- matrix(  c(    41, 39, 29, 31, 33, 33, 33,
+                                35, 35, 35, 35, 35, 35, 35,
+                                35, 35, 35, 35, 35, 35, 35,
+                                35, 35, 35, 35, 35, 35, 35,
+                                35, 35, 35, 35, 35, 35,  35 ), 
                                 nrow = length(allSpecies),
-                                ncol = nF, byrow = TRUE )
+                                ncol = length(allFleets), 
+                                byrow = TRUE )
 
-    xSel50_sf <- xSel50_sf[useSpecIdx,]
+    xSel50_sf <- xSel50_sf[useSpecIdx,useFleetsIdx]
 
     # length at SelStep_sf initial value
-    xSelStep_sf <- matrix(  c(    2, 2, 2, 2, 2, 2,
-                                  2, 2, 2, 2, 2, 2,
-                                  2, 2, 2, 2, 2, 2,
-                                  2, 2, 2, 2, 2, 2,
-                                  2, 2, 2, 2, 2, 2 ), 
+    xSelStep_sf <- matrix(  c(    2, 2, 2, 2, 2, 2, 2,
+                                  2, 2, 2, 2, 2, 2, 2,
+                                  2, 2, 2, 2, 2, 2, 2,
+                                  2, 2, 2, 2, 2, 2, 2,
+                                  2, 2, 2, 2, 2, 2,  2 ), 
                                   nrow = length(allSpecies),
-                                  ncol = nF, byrow = TRUE )
+                                  ncol = length(allFleets), 
+                                  byrow = TRUE )
 
-    xSelStep_sf <- xSelStep_sf[useSpecIdx,]
+    xSelStep_sf <- xSelStep_sf[useSpecIdx,useFleetsIdx]
   }
 
   if( hypoObj$selX == "age")
   {
     # xSel50_sf initial value
-    xSel50_sf <- matrix(  c(    8, 7, 5, 6, 5, 5,
-                                5, 5, 5, 5, 5, 5,
-                                5, 5, 5, 5, 5, 5,
-                                5, 5, 5, 5, 5, 5,
-                                5, 5, 5, 5, 5, 5 ), 
+    xSel50_sf <- matrix(  c(    8, 7, 5, 6, 5, 5, 5,
+                                5, 5, 5, 5, 5, 5, 5,
+                                5, 5, 5, 5, 5, 5, 5,
+                                5, 5, 5, 5, 5, 5, 5,
+                                5, 5, 5, 5, 5, 5, 5 ), 
                                 nrow = length(allSpecies),
-                                ncol = nF, byrow = TRUE )
+                                ncol = length(allFleets), 
+                                byrow = TRUE )
 
-    xSel50_sf <- xSel50_sf[useSpecIdx,]
+    xSel50_sf <- xSel50_sf[useSpecIdx,useFleetsIdx]
 
     # xSelStep_sf initial value
-    xSelStep_sf <- matrix(  c(    3, 3, 2, 3, 2, 2,
-                                  2, 2, 2, 2, 2, 2,
-                                  2, 2, 2, 2, 2, 2,
-                                  2, 2, 2, 2, 2, 2,
-                                  2, 2, 2, 2, 2, 2 ), 
+    xSelStep_sf <- matrix(  c(    3, 3, 2, 3, 2, 2, 2,
+                                  2, 2, 2, 2, 2, 2, 2,
+                                  2, 2, 2, 2, 2, 2, 2,
+                                  2, 2, 2, 2, 2, 2, 2,
+                                  2, 2, 2, 2, 2, 2, 2 ), 
                                   nrow = length(allSpecies),
-                                  ncol = nF, byrow = TRUE )
+                                  ncol = length(allFleets), 
+                                  byrow = TRUE )
 
-    xSelStep_sf <- xSelStep_sf[useSpecIdx,]
+    xSelStep_sf <- xSelStep_sf[useSpecIdx,useFleetsIdx]
   }
 
 
@@ -409,9 +443,6 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   sdq   <- hypoObj$sdq
   mM    <- hypoObj$mM
   sdM   <- hypoObj$sdM
-
-  pmxSel95_s <- hypoObj$pmxSel95_s[useSpecIdx]
-  cvxSel95_f <- hypoObj$cvxSel95_f[useFleetsIdx]
 
   # Observation errors
   tau2ObsIGa  <- hypoObj$tau2ObsIGa[useFleetsIdx]
@@ -427,17 +458,20 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   initL2_s    <- numeric( length = nS )
 
   calcMeanLenAge <- function( sIdx = 1, ALK = ALFreq_spalft,
-                              age = A1_s )
+                              age = A1_s, fleets = dataObj$survNames_g )
   {
     # Pull length at the given age
-    lenAtAge <- ALK[sIdx,,age[sIdx],,,]
-    lenAtAge <- apply(X = lenAtAge, FUN = sum, MARGIN = c(2))
+    lenAtAge <- ALK[sIdx,,age[sIdx],,fleets,,drop = FALSE]
+    lenAtAge <- apply(X = lenAtAge, FUN = sum, MARGIN = c(4))
     # Calculate number of observations
     nLenAtAge <- sum(lenAtAge,na.rm = T)
     # Multiply length bin by freq
     totLenAtAge <- sum((1:length(lenAtAge)) * lenAtAge )
     # Calc mean
     meanLenAge <- sum(totLenAtAge)/nLenAtAge
+
+    if(!is.finite(meanLenAge))
+      browser()
 
     meanLenAge
   }
@@ -469,8 +503,11 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                 parSwitch       = 0,
                 calcIndex_spf   = calcIndex_spf,
                 tvSelFleets     = tvSelFleets,
+                tvqFleets       = tvqFleets,
+                idxLikeWt       = dataObj$idxLikeWt,
                 ageLikeWt       = dataObj$ageLikeWt,
                 lenLikeWt       = dataObj$lenLikeWt,
+                growthLikeWt    = dataObj$growthLikeWt,
                 tFirstRecDev_s  = as.integer(tFirstRecDev_s),
                 tLastRecDev_s   = as.integer(tLastRecDev_s),
                 minAgeProp      = dataObj$minAgeProp,
@@ -478,6 +515,9 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                 minPAAL         = dataObj$minPAAL,
                 matX            = hypoObj$matX,
                 selX            = hypoObj$selX,
+                lenComps        = hypoObj$lenCompMethod,
+                lambdaB0        = dataObj$lambdaB0,
+                minTimeIdx_spf  = minTimeIdx_spf,
                 A1_s            = A1_s[useSpecies],
                 A2_s            = A2_s[useSpecies] )
 
@@ -487,10 +527,10 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                 logitSteep        = log((mh - .2)/(1 - mh)),
                 lnM               = log(mM),
                 lnL2step_s        = log(initL2_s - initL1_s),
-                lnvonK_s          = log(rep(.2,nS)),
+                lnvonK_s          = log(hypoObj$initVonK[useSpecies]),
                 lnL1_s            = log(initL1_s[useSpecIdx]),
-                deltaL2_sp        = log(array(0,dim = c(nS,nP))),
-                deltaVonK_sp      = log(array(0,dim = c(nS,nP))),
+                deltaL2_sp        = array(0,dim = c(nS,nP)),
+                deltaVonK_sp      = array(0,dim = c(nS,nP)),
                 sigmaLa_s         = sigmaLa_s,
                 sigmaLb_s         = sigmaLb_s,
                 LWa_s             = LWa_s,
@@ -526,16 +566,25 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                 lnsigmaM          = log(sdM),
                 IGatau_f          = tau2ObsIGa,
                 IGbtau_f          = tau2ObsIGb,
-                omegaR_vec        = rep(0, nRecDevs),
+                omegaR_vec        = rep( 0, nRecDevs),
                 omegaRinit_vec    = rep( 0, nInitDevs ),
-                lnsigmaR_sp       = array(0, dim = c(nS,nP)),
+                lnsigmaR_sp       = array( 0, dim = c(nS,nP)),
                 logitRCorr_chol   = rep(0, nS * nP),
-                logitRgamma_sp    = array(0, dim = c(nS,nP)),
-                epsxSel50_vec     = rep(0,nSelDevs),
-                epsxSelStep_vec   = rep(0,nSelDevs),
-                lnsigmaSel        = log(hypoObj$sigmaSelDevs),
-                pmxSel95_sf       = matrix(pmxSel95_s,nrow = nS, ncol = nF, byrow = F),
-                cvxSel95_f        = cvxSel95_f )
+                logitRgamma_sp    = array( 0, dim = c(nS,nP)),
+                epsxSel50_vec     = rep( 0, nSelDevs ),
+                epsxSelStep_vec   = rep( 0, nSelDevs ),
+                lnsigmaSel        = log( hypoObj$sigmaSelDevs ),
+                epslnq_vec        = rep( 0, nqDevs ),
+                lnsigmaepslnq     = log( hypoObj$sigmaqdevs ),
+                pmlnxSel50_sf     = array(t(log(xSel50_sf)),dim = c(nS,nF) ),
+                pmlnxSelStep_sf   = array(t(log(xSelStep_sf)),dim = c(nS,nF) ),
+                cvxSel            = hypoObj$cvxSel,
+                pmlnL2_s          = log(initL2_s),
+                pmlnL1_s          = log(initL1_s),
+                cvL2              = .05,
+                cvL1              = .05,
+                pmlnVonK          = log(.2),
+                cvVonK            = .1  )
 
   # Generate map list - this will have to be updated
   # so that it's sensitive to useFleetsIdx
@@ -554,7 +603,9 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
       RinitMap[sIdx,] <- (1:nP) + nP*(sIdx-1) + 200
 
   # Map selectivity at length
-  selMap <- array(NA, dim = c(nS,nF))
+  selMap <- array(NA, dim = c(nS,nF), 
+                      dimnames = list( species = useSpecies,
+                                        fleets = useFleets ) )
   # Turn on selectivity estimation if asked for
   if( hypoObj$estSel )
     for(s in 1:nS)
@@ -562,11 +613,24 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
         if( any(age_aspft[,s,,f,] > 0) | any(len_lspft[,s,,f,] > 0) )
           selMap[s,f] <- 300 + s * (nF - 1) + f
 
+  if( hypoObj$estSel & hypoObj$identSel )
+  {
+    fleetGps <- hypoObj$fleetGroups
+    nGps     <- length(fleetGps)
+    for( gIdx in 1:length(fleetGps) )
+    {
+      gpFleets <- fleetGps[[gIdx]]
+      gpFleets <- gpFleets[gpFleets %in% useFleets]
+      estIdx <- which(!is.na(selMap[,gpFleets,drop = FALSE]),arr.ind =T)
+      selMap[estIdx[,1],gpFleets[estIdx[,2]]] <- gIdx + 300 + estIdx[,1] * nGps
+    }
+  }
+
   map <- list(  
-                lnB0_sp           = factor(array(NA,dim =c(nS,nP))),
+                # lnB0_sp           = factor(array(NA,dim =c(nS,nP))),
                 logitSteep        = factor(NA),
-                lnM               = factor(NA),
-                lnL2step_s        = factor(array(NA,dim =c(nS,1))),
+                # lnM               = factor(NA),
+                # lnL2step_s        = factor(array(NA,dim =c(nS,1))),
                 # lnvonK_s          = factor(array(NA,dim =c(nS,1))),
                 lnL1_s            = factor(array(NA,dim =c(nS,1))),
                 deltaL2_sp        = factor(matrix(NA,nrow = nS, ncol = nP)),
@@ -582,7 +646,7 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                 # lnF_spft          = factor(rep(NA,nPosCatch)),
                 lntauC_f          = factor(rep(NA,nF)),
                 lntauD_f          = factor(rep(NA,nF)),
-                sigmaLa_s         = factor(rep(NA,nS)),
+                # sigmaLa_s         = factor(rep(NA,nS)),
                 sigmaLb_s         = factor(rep(NA,nS)),
                 muxSel50_sg       = factor(array(NA, dim = c(nS,3))),
                 muxSel95_sg       = factor(array(NA, dim = c(nS,3))),
@@ -594,30 +658,44 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                 lntauqSyn         = factor(NA),
                 mqSurveys         = factor(NA),
                 sdqSurveys        = factor(NA),
-                logitSteep_s      = factor(rep(NA,nS)),
                 lnsigmah_s        = factor(rep(-NA,nS)),
-                logitSteep        = factor(NA),
                 lnsigmah          = factor(NA),
-                lnM_s             = factor(rep(NA,nS)),
+                epsSteep_s        = factor(rep(NA,nS)),
+                epsM_s            = factor(rep(NA,nS)),
+                epsSteep_sp       = factor(array(NA, dim = c(nS,nP))),
+                epsM_sp           = factor(array(NA, dim = c(nS,nP))),
                 lnsigmaM_s        = factor(rep(NA, nS ) ),
                 ln_muM            = factor(NA),
                 lnsigmaM          = factor(NA),
                 IGatau_f          = factor(rep(NA,nF)),
                 IGbtau_f          = factor(rep(NA,nF)),
                 # omegaR_vec        = factor( rep( NA, nRecDevs ) ),
-                omegaRinit_vec    = factor( rep( NA, nInitDevs ) ),
+                # omegaRinit_vec    = factor( rep( NA, nInitDevs ) ),
                 lnsigmaR_sp       = factor(array(NA, dim = c(nS,nP)) ),
                 logitRCorr_chol   = factor(rep(NA, nS * nP)),
                 logitRgamma_sp    = factor(array(NA, dim = c(nS,nP))),
                 lnsigmaSel        = factor(NA),
-                pmxSel95_sf     = factor(array(NA,dim = c(nS,nF))),
-                cvxSel95_f      = factor(rep(NA,nF)) ) 
+                lnsigmaepslnq     = factor(NA),
+                pmlnxSel50_sf     = factor(array(NA,dim = c(nS,nF))),
+                pmlnxSelStep_sf   = factor(array(NA,dim = c(nS,nF))),
+                cvxSel            = factor(NA),
+                pmlnL2_s          = factor(rep(NA,nS)),
+                pmlnL1_s          = factor(rep(NA,nS)),
+                cvL2              = factor(NA),
+                cvL1              = factor(NA),
+                pmlnVonK          = factor(NA),
+                cvVonK            = factor(NA) ) 
 
   # Turn off tv sel deviations if not being used
   if(!hypoObj$tvSel)
   {
     map$epsxSel50_vec   <- factor(rep(NA,nSelDevs))
     map$epsxSelStep_vec <- factor(rep(NA,nSelDevs))
+  }
+
+  if(!hypoObj$tvq)
+  {
+    map$epslnq_vec   <- factor(rep(NA,nqDevs))
   }
 
   # Create a control list for the assessment model
@@ -637,7 +715,6 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   repInit <- renameReportArrays( repObj = repInit, datObj = data )
 
   # Update names on report objects
-
   outList <- list(  repInit = repInit,
                     repFE = NULL,
                     sdrepFE = NULL,
@@ -652,7 +729,8 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                     stocks = useStocks,
                     map = map,
                     data = data,
-                    pars = pars )
+                    pars = pars,
+                    plotRep = "init" )
 
   # Now try fitting the model
   if( ctrlObj$opt )
@@ -666,11 +744,14 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
     # May hang here if there are problems fitting the model
     if( class(fitFE) != "try-error")
     {
+      cat("\nOptimisation finished without error\n")
+      cat("\nSaving results\n")
       outList$repFE         <- renameReportArrays( repObj = objFE$report(), datObj = data)
-      outList$sdrepFE       <- sdreport(objFE)
+      outList$sdrepFE       <- summary(sdreport(objFE))
       outList$heFE          <- objFE$he()
       outList$fitFE         <- fitFE
       outList$map           <- map
+      outList$plotRep        <- "FE"
 
     }
 
@@ -740,13 +821,73 @@ renameReportArrays <- function( repObj = repInit, datObj = data )
   dimnames(repObj$q_spf)      <- dimnames(datObj$age_aspft)[c(2:4)]  
   dimnames(repObj$tau_spf)    <- dimnames(datObj$age_aspft)[c(2:4)]  
   dimnames(repObj$sel_lfsp)   <- list(  len = lenNames, 
-                                        fleets = gearNames,
+                                        fleet = gearNames,
                                         species = specNames,
-                                        stocks = stockNames )
+                                        stock = stockNames )
   dimnames(repObj$sel_afsp)   <- list(  age = ageNames, 
-                                        fleets = gearNames,
+                                        fleet = gearNames,
                                         species = specNames,
-                                        stocks = stockNames )
+                                        stock = stockNames )
+
+
+  dimnames(repObj$ageRes_aspft)   <- list(  age = ageNames, 
+                                            species = specNames,
+                                            stock = stockNames,
+                                            fleet = gearNames,
+                                            year = yearNames )  
+  dimnames(repObj$tau2Age_spf)   <- list( species = specNames,
+                                          stock = stockNames,
+                                          fleet = gearNames )  
+  dimnames(repObj$lenRes_lspft)   <- list(  length = lenNames, 
+                                            species = specNames,
+                                            stock = stockNames,
+                                            fleet = gearNames,
+                                            year = yearNames ) 
+  dimnames(repObj$tau2Len_spf)   <- list( species = specNames,
+                                          stock = stockNames,
+                                          fleet = gearNames )  
+
+  # Growth model quants
+  dimnames(repObj$probLenAge_lasp) <- list( len = lenNames, 
+                                            age = ageNames,
+                                            species = specNames,
+                                            stock = stockNames )
+
+  dimnames(repObj$lenAge_asp) <- list(      age = ageNames,
+                                            species = specNames,
+                                            stock = stockNames )
+
+  dimnames(repObj$probAgeLen_alspft) <- list( age = ageNames,
+                                              len = lenNames,
+                                              species = specNames,
+                                              stock = stockNames,
+                                              fleet = gearNames,
+                                              year = yearNames )
+
+  dimnames(repObj$ageAtLenResids_alspft) <- list( age = ageNames,
+                                                  len = lenNames,
+                                                  species = specNames,
+                                                  stock = stockNames,
+                                                  fleet = gearNames,
+                                                  year = yearNames )
+  # Growth model parameters
+  # vectors
+  names(repObj$A1_s)      <- specNames
+  names(repObj$A2_s)      <- specNames
+  names(repObj$L1_s)      <- specNames
+  names(repObj$L2_s)      <- specNames
+  names(repObj$sigmaLa_s) <- specNames
+  names(repObj$sigmaLb_s) <- specNames
+  # arrays
+  dimnames(repObj$L1_sp)    <- list(  species = specNames,
+                                      stock = stockNames )
+  dimnames(repObj$L2_sp)    <- list(  species = specNames,
+                                      stock = stockNames )
+  dimnames(repObj$vonK_sp)  <- list(  species = specNames,
+                                      stock = stockNames )
+
+
+
 
 
 
@@ -772,11 +913,13 @@ savePlots <- function(  fitObj = reports,
   if( useRep == "FE" )
     report   <- fitObj$repFE
 
-  nS <- report$nS
-  nP <- report$nP
+  specNames   <- fitObj$species
+  stockNames  <- fitObj$stocks
+  fleetNames  <- fitObj$gearLabs
 
-  specNames <- dimnames(report$R_spt)[[1]]
-  stockNames <- dimnames(report$R_spt)[[2]]
+  nS <- length(specNames)
+  nP <- length(stockNames)
+  nF <- length(fleetNames)
   
   graphics.off()
 
@@ -804,6 +947,41 @@ savePlots <- function(  fitObj = reports,
   plotProbLenAge_sp( repObj = report)
   dev.off()
 
+  # Plot probLenAge 
+  png(  file.path(saveDir,"plotLenAtAgeDist.png"),
+        width = 11, height = 8.5, units = "in", res = 300)
+  plotHeatmapProbLenAge( repObj = report, 
+                          sIdx = 1:nS, pIdx = 1:nP)
+  dev.off()
+
+  for( fIdx in 1:nF )
+  {
+    fleetID <- fleetNames[fIdx]
+    fileName <- paste("plotAgeLenResids_",fleetID,".png",sep = "")
+    png(  file.path(saveDir,fileName),
+        width = 11, height = 8.5, units = "in", res = 300)
+    plotHeatmapAgeLenResids(  repObj = report, 
+                              sIdx = 1:nS, pIdx = 1:nP,
+                              fIdx = fIdx )
+    dev.off()  
+
+    fileName <- paste("plotAgeResids_",fleetID,".png",sep = "")
+    png(  file.path(saveDir,fileName),
+        width = 11, height = 8.5, units = "in", res = 300)
+    plotCompResids( repObj = report, 
+                    sIdx = 1:nS, pIdx = 1:nP,
+                    fIdx = fIdx, comps = "age" )
+    dev.off()  
+
+    fileName <- paste("plotLenResids_",fleetID,".png",sep = "")
+    png(  file.path(saveDir,fileName),
+        width = 11, height = 8.5, units = "in", res = 300)
+    plotCompResids( repObj = report, 
+                    sIdx = 1:nS, pIdx = 1:nP,
+                    fIdx = fIdx, comps = "length" )
+    dev.off()  
+  }
+
   # Plot catch fits
   png(  file.path(saveDir,"plotCatchFit.png"),
         width = 11, height = 8.5, units = "in", res = 300)
@@ -829,6 +1007,31 @@ savePlots <- function(  fitObj = reports,
     specPath <- file.path(saveDir,specDir)
     if(!dir.exists(specPath))
       dir.create(specPath)
+
+    fileName <- paste("plotAgeLenResids_",specDir,".png",sep = "")
+    png(  file.path(specPath,fileName),
+        width = 11, height = 8.5, units = "in", res = 300)
+    plotHeatmapAgeLenResids(  repObj = report, 
+                              sIdx = sIdx, pIdx = 1:nP,
+                              fIdx = 1:nF )
+    dev.off()  
+
+    fileName <- paste("plotAgeResids_",specDir,".png",sep = "")
+    png(  file.path(specPath,fileName),
+        width = 11, height = 8.5, units = "in", res = 300)
+    plotCompResids( repObj = report, 
+                    sIdx = sIdx, pIdx = 1:nP,
+                    fIdx = 1:nF, comps = "age" )
+    dev.off()  
+
+    fileName <- paste("plotLenResids_",specDir,".png",sep = "")
+    png(  file.path(specPath,fileName),
+        width = 11, height = 8.5, units = "in", res = 300)
+    plotCompResids( repObj = report, 
+                    sIdx = sIdx, pIdx = 1:nP,
+                    fIdx = 1:nF, comps = "length" )
+    dev.off()  
+
 
     for( pIdx in 1:nP)
     {
@@ -880,11 +1083,13 @@ savePlots <- function(  fitObj = reports,
                   sIdx = sIdx, pIdx = pIdx )
       dev.off()
 
-      # Plot length at Age
+
+      # Plot length-at-age
       png(  file.path(stockPath,"plotLenAge.png"),
-            width = 11, height = 8.5, units = "in", res = 300)
-      plotLenAge( repObj = report,
-                  sIdx = sIdx, pIdx = pIdx )
+        width = 11, height = 8.5, units = "in", res = 300)
+      plotHeatmapProbLenAge( repObj = report, 
+                              sIdx = sIdx, pIdx = pIdx)
+
       dev.off()
 
       # Plot weight at Age

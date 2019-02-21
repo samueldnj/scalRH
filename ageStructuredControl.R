@@ -43,7 +43,11 @@
 
 # Load packages
 library( "coda" )
-library( "dplyr" )
+library( tidyverse )
+library( reshape2 )
+library( ggforce )
+library( ggplot2 )
+library( GGally )
 library( "TMB" )
 library( "raster" )
 library( "grid" )
@@ -51,6 +55,9 @@ library( "RColorBrewer" )
 library( "HapEstXXR" )
 library( "parallel" )
 library( "stringr" )
+library( wesanderson )
+library( ggsidekick )
+
 
 source("DERPAfuns.R")
 source("SCALfuns.R")

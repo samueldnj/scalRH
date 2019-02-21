@@ -26,6 +26,9 @@ library( psyphy )
 library( boot )
 library( RCurl )
 library( scales )
+library( rgeos )
+
+
 
 # Load shape file data
 data(nepacLL)
@@ -46,7 +49,8 @@ lYear <- 2018
 # Read in strata areas
 stratData <- read.csv( "Data/derpa_strata.csv", header=T )
 stratData <-  stratData %>%
-              dplyr::select( GROUPING_CODE, AREA_KM2 )
+              dplyr::select( GROUPING_CODE, AREA_KM2, MIN_DEPTH, MAX_DEPTH )
+
 # Survey ids for plotting/legends
 surveyIDs <-  c(  QCSSyn = 1, 
                   HSAss = 2, 
@@ -85,6 +89,18 @@ commSpecNames <- c( Dover = "dover-sole",
                     Petrale = "petrale-sole",
                     Arrowtooth = "arrowtooth-flounder" )
 
+loadCRS()
+
+surveys     <- c("HS", "QCS", "WCHG", "WCVI")
+shapeFiles  <- paste(surveys,"_Synoptic_Survey_Active_Blocks",sep = "")
+shapePath   <- file.path("./Data/ShapeFiles/SynSurveyBlocks")
+
+# Load grids in a list
+grids <- lapply(X = shapeFiles, FUN = openShapeFile, path = shapePath)
+names(grids) <- surveys
+
+# These have been coerced to UTM so the grids are nice
+# and rectangular.
 
 # Plots that we want to make - and may not
 # need to reinvent the code for...
@@ -94,7 +110,8 @@ relBioList_Survey <- lapply(  X = survSpecNames,
                               years = c(fYear,lYear),
                               stocks = stocksSurvey,
                               survIDs = surveyIDs,
-                              stratArea = stratData )
+                              stratArea = stratData,
+                              grids = grids )
 names(relBioList_Survey) <- names(survSpecNames)
 save(relBioList_Survey, file = "./Data/surveyBio.RData")
 

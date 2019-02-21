@@ -65,7 +65,31 @@ loadCRS <- function()
   LLproj  <<- CRS("+proj=longlat +datum=WGS84")
   UTMproj <<- CRS("+proj=utm +zone=9 +datum=WGS84")
 
+
   invisible(NULL)
+}
+
+
+# openShapeFile()
+openShapeFile <- function(  layer = "HS_Synoptic_Survey_Active_Blocks",
+                            path = "./Data/ShapeFiles/SynSurveyBlocks/",
+                            outCRS = UTMproj, inCRS = NULL )
+{
+
+  # Read in grid
+  grid <- readOGR(dsn = path, layer = layer)
+
+  # Convert to outCRS
+  if(!is.null(inCRS))
+    proj4string(grid) <- inCRS
+
+  # Project to outCRS
+  if(!is.null(outCRS))
+  {
+    grid <- spTransform( x = grid, CRSobj = outCRS )
+  }
+
+  grid
 }
 
 # makeIndexArray()
@@ -175,6 +199,273 @@ makeSurveyCatchStocks <- function(  spec = "dover",
 } # makeSurveyCatchStocks()
 
 
+filterSurveyBlocks <- function( blocks = grids$HS,
+                                density = synTab,
+                                plot = TRUE,
+                                species = "dover",
+                                survey = "HS",
+                                stratAreas = stratArea )
+{
+  # First, get survey series ID from blocks
+  survSeriesID <- unique(blocks$SURVEY_SERI)
+
+  # Filter density to that survey
+  density <- density %>%
+              filter(SURVEY_SERIES_ID == survSeriesID )
+  
+
+  # Now we want to 
+  # 1. match survey sets to blocks,
+  # Trying to use the over function, we get a pretty good 
+  # coverage for the data set, but there are some missing points
+  
+  # This needs to be done by stratum (grouping code)
+  # so that tows outside blocks are assigned to the correct
+  # stratum
+  grpCodes    <- unique(density$GROUPING_CODE)
+  nGrpCodes   <- length(grpCodes)
+
+  stratAreas <- stratAreas %>% 
+                rename( grCode = GROUPING_CODE ) %>%
+                filter( grCode %in% grpCodes )
+
+  densByGrpCode   <-  vector(mode = "list", length = nGrpCodes )
+  blocksByGrpCode <-  vector(mode = "list", length = nGrpCodes )
+  summGrpCode     <-  vector(mode = "list", length = nGrpCodes )
+
+  for( cIdx in 1:nGrpCodes )
+  {
+    # Subset to sets in the correct stratum
+    grpCode <- grpCodes[cIdx]
+    subDensity <- density %>%
+                  filter( GROUPING_CODE == grpCode )
+
+    subBlocks <- blocks[blocks@data$"GROUPING_CO" == grpCode, ]
+
+    # Convert LL density data to UTM so it's the same as the grids
+    setCoords.LL          <- subDensity[,c("LONGITUDE","LATITUDE")]
+    setCoords.sp          <- SpatialPoints(coords = setCoords.LL, proj4string = LLproj )
+    setCoords.UTM         <- spTransform( x = setCoords.sp, CRSobj = UTMproj )
+    setCoords.UTM.df      <- as.data.frame(setCoords.UTM)
+
+    subDensity$x          <- setCoords.UTM.df[,1]
+    subDensity$y          <- setCoords.UTM.df[,2]
+    subDensity$block      <- NA
+    subDensity$assGrCd    <- NA
+    subDensity$blockDepth <- NA
+
+    tryPoints             <- over( x = setCoords.UTM, y = subBlocks )
+    naSets                <- which(is.na(tryPoints[,1]))
+
+    subDensity$block      <- tryPoints[,"BLOCK_DESIG"]
+    subDensity$assGrCd    <- tryPoints[,"GROUPING_CO"]
+    subDensity$blockDepth <- tryPoints[,"DEPTH_M"]
+
+    if(length(naSets) > 0)
+    {
+      # Now find nearest blocks to unassigned points
+      naPoints  <- setCoords.UTM[naSets]
+      # Compute distances
+      distMtx   <- gDistance( naPoints, subBlocks, byid = TRUE )
+      # Find which.min
+      minBlock  <- apply(X = distMtx, FUN = which.min, MARGIN = 2)
+
+      subDensity[naSets,"block"]      <- subBlocks[minBlock,][["BLOCK_DESIG"]]
+      subDensity[naSets,"assGrCd"]    <- subBlocks[minBlock,][["GROUPING_CO"]]
+      subDensity[naSets,"blockDepth"] <- subBlocks[minBlock,][["DEPTH_M"]]
+    }
+
+    densByGrpCode[[cIdx]]     <- subDensity
+    blocksByGrpCode[[cIdx]]   <- subBlocks
+
+
+  }
+
+  densityBlocks <- do.call(rbind, densByGrpCode) %>%
+                    mutate(densityKGPM2 = CATCH_WEIGHT / areaFished_m2 )
+
+  # 2. identify blocks with positive tows >= minPosTow
+  posTowBlocks    <-  densityBlocks %>%
+                      group_by( block, assGrCd ) %>%
+                      summarise(  nTows = n(),
+                                  catchWt = sum(CATCH_WEIGHT) ) %>%
+                      filter( catchWt > 0 )
+  zeroTowBlocks   <-  densityBlocks %>%
+                      group_by( block, assGrCd ) %>%
+                      summarise(  nTows = n(),
+                                  catchWt = sum(CATCH_WEIGHT) ) %>%
+                      filter( catchWt == 0 )
+
+  posTowBlockIDs    <- posTowBlocks$block
+  zeroTowBlockIDs   <- zeroTowBlocks$block
+
+  grpSumm <- matrix( NA, ncol = 10, nrow = 1)  
+
+  colnames(grpSumm) <- c( "grCode", 
+                          "nBlocks", 
+                          "pBlocks", 
+                          "zBlocks",
+                          "minDepth",
+                          "maxDepth",
+                          "minDepthP",
+                          "maxDepthP",
+                          "minDepthZ",
+                          "maxDepthZ")
+
+  grpSumm <- as.data.frame(grpSumm)
+
+  if(plot)
+  {
+    # Load land masses
+    data(nepacLL)
+    nePac <- PolySet2SpatialPolygons(nepacLL)
+    nePacUTM <- spTransform(x = nePac, CRSobj = UTMproj)
+
+    nCols <- ceiling(sqrt(nGrpCodes))
+    nRows <- ceiling(nGrpCodes/nCols)
+
+    mapExtent <- extent(blocks)
+
+    savePlotRoot <- paste(species,survey,sep = "")
+    plotFile <- paste( savePlotRoot,"blockDesign.png", sep = "" )
+    plotDir <- file.path("./Outputs/speciesSurveyData",species)
+
+    if(!dir.exists(plotDir))
+      dir.create(plotDir)
+
+    plotPath <- file.path(plotDir,plotFile)
+
+    png(plotPath, width = 11, height = 11, units = "in",
+          res = 400 )
+
+    par(  mfrow = c(nRows,nCols), 
+          mar = c(0.5,0.5,0.5,0.5), 
+          oma = c(3,3,3,3) )
+    # Loop and plot each grouping code
+    for( cIdx in 1:nGrpCodes )
+    {
+      subBlocks   <- blocksByGrpCode[[cIdx]]
+      subDensity  <- densByGrpCode[[cIdx]]
+
+      grpSumm$grCode <- grpCodes[cIdx]
+
+      # Get some info about the stratum
+      grpSumm$nBlocks     <- length(subBlocks[[1]])
+      # Subset to positive and zero observations 
+      posSubBlocks  <- subBlocks[subBlocks@data$BLOCK_DESIG %in% posTowBlockIDs, ]
+      zeroSubBlocks <- subBlocks[subBlocks@data$BLOCK_DESIG %in% zeroTowBlockIDs, ]
+
+      # Count number of blocks with positive and zero obs
+      grpSumm$pBlocks    <- length(posSubBlocks[[1]])
+      grpSumm$zBlocks    <- length(zeroSubBlocks[[1]])
+
+      grpSumm[,c("minDepth","maxDepth")]    <- range(subBlocks$DEPTH_M)
+      grpSumm[,c("minDepthP","maxDepthP")]  <- range(posSubBlocks$DEPTH_M)
+      grpSumm[,c("minDepthZ","maxDepthZ")]  <- range(zeroSubBlocks$DEPTH_M)
+
+      
+      title     <- paste("GC", grpCodes[cIdx], sep = "" )
+
+
+      # Plot maps of blocks
+      plot( mapExtent, type = "n", xlab = "", ylab = "",
+            axes = FALSE )
+      plot( subBlocks, add = TRUE )
+      box()
+      mtext( side = 3, text = title, font = 2 )
+
+      # Plot presences and absences
+      plot(posSubBlocks, add =TRUE, col = "blue")
+      plot(zeroSubBlocks, add =TRUE, col = "red")
+
+      # Plot landmasses
+      plot(nePacUTM, add = TRUE, col = "grey40", border = NA )
+
+      if(cIdx == 1)
+        legend( x = "topright",
+                fill = c("blue","red"),
+                legend = c("Positive tow observed","No positive tows") )   
+
+      summGrpCode[[cIdx]] <- grpSumm
+
+    }
+
+    dev.off()
+    
+  }
+
+  groupSummary <- do.call(rbind,summGrpCode)
+
+  summDensSplitPos <- densityBlocks %>%
+                      rename( grCode = GROUPING_CODE) %>%
+                      group_by( grCode, CATCH_WEIGHT > 0 ) %>%
+                      summarise(  meanWt = mean(CATCH_WEIGHT),
+                                  minWt = min(CATCH_WEIGHT),
+                                  maxWt = max(CATCH_WEIGHT),
+                                  meanDens = mean(densityKGPM2),
+                                  nTows = n() ) %>%
+                      ungroup()
+
+  summDens <- densityBlocks %>%
+              rename( grCode = GROUPING_CODE) %>%
+              group_by( grCode ) %>%
+              summarise(  meanWt = mean(CATCH_WEIGHT),
+                          maxWt = max(CATCH_WEIGHT),
+                          meanDens = mean(densityKGPM2) ) %>%
+              ungroup()
+
+  groupSummary <- groupSummary %>%
+                  left_join( summDens ) %>%
+                  left_join( stratAreas )
+
+  tabFile <- paste(species,survey,"StratSummary.csv",sep = "")
+  tabPath <- file.path(plotDir,tabFile)
+  write.csv( groupSummary, file = tabPath )
+
+  # Now plot the depth profile of the kg/m2 density
+  plotFile <- paste( savePlotRoot,"densByDepth.png", sep = "" )
+  plotPath <- file.path(plotDir,plotFile)
+  png(  plotPath, width = 11, height = 6, units = "in",
+        res = 400 )  
+  depRan  <- -1 * range(densityBlocks$blockDepth)
+  densRan <- range(densityBlocks$densityKGPM2)
+  wtRan   <- range(densityBlocks$CATCH_WEIGHT)
+  cols    <- brewer.pal(n = nGrpCodes, "Dark2" )
+  cols    <- alpha( cols, .4 )
+  names(cols) <- grpCodes
+  par( mfrow = c(2,1), mar =c(1,2,1,0), oma = c(3,3,3,3) )
+  plot( x = depRan, y = densRan, type = "n",
+        xlab = "Depth (m)", ylab = "Density (kg/m2)",
+        las = 1 )
+    points( x = -1 * densityBlocks$blockDepth,
+            y = densityBlocks$densityKGPM2,
+            col = cols[as.character(densityBlocks$assGrCd)],
+            pch = 4, cex = .8 )
+    abline( v = stratAreas$MIN_DEPTH, lty = 2, lwd = .8, col = "grey60" )
+    abline( v = stratAreas$MAX_DEPTH, lty = 2, lwd = .8, col = "grey60" )
+
+  plot( x = depRan, y = wtRan, type = "n",
+        xlab = "Depth (m)", ylab = "Catch weight (kg)",
+        las = 1 )
+    points( x = -1 * densityBlocks$blockDepth,
+            y = densityBlocks$CATCH_WEIGHT,
+            col = cols[as.character(densityBlocks$assGrCd)],
+            pch = 4, cex = .8 )
+    abline( v = stratAreas$MIN_DEPTH, lty = 2, lwd = .8, col = "grey60" )
+    abline( v = stratAreas$MAX_DEPTH, lty = 2, lwd = .8, col = "grey60" )
+
+  mtext( side = 1, text = "Depth (m)", outer = T, line  = 2 )
+
+  dev.off()
+
+
+  # 3. Calculate strata area from new subset of blocks
+  # 3. filter out sets from < minPosTow blocks
+
+
+
+}
+
 
 # Calculate relative biomass by species and arrange in an array
 # for feeding to TMB model
@@ -184,7 +475,8 @@ makeRelBioStocks <- function( spec = "dover",
                                               QCS = c(1),
                                               WCVI = c(4) ),
                               survIDs = surveyIDs,
-                              stratArea = stratData   )
+                              stratArea = stratData,
+                              grids = grids   )
 {
 
   # Read in density
@@ -215,10 +507,43 @@ makeRelBioStocks <- function( spec = "dover",
   # Combine density frames based on trip and trawl IDs
   # First, rename the catch column in each df
   densityTab <- densityTab %>% mutate(  catch = CATCH_WEIGHT,
-                                        density = DENSITY_KGPM2,
-                                        areaFished_km2 = DOORSPREAD_M * TOW_LENGTH_M )
+                                        areaFished_m2 = DOORSPREAD_M * TOW_LENGTH_M,
+                                        density = CATCH_WEIGHT / areaFished_m2 )
 
   includedSurveys <- unlist(stocks)
+
+  # Save survey names for use in filtering code
+  surveys     <- c("HS", "QCS", "WCHG", "WCVI")  
+  synSurveys <- paste(surveys,"Syn",sep ="")
+
+  # Split density tab into two parts
+  # 1. HSAss
+  # 2. Synoptic surveys
+  HSAssTab <- densityTab %>%
+              filter(SURVEY_SERIES_ID == surveyIDs["HSAss"])
+
+  synTab   <- densityTab %>%
+              filter( SURVEY_SERIES_ID %in% surveyIDs[synSurveys] )
+
+
+  # Now from here, we want to take the data for each survey
+  # and determine positive blocks, from which
+  # we will make a new stratArea table, as well as identify
+  # observations to remove
+  for( gridIdx in 1:length(grids) )
+  {
+    # Run filterSurveyBlocks to produce plots of block
+    # design and density ~ depth for all species/surveys
+    filterSurveyBlocks( blocks = grids[[gridIdx]],
+                        density = synTab,
+                        plot = TRUE,
+                        species = spec,
+                        survey = surveys[gridIdx],
+                        stratAreas = stratArea )  
+  }
+  
+
+
 
   # Now join and select the columns we want
   surveyData <- densityTab %>%
@@ -236,11 +561,13 @@ makeRelBioStocks <- function( spec = "dover",
                                 survSeriesID = SURVEY_SERIES_ID,
                                 stratArea = AREA_KM2,
                                 density, catch,
-                                fishedArea = areaFished_km2  ) %>%
+                                fishedArea = areaFished_m2  ) %>%
                 filter( survSeriesID %in% includedSurveys ) %>%
                 mutate( stockName = sapply( X = survSeriesID, 
                                             FUN = appendName, 
                                             stocks ) )
+
+
 
   relativeBio <-  surveyData %>%
                   group_by( year, stockName, survSeriesID, stratum ) %>%

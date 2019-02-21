@@ -1,39 +1,39 @@
-"GROUPING_CODE","GROUPING_DESC","ROW_VERSION","AREA_KM2","GROUPING_LEVEL"
-18,"1: South 50 to 125 m",1,5044,1
-19,"2: South 125 to 200 m",1,5404,1
-20,"3: South 200 to 330 m",1,2688,1
-21,"4: South 330 to 500 m",1,540,1
-22,"5: North 50 to 125 m",1,1792,2
-23,"6: North 125 to 200 m",1,3996,2
-24,"7: North 200 to 330 m",1,3736,2
-25,"8: North 330 to 500 m",1,1240,2
-65,"WCVI Synoptic Survey depth stratum 1: 50m to 125m",1,5796,NA
-66,"WCVI Synoptic Survey depth stratum 2: 125m to 200m",1,3792,NA
-67,"WCVI Synoptic Survey depth stratum 3: 200m to 330m",1,704,NA
-68,"WCVI Synoptic Survey depth stratum 4: 330m to 500m",1,608,NA
-72,"Hecate St 1: 10-70m",1,5952,NA
-73,"Hecate St 2: 70-130m",1,3052,NA
-74,"Hecate St 3: 130-220m",1,2456,NA
-75,"Hecate St 4: 220-500m",1,1856,NA
-76,"Hecate St. pre-2005 0-10 fa",0,56,NA
-77,"Hecate St. pre-2005 10-20 fa",0,3064,NA
-78,"Hecate St. pre-2005 20-30 fa",0,1745,NA
-79,"Hecate St. pre-2005 30-40 fa",0,910,NA
-80,"Hecate St. pre-2005 40-50 fa",0,946,NA
-81,"Hecate St. pre-2005 50-60 fa",0,866,NA
-82,"Hecate St. pre-2005 60-70 fa",0,858,NA
-83,"Hecate St. pre-2005 70-80 fa",0,894,NA
-84,"Hecate St. pre-2005 80-90 fa",0,526,NA
-85,"Hecate St. pre-2005 90-100 fa",0,322,NA
-86,"Hecate St. pre-2005 100-110 fa",0,191,NA
-87,"Hecate St. pre-2005 110-120 fa",0,91,NA
-88,"Hecate St. pre-2005 120-130 fa",0,93,NA
-109,"QCS Shrimp Survey Area Stratum 1",0,2142,NA
-110,"QCS Shrimp Survey Area Stratum 2",0,159,NA
-111,"QCS Shrimp Survey Area Stratum 3",0,101,NA
-112,"WCVI Shrimp Area 124",0,1844,NA
-113,"WCVI Shrimp Area 125",0,1396,NA
-151,"WCQCI 2007+ 180-330 m",1,1104,NA
-152,"WCQCI 2007+ 330-500 m",1,1024,NA
-153,"WCQCI 2007+ 500-800 m",1,956,NA
-154,"WCQCI 2007+ 800-1300 m",1,2248,NA
+GROUPING_CODE,GROUPING_DESC,ROW_VERSION,AREA_KM2,GROUPING_LEVEL,MIN_DEPTH,MAX_DEPTH
+18,1: South 50 to 125 m,1,5044,1,50,125
+19,2: South 125 to 200 m,1,5404,1,125,200
+20,3: South 200 to 330 m,1,2688,1,200,330
+21,4: South 330 to 500 m,1,540,1,330,500
+22,5: North 50 to 125 m,1,1792,2,50,125
+23,6: North 125 to 200 m,1,3996,2,125,200
+24,7: North 200 to 330 m,1,3736,2,200,330
+25,8: North 330 to 500 m,1,1240,2,330,500
+65,WCVI Synoptic Survey depth stratum 1: 50m to 125m,1,5796,NA,50,125
+66,WCVI Synoptic Survey depth stratum 2: 125m to 200m,1,3792,NA,125,200
+67,WCVI Synoptic Survey depth stratum 3: 200m to 330m,1,704,NA,200,330
+68,WCVI Synoptic Survey depth stratum 4: 330m to 500m,1,608,NA,330,500
+72,Hecate St 1: 10-70m,1,5952,NA,10,70
+73,Hecate St 2: 70-130m,1,3052,NA,70,130
+74,Hecate St 3: 130-220m,1,2456,NA,130,220
+75,Hecate St 4: 220-500m,1,1856,NA,220,500
+76,Hecate St. pre-2005 0-10 fa,0,56,NA,NA,NA
+77,Hecate St. pre-2005 10-20 fa,0,3064,NA,NA,NA
+78,Hecate St. pre-2005 20-30 fa,0,1745,NA,NA,NA
+79,Hecate St. pre-2005 30-40 fa,0,910,NA,NA,NA
+80,Hecate St. pre-2005 40-50 fa,0,946,NA,NA,NA
+81,Hecate St. pre-2005 50-60 fa,0,866,NA,NA,NA
+82,Hecate St. pre-2005 60-70 fa,0,858,NA,NA,NA
+83,Hecate St. pre-2005 70-80 fa,0,894,NA,NA,NA
+84,Hecate St. pre-2005 80-90 fa,0,526,NA,NA,NA
+85,Hecate St. pre-2005 90-100 fa,0,322,NA,NA,NA
+86,Hecate St. pre-2005 100-110 fa,0,191,NA,NA,NA
+87,Hecate St. pre-2005 110-120 fa,0,91,NA,NA,NA
+88,Hecate St. pre-2005 120-130 fa,0,93,NA,NA,NA
+109,QCS Shrimp Survey Area Stratum 1,0,2142,NA,NA,NA
+110,QCS Shrimp Survey Area Stratum 2,0,159,NA,NA,NA
+111,QCS Shrimp Survey Area Stratum 3,0,101,NA,NA,NA
+112,WCVI Shrimp Area 124,0,1844,NA,NA,NA
+113,WCVI Shrimp Area 125,0,1396,NA,NA,NA
+151,WCQCI 2007+ 180-330 m,1,1104,NA,180,330
+152,WCQCI 2007+ 330-500 m,1,1024,NA,330,500
+153,WCQCI 2007+ 500-800 m,1,956,NA,500,800
+154,WCQCI 2007+ 800-1300 m,1,2248,NA,800,1300
