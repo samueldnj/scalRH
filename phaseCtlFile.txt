@@ -3,9 +3,9 @@ parameter value
 lnB0_sp 2
 logitSteep 3
 lnM 3
-lnL2step_s 7
-lnvonK_s 7
-lnL1_s 7
+lnL2step_s 2
+lnvonK_s 2
+lnL1_s 2
 deltaL2_sp -1
 deltaVonK_sp -1
 sigmaLa_s 7

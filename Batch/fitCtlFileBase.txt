@@ -6,7 +6,7 @@ ctrl$modelHypName 'noJointPriors'
 ctrl$maxFunEval 10000
 ctrl$maxIterations 10000
 ctrl$quiet TRUE
-ctrl$maxPhase 2
+ctrl$maxPhase 7
 ctrl$calcSD FALSE
 data$commNames_g c("comm.hist","comm.mod")
 data$survNames_g c("HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
