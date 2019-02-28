@@ -24,7 +24,7 @@ data$lYearIdx 2016
 data$idxFleets c("HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
 #data$idxFleets c("comm.hist","comm.mod","HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
 #data$species c("Dover","English","Rock","Petrale","Arrowtooth")
-data$species c("English")
+data$species c("Rock")
 #data$stocks c("HSHG","QCS","WCVI")
 #data$stocks c("HSHG","QCS")
 data$stocks c("HSHG")
@@ -58,7 +58,7 @@ hypo$identSel FALSE
 hypo$tvSelFleets c("comm.hist","comm.mod")
 hypo$sigmaSelDevs 0.1
 hypo$cvxSel 0.2
-hypo$initFished c(Dover=0,English=1,Rock=0,Petrale=0,Arrowtooth=0)
+hypo$initFished c(Dover=0,English=1,Rock=1,Petrale=0,Arrowtooth=0)
 hypo$tvqFleets c("comm.hist","comm.mod")
 hypo$sigmaqdevs 1
 hypo$nonLinIdxFleets c("comm.hist","comm.mod")

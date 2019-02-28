@@ -950,13 +950,12 @@ Type objective_function<Type>::operator() ()
   for( int s = 0; s < nS; s++ )
     for( int p = 0; p < nP; p++ )
     {
-      // First initialisation deviations
-      int A = A_s(s);
-      for( int a = 0; a < A; a++)
-        recnll_sp(s,p) -= dnorm( omegaRinit_asp(a,s,p),Type(0),sigmaR_sp(s,p),true);
+      // First initialisation deviations  
+      for( int a = 0; a < nA; a++)
+        recnll_sp(s,p) -= dnorm( omegaRinit_asp(a,s,p),Type(0),0.2 * sigmaR_sp(s,p),true);
 
       // then yearly recruitment deviations
-      for( int t = 1; t <  nT; t++ )
+      for( int t = tFirstRecDev_s(s); t <=  nT; t++ )
         recnll_sp(s,p) -= dnorm( omegaR_spt(s,p,t-1), Type(0.), sigmaR_sp(s,p),true);
     }
 
@@ -1410,7 +1409,8 @@ Type objective_function<Type>::operator() ()
   array<Type> B0nlp_sp(nS,nP);
   B0nlp_sp.setZero();
   for( int p = 0; p < nP; p++)
-    B0nlp_sp.col(p) += lambdaB0 * (B0_sp.col(p));
+    B0nlp_sp.col(p) += lambdaB0 * B_spt.col(0).col(p);
+  
 
   
   // Observations
@@ -1530,7 +1530,7 @@ Type objective_function<Type>::operator() ()
   REPORT( pmlnxSel50_sf );
   REPORT( pmlnxSelStep_sf );
   REPORT( pmlnL1_s );
-  REPORT( pmlnL1_s );
+  REPORT( pmlnL2_s );
   REPORT( pmlnVonK );
   REPORT( muxSel50_sg );
   REPORT( muxSel95_sg );
