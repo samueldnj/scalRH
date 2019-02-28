@@ -1376,6 +1376,12 @@ plotSelLen <- function( repObj = repInit,
 
   gearNames <- dimnames(sel_lft)[[2]]
 
+  # Dimensions
+  nF <- repObj$nF
+  L  <- repObj$L_s[sIdx]
+  nT <- repObj$nT
+
+
   # Get species/stock/fleet selectivity parameter values
   xSel50_f    <- repObj$xSel50_spf[sIdx,pIdx,]
   xSel95_f    <- repObj$xSel95_spf[sIdx,pIdx,]
@@ -1396,11 +1402,7 @@ plotSelLen <- function( repObj = repInit,
   pmxSelStep_sf <- exp(repObj$pmlnxSelStep_sf[sIdx,])
   pmxSel95_sf   <- pmxSel50_sf + pmxSelStep_sf
 
-  # Dimensions
-  nF <- repObj$nF
-  L  <- repObj$L_s[sIdx]
-  nT <- repObj$nT
-
+  
   sel_lf    <- matrix(0, nrow = L, ncol = nF)
   pmSel_lf  <- matrix(0, nrow = L, ncol = nF)
 
