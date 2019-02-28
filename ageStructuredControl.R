@@ -41,24 +41,7 @@
 # 
 # <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
 
-# Load packages
-library( "coda" )
-library( tidyverse )
-library( reshape2 )
-library( ggforce )
-library( ggplot2 )
-library( GGally )
-library( "TMB" )
-library( "raster" )
-library( "grid" )
-library( "RColorBrewer" )
-library( "HapEstXXR" )
-library( "parallel" )
-library( "stringr" )
-library( wesanderson )
-library( ggsidekick )
-library( scales )
-
+source("loadPackages.R")
 
 source("DERPAfuns.R")
 source("SCALfuns.R")

@@ -969,7 +969,7 @@ renameReportArrays <- function( repObj = repInit, datObj = data )
 
   # Observation models
   dimnames(repObj$q_spf)      <- dimnames(datObj$age_aspft)[c(2:4)]  
-  dimnames(repObj$tau_spf)    <- dimnames(datObj$age_aspft)[c(2:4)]  
+  dimnames(repObj$tau2Idx_spf)    <- dimnames(datObj$age_aspft)[c(2:4)]  
   dimnames(repObj$sel_lfsp)   <- list(  len = lenNames, 
                                         fleet = gearNames,
                                         species = specNames,

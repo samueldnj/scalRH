@@ -85,8 +85,6 @@ doBatchRun <- function( arg )
     batchDesign <- read.csv(desPath, header=TRUE, skip=1, stringsAsFactors=FALSE)
   } 
 
-  browser()
-
   # Vector of simCtlFile names, like simCtlFile1.txt, simCtlFile2.txt, etc.
   batchParFile <- file.path( getwd(),.PRJFLD, .DEFBATFLD, basename( batchDesign$parFile ) )
   blobName     <- batchDesign$blobName  # Vector of blobNames.
@@ -163,16 +161,11 @@ doBatchRun <- function( arg )
 
       cat( "\nMSG (.runBatchJob) Processing batchParFile = ", batchParFile[i], "\n" )
       
-      # Overwrite the simCtlFile.txt file for mseR, the overwrite=TRUE is CRITICAL.
-      
-      cat( "\nWARNING (.runBatchJob) simCtlFile.txt overwritten by ",
-           batchParFile[i],"\n" )
-      file.copy(batchParFile[i],
-                 "simCtlFile.txt", overwrite=TRUE )
+      folder <- paste(prefix,"Bat",i,sep ="")
      
       # runSimEst() assumes that input is simCtlFile.txt
-      # browser()
-      runSimEst()
+      browser()
+      fitHierSCAL( batchParFile[i], fo )
 
       elapsed <- (proc.time() - tBegin)[ "elapsed" ]
       cat( "\nMSG (.runBatchJob): Elapsed time for simulation = ",
