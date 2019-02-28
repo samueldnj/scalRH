@@ -161,11 +161,10 @@ doBatchRun <- function( arg )
 
       cat( "\nMSG (.runBatchJob) Processing batchParFile = ", batchParFile[i], "\n" )
       
-      folder <- paste(prefix,"Bat",i,sep ="")
+      folderName <- paste(prefix,"bat",i,sep ="")
      
       # runSimEst() assumes that input is simCtlFile.txt
-      browser()
-      fitHierSCAL( batchParFile[i], fo )
+      fitHierSCAL( batchParFile[i], folder = folderName )
 
       elapsed <- (proc.time() - tBegin)[ "elapsed" ]
       cat( "\nMSG (.runBatchJob): Elapsed time for simulation = ",
