@@ -20,7 +20,7 @@ fontsize: 12pt
 lineno: true
 numbersections: false
 appendix: false
-abstract: Fisheries stock assessments are typically performed for a single species or stock at a time. Not all stocks have the same available data (e.g. missing age structures), due to low fishing effort or sampling effort, so go un-assessed or get aggregated with other management units, despite heterogeneity in abundance or biological data. Modern hierarchical multi-species and multi-stock assessment models are an alternative option for dealing with data limitations in spatially diverse fisheries. For example, biological information can be shared between stocks within a species, and environmental effects may be assumed to be shared between species that inhabit the same stock area. In this paper, we present a multi-species, multi-stock, age structured integrated assessment model, able to be fit to abundance, age, and length data for 5 flatfish species in 3 stock areas on the coast of British Columbia. For 2 species, at least one stock area is missing age composition data, so length compositions are used in their place. To share information between stocks, hierarchical shrinkage priors are applied to catchability and stock-recruit steepness parameters. We compare the assessment results under multiple model hypotheses and data scenarios. Integrated growth model/first assessments of many stocks/... Results...
+abstract: Fisheries stock assessments are typically performed for a single species or stock at a time. Not all stocks have the same available data (e.g. missing age structures), due to low fishing effort or sampling effort, so go un-assessed or get aggregated with other management units, despite heterogeneity in abundance or biological data. Modern hierarchical multi-species and multi-stock assessment models are an alternative option for dealing with data limitations in spatially diverse fisheries. For example, biological information can be shared between stocks within a species, and environmental effects may be experienced similarly by species that inhabit the same stock area. In this paper, we present a multi-species, multi-stock, age structured integrated assessment model, able to be fit to abundance, age, and length data for 5 flatfish species in 3 stock areas on the coast of British Columbia. For 2 species, at least one stock area is missing age composition data, so length compositions are the primary compositional data to detect changes in recruitment. To share information between stocks, hierarchical shrinkage priors are applied to catchability, stock-recruit steepness, survey index observation error variance,... parameters. We compare the assessment results under multiple model hypotheses and data scenarios. Integrated growth model/first assessments of many stocks/... Results...
 output: 
   pdf_document:
     citation_package: natbib
@@ -67,11 +67,11 @@ library(bookdown)
 
 # Introduction
 
-Fisheries stock assessment is concerned with determining the status of exploited fish stocks under uncertainty [@hilborn1992quantitative]. Stock assessment models are fit to multiple sources of data, including abundance or biomass indices, age compositions, and length composition data. 
+Fisheries stock assessment is concerned with determining the status of exploited fish stocks under uncertainty [@hilborn1992quantitative]. Stock assessment models are fit to multiple sources of data, including abundance or biomass indices, age compositions, length composition data, and age-at-length data. 
 
 Fisheries management typically focuses on a single stock of a single species at a time. This narrow focus often implictly assumes that fish are uniformly distributed across the management area, ignoring any spatial structure, and ignores interactions between species, except implicitly through recruitment or mortality [@albertsen2017connecting; @siple2017contributions]. 
 
-Spatial considerations?
+Spatial considerations? SAM style M residuals
 
 Data limitations - modern fisheries management usually requires age structured models, age data is often missing as it is costly to collect.
 
@@ -90,9 +90,7 @@ In this paper, we apply a hierarchical multi-stock age-structured assessment mod
 Not all stocks are surveyed equally: different stocks have large samples age structures, others have no samples at all. 
     - Length composition data supplement the age observations [@rudd2017accounting]
     - Integrated hierarchical growth model shares growth data between stocks and species [@cadigan2017hierarchical], allows for unbiased estimation of age/length observations - e.g. Random-at-length obs, conditioned on fleet selectivity and modeled age structure [@piner2016evaluation]
-    - Can use hierarchical models to extend growth hypotheses to stocks with missing data in a data-driven way (e.g. estimating a growth model for the stocks with missing age data), allowing for an age structured model for stocks with missing age data
-
-
+    - Can use hierarchical RAL growth model to extend growth hypotheses to stocks with missing data in a data-driven way (e.g. estimating a growth model for the stocks with missing age data), allowing for an age structured model for stocks with missing age data
 
 
 # Methods
@@ -127,7 +125,7 @@ The stock assessment model has an age structured process model that explicitly i
 For stocks without age observations, length comps with separate length-at-age distributions for each stock are used in the observation model. To avoid using the same data twice, we only use length compositions from individual fish where age was not observed. For fish where age was observed, accompanying length observations are available, and this data was used to fit the integrated Von Bertalanffy growth model
 
 Hierarchical priors:
-- Growth model - this is now outside the model, is there room to add it and account for selectivity in the observations??
+- Growth model
     - vonB K parameter between species
     - K, Linf and cvL within species
     - Random-at-length, using either eqbm age structure outside the model, or the modeled age structure and selectivity inside the model

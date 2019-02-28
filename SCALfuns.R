@@ -28,8 +28,11 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt", folder=NULL, quiet=TRUE )
   controlList <- .readParFile ( ctlFile )
   controlList <- .createList  ( controlList )
 
+  phaseList <- .readParFile ( "phaseCtlFile.txt" )
+  phaseList <- .createList  ( phaseList )
+
   # Run simEst Procedure
-  reports <- .runHierSCAL( obj = controlList )
+  reports <- .runHierSCAL( obj = controlList, phases = phaseList )
   # save output to project folder
   # First, if a folder name isn't nominated, create a default sim folder
   if ( is.null(folder) )
@@ -56,6 +59,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt", folder=NULL, quiet=TRUE )
 
   # Copy control file to sim folder for posterity
   file.copy(from=ctlFile,to=file.path(path,"fitCtlFile.txt"))
+  file.copy(from="phaseCtlFile.txt",to=file.path(path,"phaseCtlFile.txt"))
   # Done
 } # END fitHierSCAL()
 
@@ -116,7 +120,7 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
 # some path specific features here that relate to YE
 # assessment stuff, so take care if copying to other
 # locations
-.runHierSCAL <- function( obj = controlList )
+.runHierSCAL <- function( obj = controlList, phases )
 {
   # Get data scenario and model hypothesis control lists
   dataObj <- obj$data
@@ -132,6 +136,8 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   minL_s    <- dataObj$minL_s
   fYear     <- dataObj$fYearData
   lYear     <- dataObj$lYearData
+  fYearIdx  <- dataObj$fYearIdx
+  lYearIdx  <- dataObj$lYearIdx
   nT        <- lYear - fYear + 1
   years     <- fYear:lYear
   yrChar    <- as.character(years)
@@ -157,6 +163,10 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   useStockIdx  <- which( allStocks %in% useStocks )
   nP           <- length(useStocks)  
 
+  # Track fleets for which we'll use the index data
+  # (this way we can turn off commercial indices)
+  idxFleets    <- dataObj$idxFleets
+
   # Load data
   cat("Loading data for assessment\n")
 
@@ -173,6 +183,12 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                             collapseComm = FALSE,
                             scaleComm = dataObj$commCPUEscalar )
   I_spft <- I_spft[useSpecies,useStocks,useFleets,, drop = FALSE]
+
+  # Cut out indices from outside of idxFleets
+  # and from outside fYearIdx:lYearIdx
+  outYears <- years[! years %in% fYearIdx:lYearIdx ]
+  I_spft[,,!useFleets %in% idxFleets,] <- -1
+  I_spft[,,,as.character(outYears)] <- -1
 
   minTimeIdx_spf <- array(nT-1, dim = c(nS,nP,nF) )
   for( sIdx in 1:nS )
@@ -208,6 +224,26 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
 
   # Sum catch for initial B0 estimate
   sumCat_sp <- apply( X = C_spft, FUN = sum, MARGIN = c(1,2) )
+
+  # Now use C_spft to weed out fleets that shouldn't be included
+  # for now
+  noFleetCatch <- c()
+  for( fleetID in useFleets )
+    if( all(C_spft[,,fleetID,] <= 0) )
+    {
+      noFleetCatch <- c(noFleetCatch,fleetID)
+    }
+
+  # Now weed
+  useFleets     <- useFleets[!useFleets %in% noFleetCatch]
+  useFleetsIdx  <- which(allFleets %in% useFleets)
+  nF            <- length(useFleets)
+
+  # Remove no catch fleets from C, D and I
+  C_spft <- C_spft[,,useFleets,,drop = FALSE]
+  D_spft <- D_spft[,,useFleets,,drop = FALSE]
+  I_spft <- I_spft[,,useFleets,,drop = FALSE]
+  
 
   # Load growth data - use this
   # to inform the vonB model in the
@@ -245,6 +281,9 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   # Combine sexes for now
   ALFreq_spalft <- ALFreq_spalftx[,,,,,,1] + ALFreq_spalftx[,,,,,,2]
   ALFreq_spalft <- ALFreq_spalft[useSpecies,useStocks,,,useFleets,yrChar,drop = FALSE]
+
+  # Maybe aggregate ages into plus groups?
+
 
 
   # Load age and length compositions
@@ -300,12 +339,13 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
 
   # Calculate number of q deviations
   nqDevs <- 0
-  for( fIdx in which( useFleets %in% hypoObj$tvqFleets ) )
+  for( fIdx in which( idxFleets %in% hypoObj$tvqFleets ) )
     for( sIdx in 1:nS )
       for( pIdx in 1:nP )
         nqDevs <- nqDevs + (length( which( I_spft[sIdx,pIdx,fIdx,] > 0) ) - 1)
 
-      
+  
+
   # Now make a vector to switch time varying selectivity
   # on and off
   tvSelFleets <- rep(0,nF)
@@ -316,6 +356,11 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   tvqFleets <- rep(0,nF)
   names(tvqFleets) <- useFleets
   tvqFleets[ useFleets %in% hypoObj$tvqFleets ] <- 1 
+
+  # And the same for time-varying catchability
+  regFfleets <- rep(0,nF)
+  names(regFfleets) <- useFleets
+  regFfleets[ useFleets %in% hypoObj$regFfleets ] <- 1 
 
   # Load maturity ogives
   load(file.path("./Data",dataObj$matFiles))
@@ -351,12 +396,15 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   
 
   # Count number of free F parameters
-  nPosCatch <- length(which(catchDiscArrays$C_spft > 0) )
+  nPosCatch <- length(which(C_spft > 0) )
 
   # Initialised in a fished state (0 == unfished, 1 == fished)
   initFished_s     <- hypoObj$initFished[useSpecies]
   yFirstRecDev_s   <- hypoObj$yFirstRecDev[useSpecies]
   yLastRecDev_s    <- hypoObj$yLastRecDev[useSpecies]
+
+  if( all(initFished_s == 0) )
+    phases$omegaRinit_vec <- -1
 
   # Non-eq initialisation deviations
   nInitDevs <- sum( nP * (nA_s[useSpecIdx] * initFished_s ) )
@@ -382,10 +430,10 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   {
     # length at Sel50_sf initial value
     xSel50_sf <- matrix(  c(    41, 39, 29, 31, 33, 33, 33,
+                                35, 35, 23, 25, 25, 25, 25,
                                 35, 35, 35, 35, 35, 35, 35,
                                 35, 35, 35, 35, 35, 35, 35,
-                                35, 35, 35, 35, 35, 35, 35,
-                                35, 35, 35, 35, 35, 35,  35 ), 
+                                35, 35, 35, 35, 35, 35, 35 ), 
                                 nrow = length(allSpecies),
                                 ncol = length(allFleets), 
                                 byrow = TRUE )
@@ -397,19 +445,19 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                                   2, 2, 2, 2, 2, 2, 2,
                                   2, 2, 2, 2, 2, 2, 2,
                                   2, 2, 2, 2, 2, 2, 2,
-                                  2, 2, 2, 2, 2, 2,  2 ), 
+                                  2, 2, 2, 2, 2, 2, 2 ), 
                                   nrow = length(allSpecies),
                                   ncol = length(allFleets), 
                                   byrow = TRUE )
 
-    xSelStep_sf <- xSelStep_sf[useSpecIdx,useFleetsIdx]
+    xSelStep_sf <- xSelStep_sf[useSpecIdx,useFleetsIdx,drop = FALSE]
   }
 
   if( hypoObj$selX == "age")
   {
     # xSel50_sf initial value
     xSel50_sf <- matrix(  c(    8, 7, 5, 6, 5, 5, 5,
-                                5, 5, 5, 5, 5, 5, 5,
+                                6, 5, 5, 5, 5, 5, 5,
                                 5, 5, 5, 5, 5, 5, 5,
                                 5, 5, 5, 5, 5, 5, 5,
                                 5, 5, 5, 5, 5, 5, 5 ), 
@@ -417,7 +465,7 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                                 ncol = length(allFleets), 
                                 byrow = TRUE )
 
-    xSel50_sf <- xSel50_sf[useSpecIdx,useFleetsIdx]
+    xSel50_sf <- xSel50_sf[useSpecIdx,useFleetsIdx,drop = FALSE]
 
     # xSelStep_sf initial value
     xSelStep_sf <- matrix(  c(    3, 3, 2, 3, 2, 2, 2,
@@ -429,9 +477,11 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                                   ncol = length(allFleets), 
                                   byrow = TRUE )
 
-    xSelStep_sf <- xSelStep_sf[useSpecIdx,useFleetsIdx]
+    xSelStep_sf <- xSelStep_sf[useSpecIdx,useFleetsIdx,drop = FALSE]
   }
 
+  lnxSel50_sf <- array(log(xSel50_sf),dim = c(nS,nF))
+  lnxSelStep_sf <- array(log(xSelStep_sf),dim = c(nS,nF))
 
   # Use useSpec, useStocks, useFleets and yrChar to
   # reduce the data arrays so that the fits are dynamic
@@ -457,8 +507,11 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   initL1_s    <- numeric( length = nS )
   initL2_s    <- numeric( length = nS )
 
+  survNames <- dataObj$survNames_g
+  survNames <- survNames[survNames %in% useFleets]
+
   calcMeanLenAge <- function( sIdx = 1, ALK = ALFreq_spalft,
-                              age = A1_s, fleets = dataObj$survNames_g )
+                              age = A1_s, fleets = survNames )
   {
     # Pull length at the given age
     lenAtAge <- ALK[sIdx,,age[sIdx],,fleets,,drop = FALSE]
@@ -504,6 +557,7 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                 calcIndex_spf   = calcIndex_spf,
                 tvSelFleets     = tvSelFleets,
                 tvqFleets       = tvqFleets,
+                regFfleets      = regFfleets,
                 idxLikeWt       = dataObj$idxLikeWt,
                 ageLikeWt       = dataObj$ageLikeWt,
                 lenLikeWt       = dataObj$lenLikeWt,
@@ -523,97 +577,130 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
 
 
   # Generate parameter list
-  pars <- list( lnB0_sp           = log(sumCat_sp),
+  pars <- list( ## Leading biological pars ##
+                lnB0_sp           = log(sumCat_sp),
                 logitSteep        = log((mh - .2)/(1 - mh)),
                 lnM               = log(mM),
                 lnL2step_s        = log(initL2_s - initL1_s),
                 lnvonK_s          = log(hypoObj$initVonK[useSpecies]),
                 lnL1_s            = log(initL1_s[useSpecIdx]),
+                # Stock specific growth pars
                 deltaL2_sp        = array(0,dim = c(nS,nP)),
                 deltaVonK_sp      = array(0,dim = c(nS,nP)),
+                # process error in growth model
                 sigmaLa_s         = sigmaLa_s,
                 sigmaLb_s         = sigmaLb_s,
+                # L-W conversion
                 LWa_s             = LWa_s,
                 LWb_s             = LWb_s,
+                # Maturity
                 xMat50_s          = xMat50,
                 xMat95_s          = xMat95,
+                ## Observation models ##
+                # fleet catchability
                 lnq_spf           = array(0,dim =c(nS,nP,nF)),
-                lntau_spf         = array(log(0.04),dim =c(nS,nP,nF)),
-                lnxSel50_sf       = array(t(log(xSel50_sf)),dim = c(nS,nF) ),
-                lnxSelStep_sf     = array(t(log(xSelStep_sf)),dim = c(nS,nF)),
-                lnF_spft          = rep(-2,length = nPosCatch),
+                # Selectivity
+                lnxSel50_sf       = lnxSel50_sf,
+                lnxSelStep_sf     = lnxSelStep_sf,
+                epsxSel50_spf     = array(0,dim = c(nS,nP,nF)),
+                epsxSelStep_spf   = array(0,dim = c(nS,nP,nF)),
+                # Fishing mortality
+                lnF_spft          = rep(-1,length = nPosCatch),
+                # Catch and discards obs SD
                 lntauC_f          = rep(log(0.01),nF),
                 lntauD_f          = rep(log(0.01),nF),
+                ## Multilevel priors ##
+                # Selectivity
                 muxSel50_sg       = array(3.4, dim = c(nS,3)),
                 muxSel95_sg       = array(4.2, dim = c(nS,3)),
                 sigmaxSel50_sg    = array(.2, dim = c(nS,3)),
                 sigmaxSel95_sg    = array(.2, dim = c(nS,3)),
+                # Catchability
                 lnqbarSyn_s       = rep(0,nS),
-                lntauqSyn_s       = rep(log(.2),nS),
+                lntauqSyn_s       = rep(log(1),nS),
                 lnqbarSyn         = log(1),
-                lntauqSyn         = log(.2),
+                lntauqSyn         = log(1),
                 mqSurveys         = 1,
                 sdqSurveys        = 1,
-                epsSteep_s        = rep(0,nS),
-                epsM_s            = rep(0,nS),
-                epsSteep_sp       = array(0, dim = c(nS,nP)),
-                epsM_sp           = array(0, dim = c(nS,nP)),
+                # Steepness
                 lnsigmah_s        = rep(log(sdh),nS),
                 logit_muSteep     = log((mh - .2)/(1 - mh)),
                 lnsigmah          = log(sdh),
+                # Mortality
                 lnsigmaM_s        = rep( log(sdM), nS ),
                 ln_muM            = log(mM),
                 lnsigmaM          = log(sdM),
+                # IG Prior on obs error SD
                 IGatau_f          = tau2ObsIGa,
                 IGbtau_f          = tau2ObsIGb,
+                # Species effect on steepness
+                epsSteep_s        = rep(0,nS),
+                # Species effect on M
+                epsM_s            = rep(0,nS),
+                # Species/stock effect on steepness
+                epsSteep_sp       = array(0, dim = c(nS,nP)),
+                # Species/stock effect on M
+                epsM_sp           = array(0, dim = c(nS,nP)),
+                # Recruitment resids
                 omegaR_vec        = rep( 0, nRecDevs),
                 omegaRinit_vec    = rep( 0, nInitDevs ),
-                lnsigmaR_sp       = array( 0, dim = c(nS,nP)),
+                lnsigmaR_sp       = array( log(hypoObj$sigmaR), dim = c(nS,nP)),
+                # Correlation in recruitment resids
                 logitRCorr_chol   = rep(0, nS * nP),
                 logitRgamma_sp    = array( 0, dim = c(nS,nP)),
+                # Time-varying selectivity
                 epsxSel50_vec     = rep( 0, nSelDevs ),
                 epsxSelStep_vec   = rep( 0, nSelDevs ),
                 lnsigmaSel        = log( hypoObj$sigmaSelDevs ),
+                # Time-varying catchability
                 epslnq_vec        = rep( 0, nqDevs ),
                 lnsigmaepslnq     = log( hypoObj$sigmaqdevs ),
-                pmlnxSel50_sf     = array(t(log(xSel50_sf)),dim = c(nS,nF) ),
-                pmlnxSelStep_sf   = array(t(log(xSelStep_sf)),dim = c(nS,nF) ),
+                ## Single-level priors ##
+                # Priors on selectivity
+                pmlnxSel50_sf     = array(log(xSel50_sf),dim = c(nS,nF) ),
+                pmlnxSelStep_sf   = array(log(xSelStep_sf),dim = c(nS,nF) ),
                 cvxSel            = hypoObj$cvxSel,
                 pmlnL2_s          = log(initL2_s),
                 pmlnL1_s          = log(initL1_s),
                 cvL2              = .05,
                 cvL1              = .05,
                 pmlnVonK          = log(.2),
-                cvVonK            = .1  )
+                cvVonK            = .1,
+                mF                = hypoObj$mF,
+                sdF               = hypoObj$sdF  )
 
-  # Generate map list - this will have to be updated
-  # so that it's sensitive to useFleetsIdx
-  qmap_spf <- array(  101 + 1:(nS*nP*nF),
+
+
+  # Generate special entries for the 
+  # base map list that are sensitive to useFleetsIdx
+  qmap_spf <- array(  1 + 1:(nS*nP*nF),
                       dim = c(nS,nP,nF) )
   qmap_spf[calcIndex_spf == 0] <- NA
-  # map out the observation error SD
-  taumap_spf <- array(  1 + 1:(nS*nP*nF),
-                        dim = c(nS,nP,nF) )
-  taumap_spf[calcIndex_spf == 0] <- NA
 
   # Map Rinit
   RinitMap <- array(NA, dim = c(nS,nP))
   for( sIdx in 1:nS )
     if( initFished_s[sIdx] == 1 )
-      RinitMap[sIdx,] <- (1:nP) + nP*(sIdx-1) + 200
+      RinitMap[sIdx,] <- (1:nP) + nP*(sIdx-1) + 100
 
   # Map selectivity at length
-  selMap <- array(NA, dim = c(nS,nF), 
-                      dimnames = list( species = useSpecies,
-                                        fleets = useFleets ) )
-  # Turn on selectivity estimation if asked for
-  if( hypoObj$estSel )
-    for(s in 1:nS)
-      for(f in 1:nF)
-        if( any(age_aspft[,s,,f,] > 0) | any(len_lspft[,s,,f,] > 0) )
-          selMap[s,f] <- 300 + s * (nF - 1) + f
+  selMap_spf <- array(NA, dim = c(nS,nP,nF) )
+  # Make unique initially
+  for(s in 1:nS)
+    for( f in 1:nF)
+    {
+      for(p in 1:nP)  
+        if( any(age_aspft[,s,p,f,] > 0) | any(len_lspft[,s,p,f,] > 0) )
+          selMap_spf[s,p,f] <- 200 + s * (nF - 1) * (nP - 1) + f * (nP - 1) + p
+    }
 
-  if( hypoObj$estSel & hypoObj$identSel )
+  # Collapse to species/fleet
+  selMap_sf <- apply( X = selMap_spf, 
+                      FUN = sum, MARGIN =c(1,3),
+                      na.rm = T )
+  selMap_sf[ selMap_sf == 0 ] <- NA
+
+  if( hypoObj$identSel )
   {
     fleetGps <- hypoObj$fleetGroups
     nGps     <- length(fleetGps)
@@ -621,145 +708,208 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
     {
       gpFleets <- fleetGps[[gIdx]]
       gpFleets <- gpFleets[gpFleets %in% useFleets]
-      estIdx <- which(!is.na(selMap[,gpFleets,drop = FALSE]),arr.ind =T)
-      selMap[estIdx[,1],gpFleets[estIdx[,2]]] <- gIdx + 300 + estIdx[,1] * nGps
+      estIdx <- which(!is.na(selMap_spf[,gpFleets,drop = FALSE]),arr.ind =T)
+      selMap_spf[estIdx[,1],estIdx[,2],gpFleets[estIdx[,3]]] <- gIdx + 200 + estIdx[,1] * nGps
     }
   }
 
-  map <- list(  
-                # lnB0_sp           = factor(array(NA,dim =c(nS,nP))),
-                logitSteep        = factor(NA),
-                # lnM               = factor(NA),
-                # lnL2step_s        = factor(array(NA,dim =c(nS,1))),
-                # lnvonK_s          = factor(array(NA,dim =c(nS,1))),
-                lnL1_s            = factor(array(NA,dim =c(nS,1))),
-                deltaL2_sp        = factor(matrix(NA,nrow = nS, ncol = nP)),
-                deltaVonK_sp      = factor(matrix(NA,nrow = nS, ncol = nP)),
-                LWa_s             = factor(rep(NA,nS)),
-                LWb_s             = factor(rep(NA,nS)),
-                xMat50_s          = factor(rep(NA,nS)),
-                xMat95_s          = factor(rep(NA,nS)),
-                lnq_spf           = factor(qmap_spf),
-                lntau_spf         = factor(taumap_spf),
-                lnxSel50_sf       = factor(selMap),
-                lnxSelStep_sf     = factor(selMap + 100),
-                # lnF_spft          = factor(rep(NA,nPosCatch)),
-                lntauC_f          = factor(rep(NA,nF)),
-                lntauD_f          = factor(rep(NA,nF)),
-                # sigmaLa_s         = factor(rep(NA,nS)),
-                sigmaLb_s         = factor(rep(NA,nS)),
-                muxSel50_sg       = factor(array(NA, dim = c(nS,3))),
-                muxSel95_sg       = factor(array(NA, dim = c(nS,3))),
-                sigmaxSel50_sg    = factor(array(NA, dim = c(nS,3))),
-                sigmaxSel95_sg    = factor(array(NA, dim = c(nS,3))),
-                lnqbarSyn_s       = factor(rep(NA,nS)),
-                lntauqSyn_s       = factor(rep(NA,nS)),
-                lnqbarSyn         = factor(NA),
-                lntauqSyn         = factor(NA),
-                mqSurveys         = factor(NA),
-                sdqSurveys        = factor(NA),
-                lnsigmah_s        = factor(rep(-NA,nS)),
-                lnsigmah          = factor(NA),
-                epsSteep_s        = factor(rep(NA,nS)),
-                epsM_s            = factor(rep(NA,nS)),
-                epsSteep_sp       = factor(array(NA, dim = c(nS,nP))),
-                epsM_sp           = factor(array(NA, dim = c(nS,nP))),
-                lnsigmaM_s        = factor(rep(NA, nS ) ),
-                ln_muM            = factor(NA),
-                lnsigmaM          = factor(NA),
-                IGatau_f          = factor(rep(NA,nF)),
-                IGbtau_f          = factor(rep(NA,nF)),
-                # omegaR_vec        = factor( rep( NA, nRecDevs ) ),
-                # omegaRinit_vec    = factor( rep( NA, nInitDevs ) ),
-                lnsigmaR_sp       = factor(array(NA, dim = c(nS,nP)) ),
-                logitRCorr_chol   = factor(rep(NA, nS * nP)),
-                logitRgamma_sp    = factor(array(NA, dim = c(nS,nP))),
-                lnsigmaSel        = factor(NA),
-                lnsigmaepslnq     = factor(NA),
-                pmlnxSel50_sf     = factor(array(NA,dim = c(nS,nF))),
-                pmlnxSelStep_sf   = factor(array(NA,dim = c(nS,nF))),
-                cvxSel            = factor(NA),
-                pmlnL2_s          = factor(rep(NA,nS)),
-                pmlnL1_s          = factor(rep(NA,nS)),
-                cvL2              = factor(NA),
-                cvL1              = factor(NA),
-                pmlnVonK          = factor(NA),
-                cvVonK            = factor(NA) ) 
+  # generate base map for TMBphase()
+  map <- list(  lnq_spf           = factor(qmap_spf),
+                epsxSel50_spf     = factor(selMap_spf),
+                epsxSelStep_spf   = factor(selMap_spf + 100),
+                lnxSel50_sf       = factor(selMap_sf + 200),
+                lnxSelStep_sf     = factor(selMap_sf + 300) )
 
   # Turn off tv sel deviations if not being used
   if(!hypoObj$tvSel)
   {
-    map$epsxSel50_vec   <- factor(rep(NA,nSelDevs))
-    map$epsxSelStep_vec <- factor(rep(NA,nSelDevs))
+    phases$epsxSel50_vec    <- -1
+    phases$epsxSelStep_vec  <- -1
   }
 
-  if(!hypoObj$tvq)
-  {
-    map$epslnq_vec   <- factor(rep(NA,nqDevs))
-  }
+  
 
-  # Create a control list for the assessment model
-  tmbCtrl <- list(  eval.max = ctrlObj$maxFunEval, 
-                    iter.max = ctrlObj$maxIterations  )
+  phaseList <- TMBphase(  data = data, 
+                          parameters = pars, 
+                          random = hypoObj$RE, 
+                          phases = phases, 
+                          base_map = map,
+                          maxPhase = ctrlObj$maxPhase,
+                          model_name = "hierSCAL",
+                          optimizer = "nlminb",
+                          silent = ctrlObj$quiet,
+                          maxEval = ctrlObj$maxFunEval,
+                          maxIter = ctrlObj$maxIterations,
+                          calcSD = ctrlObj$calcSD ) 
 
 
-  # Now create the AD fun object, assuming all fixed effects
-  cat("Creating objective function object\n")
-  objFE <- MakeADFun( data = data,
-                      parameters = pars,
-                      map = map, 
-                      random = NULL, 
-                      silent = ctrlObj$quiet )
-
-  repInit <- objFE$report()
-  repInit <- renameReportArrays( repObj = repInit, datObj = data )
+  maxSuccPhz <- phaseList$maxPhaseComplete
+  if( maxSuccPhz > 0)
+    plotRep <- "opt"
+  
 
   # Update names on report objects
-  outList <- list(  repInit = repInit,
-                    repFE = NULL,
-                    sdrepFE = NULL,
-                    sdrepFE.full = NULL,
-                    repRE = NULL,
-                    sdrepRE = NULL,
-                    sdrepRE.full = NULL,
+  outList <- list(  repInit = renameReportArrays(phaseList$repInit,data),
+                    repOpt = renameReportArrays(phaseList$phaseReports[[maxSuccPhz]]$report,data),
+                    sdrepOpt = phaseList$sdrep,
                     fYear = fYear, 
                     lYear = lYear,
                     gearLabs = useFleets,
                     species = useSpecies,
                     stocks = useStocks,
-                    map = map,
+                    map = phaseList$phaseReports[[maxSuccPhz]]$map,
                     data = data,
                     pars = pars,
-                    plotRep = "init" )
-
-  # Now try fitting the model
-  if( ctrlObj$opt )
-  {
-    cat("Optimising with all fixed effects\n")
-    fitFE <- try( nlminb (  start     = objFE$par,
-                            objective = objFE$fn,
-                            gradient  = objFE$gr,
-                            control   = tmbCtrl ) )
-
-    # May hang here if there are problems fitting the model
-    if( class(fitFE) != "try-error")
-    {
-      cat("\nOptimisation finished without error\n")
-      cat("\nSaving results\n")
-      outList$repFE         <- renameReportArrays( repObj = objFE$report(), datObj = data)
-      outList$sdrepFE       <- summary(sdreport(objFE))
-      outList$heFE          <- objFE$he()
-      outList$fitFE         <- fitFE
-      outList$map           <- map
-      outList$plotRep        <- "FE"
-
-    }
+                    plotRep = plotRep,
+                    phaseList = phaseList )
 
 
-  }
 
   return(outList)
 } # END .runHierSCAL()
+
+# Custom TMBphase() function for running hierSCAL in phases. 
+# Modified from the version in Kasper Kristensen's TMB_contrib_R github repository 
+# https://github.com/kaskr/TMB_contrib_R
+# Author:Gavin Fay email: gfay42@gmail.com
+# 
+# Main modification adds a base map list for array based parameters that
+# have (a) identified parameters or (b) only some elements
+# activated due to missing data (e.g. selectivity pars for
+# fleets in specific areas). Doing it this way reduces number
+# of loops in the model, speeding up fitting time.
+TMBphase <- function( data, 
+                      parameters, 
+                      random, 
+                      phases, 
+                      base_map = list(),
+                      maxPhase = NULL,
+                      model_name = "hierSCAL",
+                      optimizer = "nlminb",
+                      silent = FALSE,
+                      calcSD = FALSE,
+                      maxEval = 1000,
+                      maxIter = 1000,
+                      regFMaxPhase = 3 ) 
+{
+  # function to fill list component with a factor
+  # of NAs
+  fill_vals <- function(x,vals){ factor( rep( vals, length(x) ) ) }
+
+  # compile the model
+  DLL_use <- model_name  
+  
+  #loop over phases
+  if(!is.null(maxPhase))
+    maxPhase <- min( maxPhase, max(unlist(phases) ) )
+
+  phaseReports <- vector(mode = "list", length = maxPhase)
+
+  # generate a list of outputs to return
+  # to runHierSCAL, initialise 
+  # a success flag at TRUE
+  outList <- list( success = TRUE )
+
+  for( phase_cur in 1:maxPhase ) 
+  {
+    # work out the map for this phase
+    # if the phase for a parameter is greater than the current phase 
+    # or a negative value, then map will contain a factor filled with NAs
+    map_use <- base_map
+    j <- length(map_use)
+    for( i in 1:length(parameters) ) 
+    {
+      parName <- names(parameters)[i]
+
+      if( (phases[[parName]] > phase_cur) | phases[[parName]] < 0 ) 
+      { 
+        # Check if parName is included in the base_map
+        if(parName %in% names(map_use))
+          map_use[[parName]] <- fill_vals(parameters[[i]],NA)
+        else
+        {
+          j <- j + 1
+          map_use[[j]] <- fill_vals(parameters[[i]],NA)
+          names(map_use)[j] <- parName
+        }
+
+      }
+
+    }
+    
+    if( phase_cur > regFMaxPhase )
+      data$regFfleets <- rep(0,length(data$regFfleets))
+  
+    #remove the random effects if they are not estimated
+    random_use <- random[ !random %in% names(map_use) ]
+  
+    # initialize the parameters at values in previous phase
+    params_use <- parameters
+    if( phase_cur > 1 ) 
+      params_use <- obj$env$parList( opt$par )
+
+    # Fit the model
+    obj <- TMB::MakeADFun(  data = data,
+                            parameters = params_use,
+                            random= random_use,
+                            DLL= DLL_use,
+                            map= map_use,
+                            silent = silent )  
+    TMB::newtonOption(obj,smartsearch=FALSE)
+
+    if( phase_cur == 1 )
+      outList$repInit <- obj$report()
+
+
+    
+    # Create a control list for the assessment model
+    tmbCtrl <- list(  eval.max = maxEval, 
+                      iter.max = maxIter  )
+    cat("\nStarting optimisation for phase ", phase_cur, "\n\n")
+    # Try the optimisation
+    opt <- try( nlminb (  start     = obj$par,
+                          objective = obj$fn,
+                          gradient  = obj$gr,
+                          control   = tmbCtrl ) )
+
+    # break if there is an issue
+    if( class(opt) == "try-error" )
+    {
+
+      cat("\nOptimisation halted due to error\n")
+
+      outList$success                   <- FALSE
+      phaseReports[[phase_cur]]$opt     <- opt
+      phaseReports[[phase_cur]]$success <- FALSE
+      outList$maxPhaseComplete          <- phase_cur - 1
+      break
+    }
+
+    # Save reports and optimisation
+    # output
+    phaseReports[[phase_cur]]$report  <- obj$report()
+    phaseReports[[phase_cur]]$opt     <- opt
+    phaseReports[[phase_cur]]$success <- TRUE
+    phaseReports[[phase_cur]]$map     <- map_use
+    phaseReports[[phase_cur]]$obj     <- obj
+    outList$maxPhaseComplete          <- phase_cur
+
+
+    cat(  "\nPhase ", phase_cur, " completed with code ",
+          opt$convergence, " and following message:\n", sep = "" )
+    cat("\n", opt$message, "\n\n", sep = "" )
+    
+    # close phase loop
+  }
+
+  if(outList$success & calcSD )
+    outList$sdrep <- TMB::sdreport(obj)
+
+  outList$phaseReports <- phaseReports
+  
+  return( outList )  
+
+} # END TMBphase()
 
 # renameReportArrays()
 # Updates the dimension names of the arrays in the 
@@ -896,7 +1046,7 @@ renameReportArrays <- function( repObj = repInit, datObj = data )
 
 # savePlots()
 savePlots <- function(  fitObj = reports,
-                        useRep = "FE",
+                        useRep = "opt",
                         saveDir = "./Outputs/fits/" )
 {
   # Create a plots sub directory in the saveDir
@@ -910,8 +1060,8 @@ savePlots <- function(  fitObj = reports,
   if(useRep == "init")
     report <- fitObj$repInit
 
-  if( useRep == "FE" )
-    report   <- fitObj$repFE
+  if( useRep == "opt" )
+    report   <- fitObj$repOpt
 
   specNames   <- fitObj$species
   stockNames  <- fitObj$stocks

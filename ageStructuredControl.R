@@ -57,6 +57,7 @@ library( "parallel" )
 library( "stringr" )
 library( wesanderson )
 library( ggsidekick )
+library( scales )
 
 
 source("DERPAfuns.R")

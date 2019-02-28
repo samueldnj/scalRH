@@ -63,6 +63,15 @@
 // link personal library of TMB stock assessment functions
 // #include "/Users/sdnjohnson/Work/code/tmbFuns/stockAssessmentFuns.hpp"  
 
+// square()
+// Shortcut wrapper for squaring quantities
+// inputs:    x = quantity to be squared
+// ouputs:    y = x^2
+// Usage:     when squaring.
+// Source:    Almost surely stolen from somewhere.
+template <class Type> 
+Type square(Type x){return pow(x,2);}
+// VECTORIZE1_t(square)
 
 
 // calcLogistNormLikelihood()
@@ -174,112 +183,114 @@ Type objective_function<Type>::operator() ()
 
   /*data section*/
   // Data Structures
-  DATA_ARRAY(I_spft);               // CPUE data
-  DATA_ARRAY(C_spft);               // Catch data (biomass)
-  DATA_ARRAY(D_spft);               // Discard data (biomass)
-  DATA_ARRAY(ALK_spalft);           // Age-length observations (in freq) by pop, separated by fleet and year
-  DATA_ARRAY(age_aspft);            // Age observations for each population and fleet over time (-1 missing)
-  DATA_ARRAY(len_lspft);            // Length observations for each population and fleet over time (-1 missing)
-  DATA_IVECTOR(group_f);            // Fleet group (0=comm, 1=HSAss,2=Synoptic)
-  DATA_IVECTOR(A_s);                // +Group age by species
-  DATA_IVECTOR(L_s);                // +Group length by species
-  DATA_IVECTOR(minA_s);             // Min age class by species
-  DATA_IVECTOR(minL_s);             // Min length bin (cm) by species
-  DATA_IVECTOR(lenD_s);             // Discard length by species
+  DATA_ARRAY(I_spft);                   // CPUE data
+  DATA_ARRAY(C_spft);                   // Catch data (biomass)
+  DATA_ARRAY(D_spft);                   // Discard data (biomass)
+  DATA_ARRAY(ALK_spalft);               // Age-length observations (in freq) by pop, separated by fleet and year
+  DATA_ARRAY(age_aspft);                // Age observations for each population and fleet over time (-1 missing)
+  DATA_ARRAY(len_lspft);                // Length observations for each population and fleet over time (-1 missing)
+  DATA_IVECTOR(group_f);                // Fleet group (0=comm, 1=HSAss,2=Synoptic)
+  DATA_IVECTOR(A_s);                    // +Group age by species
+  DATA_IVECTOR(L_s);                    // +Group length by species
+  DATA_IVECTOR(minA_s);                 // Min age class by species
+  DATA_IVECTOR(minL_s);                 // Min length bin (cm) by species
+  DATA_IVECTOR(lenD_s);                 // Discard length by species
 
   // Model dimensions
-  int nS = I_spft.dim(0);           // No. of species
-  int nP = I_spft.dim(1);           // No. of stocks in each species
-  int nF = I_spft.dim(2);           // No. of fleets (surveys + trawl)  
-  int nT = I_spft.dim(3);           // No of time steps
-  int nL = len_lspft.dim(0);        // max no of length bins (for creating state arrays)
-  int nA = age_aspft.dim(0);        // max no of age bins (for creating state arrays)
+  int nS = I_spft.dim(0);               // No. of species
+  int nP = I_spft.dim(1);               // No. of stocks in each species
+  int nF = I_spft.dim(2);               // No. of fleets (surveys + trawl)  
+  int nT = I_spft.dim(3);               // No of time steps
+  int nL = len_lspft.dim(0);            // max no of length bins (for creating state arrays)
+  int nA = age_aspft.dim(0);            // max no of age bins (for creating state arrays)
 
   // Model switches - fill these in when we know what we want
-  DATA_IVECTOR(swRinit_s);          // species fished initialisation switch (0 == unfished, 1 == fished)
-  DATA_INTEGER(parSwitch);          // parallel accumulator switch for faster run time
-  DATA_ARRAY(calcIndex_spf);        // Switches to calculate indices
-  DATA_IVECTOR(tvSelFleets);        // Switch for fleet to have time varying selectivity (0 = off, 1 = on)
-  DATA_IVECTOR(tvqFleets);          // Switch for fleet to have time varying catchability (0 = off, 1 = on)
-  DATA_SCALAR(idxLikeWt);           // Scalar modifying the weight of the age likelihood
-  DATA_SCALAR(ageLikeWt);           // Scalar modifying the weight of the age likelihood
-  DATA_SCALAR(lenLikeWt);           // Scalar modifying the weight of the length likelihood
-  DATA_SCALAR(growthLikeWt);        // Scalar modifying the weight of the growth model likelihood
-  DATA_IVECTOR(tFirstRecDev_s);     // Initial rec devs for each species
-  DATA_IVECTOR(tLastRecDev_s);      // Last recruitment devs for each species
-  DATA_SCALAR(minAgeProp);          // Minimum observed proportion in age comps
-  DATA_SCALAR(minLenProp);          // Minimum observed proportion in length comps
-  DATA_SCALAR(minPAAL);             // Minimum observed proportion age at length
-  DATA_STRING(matX);                // Age/Len switch for maturity model
-  DATA_STRING(selX);                // Age/Len switch for selectivity model
-  DATA_STRING(lenComps);            // Switch for computation of expected length comps
-  DATA_SCALAR(lambdaB0);            // lambda scalar for exponential prior on B0
-  DATA_ARRAY(minTimeIdx_spf);       // array of earliest times for each index
+  DATA_IVECTOR(swRinit_s);              // species fished initialisation switch (0 == unfished, 1 == fished)
+  DATA_INTEGER(parSwitch);              // parallel accumulator switch for faster run time
+  DATA_ARRAY(calcIndex_spf);            // Switches to calculate indices
+  DATA_IVECTOR(tvSelFleets);            // Switch for fleet to have time varying selectivity (0 = off, 1 = on)
+  DATA_IVECTOR(tvqFleets);              // Switch for fleet to have time varying catchability (0 = off, 1 = on)
+  DATA_IVECTOR(regFfleets);             // Switch for each fleet to have Fs regularised (Fbar penalised)
+  DATA_SCALAR(idxLikeWt);               // Scalar modifying the weight of the age likelihood
+  DATA_SCALAR(ageLikeWt);               // Scalar modifying the weight of the age likelihood
+  DATA_SCALAR(lenLikeWt);               // Scalar modifying the weight of the length likelihood
+  DATA_SCALAR(growthLikeWt);            // Scalar modifying the weight of the growth model likelihood
+  DATA_IVECTOR(tFirstRecDev_s);         // Initial rec devs for each species
+  DATA_IVECTOR(tLastRecDev_s);          // Last recruitment devs for each species
+  DATA_SCALAR(minAgeProp);              // Minimum observed proportion in age comps
+  DATA_SCALAR(minLenProp);              // Minimum observed proportion in length comps
+  DATA_SCALAR(minPAAL);                 // Minimum observed proportion age at length
+  DATA_STRING(matX);                    // Age/Len switch for maturity model
+  DATA_STRING(selX);                    // Age/Len switch for selectivity model
+  DATA_STRING(lenComps);                // Switch for computation of expected length comps
+  DATA_SCALAR(lambdaB0);                // lambda scalar for exponential prior on B0
+  DATA_ARRAY(minTimeIdx_spf);           // array of earliest times for each index
 
   // Fixed values
-  DATA_IVECTOR(A1_s);               // Age at which L1_s is estimated
-  DATA_IVECTOR(A2_s);               // Age at which L2_s is estimated
+  DATA_IVECTOR(A1_s);                   // Age at which L1_s is estimated
+  DATA_IVECTOR(A2_s);                   // Age at which L2_s is estimated
 
 
   /*parameter section*/
   // Leading Parameters
   // Biological
-  PARAMETER_ARRAY(lnB0_sp);         // Biomass at unfished for ind. stocks
-  PARAMETER(logitSteep);            // pop specific steepness
-  PARAMETER(lnM);                   // stock-specific M
-  PARAMETER_VECTOR(lnL2step_s);     // species-spec. step in Schnute-vonB L2 parameter
-  PARAMETER_VECTOR(lnvonK_s);       // species-specific vonB K parameter
-  PARAMETER_VECTOR(lnL1_s);         // species-specific vonB Length-at-age 1
-  PARAMETER_ARRAY(deltaL2_sp);      // species-pop specific deviation in L2
-  PARAMETER_ARRAY(deltaVonK_sp);    // species-pop specific deviation in VonK parameter
-  PARAMETER_VECTOR(sigmaLa_s);      // species-specific individual growth SD intercept
-  PARAMETER_VECTOR(sigmaLb_s);      // species-specific individual growth SD slope
-  PARAMETER_VECTOR(LWa_s);          // species L-W conversion a par (units conv: cm -> kt)
-  PARAMETER_VECTOR(LWb_s);          // species L-W conversion b par (length to volume)
-  PARAMETER_VECTOR(xMat50_s);       // x (age/len) at 50% maturity
-  PARAMETER_VECTOR(xMat95_s);       // x (age/len) at 95% maturity
+  PARAMETER_ARRAY(lnB0_sp);             // Biomass at unfished for ind. stocks
+  PARAMETER(logitSteep);                // pop specific steepness
+  PARAMETER(lnM);                       // stock-specific M
+  PARAMETER_VECTOR(lnL2step_s);         // species-spec. step in Schnute-vonB L2 parameter
+  PARAMETER_VECTOR(lnvonK_s);           // species-specific vonB K parameter
+  PARAMETER_VECTOR(lnL1_s);             // species-specific vonB Length-at-age 1
+  PARAMETER_ARRAY(deltaL2_sp);          // species-pop specific deviation in L2
+  PARAMETER_ARRAY(deltaVonK_sp);        // species-pop specific deviation in VonK parameter
+  PARAMETER_VECTOR(sigmaLa_s);          // species-specific individual growth SD intercept
+  PARAMETER_VECTOR(sigmaLb_s);          // species-specific individual growth SD slope
+  PARAMETER_VECTOR(LWa_s);              // species L-W conversion a par (units conv: cm -> kt)
+  PARAMETER_VECTOR(LWb_s);              // species L-W conversion b par (length to volume)
+  PARAMETER_VECTOR(xMat50_s);           // x (age/len) at 50% maturity
+  PARAMETER_VECTOR(xMat95_s);           // x (age/len) at 95% maturity
   // Observation model
   // survey //
-  PARAMETER_ARRAY(lnq_spf);         // fleet-species-stock specific catchability
-  PARAMETER_ARRAY(lntau_spf);       // fleet-species-stock specific obs error sd
+  PARAMETER_ARRAY(lnq_spf);             // fleet-species-stock specific catchability
   // Fishery model
-  // selectivity by fleet //
-  PARAMETER_ARRAY(lnxSel50_sf);   // Selectivity Alpha parameter by species/fleet
-  PARAMETER_ARRAY(lnxSelStep_sf); // Selectivity Beta parameter by species/fleet
+  // selectivity by fleet/species //
+  PARAMETER_ARRAY(lnxSel50_sf);         // Selectivity Alpha parameter by species/fleet
+  PARAMETER_ARRAY(lnxSelStep_sf);       // Selectivity Beta parameter by species/fleet
+  PARAMETER_ARRAY(epsxSel50_spf);       // Selectivivity devs for stocks
+  PARAMETER_ARRAY(epsxSelStep_spf);     // Selectivivity devs for stocks
 
   // Fishing mortality
-  PARAMETER_VECTOR(lnF_spft);       // Fishing mortality as a long vector by species/population/fleet/time
-  PARAMETER_VECTOR(lntauC_f);       // Catch observation SD by fleet
-  PARAMETER_VECTOR(lntauD_f);       // Discards observation SD by fleet
+  PARAMETER_VECTOR(lnF_spft);           // Fishing mortality as a long vector by species/population/fleet/time
+  PARAMETER_VECTOR(lntauC_f);           // Catch observation SD by fleet
+  PARAMETER_VECTOR(lntauD_f);           // Discards observation SD by fleet
 
   // Priors
   // selectivity //
-  PARAMETER_ARRAY(muxSel50_sg);    // mean length at 50% selectivity by fleet group
-  PARAMETER_ARRAY(muxSel95_sg);    // mean selectivity-at-length step by fleet group 
-  PARAMETER_ARRAY(sigmaxSel50_sg); // SD in length at 50% selectivity by fleet group
-  PARAMETER_ARRAY(sigmaxSel95_sg); // SD in length at 95% selectivity by fleet group
+  PARAMETER_ARRAY(muxSel50_sg);         // mean length at 50% selectivity by fleet group
+  PARAMETER_ARRAY(muxSel95_sg);         // mean selectivity-at-length step by fleet group 
+  PARAMETER_ARRAY(sigmaxSel50_sg);      // SD in length at 50% selectivity by fleet group
+  PARAMETER_ARRAY(sigmaxSel95_sg);      // SD in length at 95% selectivity by fleet group
 
   // Count fleet groups
   int nGroups = muxSel95_sg.dim(1);
 
   // catchability //
-  PARAMETER_VECTOR(lnqbarSyn_s);      // Synoptic survey q by species (each leg surveys one stock)
-  PARAMETER_VECTOR(lntauqSyn_s);      // Synoptic survey q SD by species (each leg survey one stock)
-  PARAMETER(lnqbarSyn);               // Synoptic survey complex q
-  PARAMETER(lntauqSyn);               // Synoptic survey complex q SD
-  PARAMETER(mqSurveys);               // prior mean survey q (HSAss included)
-  PARAMETER(sdqSurveys);              // Prior SD survey q
+  PARAMETER_VECTOR(lnqbarSyn_s);        // Synoptic survey q by species (each leg surveys one stock)
+  PARAMETER_VECTOR(lntauqSyn_s);        // Synoptic survey q SD by species (each leg survey one stock)
+  PARAMETER(lnqbarSyn);                 // Synoptic survey complex q
+  PARAMETER(lntauqSyn);                 // Synoptic survey complex q SD
+  PARAMETER(mqSurveys);                 // prior mean survey q (HSAss included)
+  PARAMETER(sdqSurveys);                // Prior SD survey q
   // steepness //
-  PARAMETER_VECTOR(lnsigmah_s);       // species level steepness SD
-  PARAMETER(logit_muSteep);           // complex steepness
-  PARAMETER(lnsigmah);                // complex level steepness SD
+  PARAMETER_VECTOR(lnsigmah_s);         // species level steepness SD
+  PARAMETER(logit_muSteep);             // complex steepness
+  PARAMETER(lnsigmah);                  // complex level steepness SD
   // Natural Mortality //
-  PARAMETER_VECTOR(lnsigmaM_s);       // species M SD
-  PARAMETER(ln_muM);                  // Multispecies assemblage mean M
-  PARAMETER(lnsigmaM);                // Assemblage M SD
+  PARAMETER_VECTOR(lnsigmaM_s);         // species M SD
+  PARAMETER(ln_muM);                    // Multispecies assemblage mean M
+  PARAMETER(lnsigmaM);                  // Assemblage M SD
   // Index observation errors SD
-  PARAMETER_VECTOR(IGatau_f);         // IG a parameter for tau_spf observation errors
-  PARAMETER_VECTOR(IGbtau_f);         // IG b parameter for tau_spf observation errors
+  PARAMETER_VECTOR(IGatau_f);           // IG a parameter for tau_spf observation errors
+  PARAMETER_VECTOR(IGbtau_f);           // IG b parameter for tau_spf observation errors
 
 
   // Random Effects
@@ -310,11 +321,16 @@ Type objective_function<Type>::operator() ()
   PARAMETER(cvL1);                      // Prior CV on L1
   PARAMETER(pmlnVonK);                  // Prior complex vonK 
   PARAMETER(cvVonK);                    // Prior CV on VonK
+
+  // F regularisation
+  PARAMETER(mF);                        // Prior mean for F regularisation
+  PARAMETER(sdF);                       // Prior SD for F regularisation
+
   // mortality deviations //
   /*
-  PARAMETER_ARRAY(epsilonM_spt);    // M deviations by population, 2:nT
-  PARAMETER_VECTOR(lnsigmaM_sp);    // M deviation pop-specific SD
-  PARAMETER_VECTOR(logitMgamma_sp); // AR1 auto-corr on M devs effect (omega)
+  PARAMETER_ARRAY(epsilonM_spt);        // M deviations by population, 2:nT
+  PARAMETER_VECTOR(lnsigmaM_sp);        // M deviation pop-specific SD
+  PARAMETER_VECTOR(logitMgamma_sp);     // AR1 auto-corr on M devs effect (omega)
   */
 
   /* Procedure Section */
@@ -413,12 +429,19 @@ Type objective_function<Type>::operator() ()
 
   // Time-varying catchability
   array<Type>   q_spft(nS,nP,nF,nT);
+  // Fishing mortality
+  array<Type>   F_spft(nS,nP,nF,nT);
+  array<Type>   Fbar_spf(nS,nP,nF);
 
   // selectivity //
   // Fleet/species
   array<Type>   xSel50_sf(nS,nF);
   array<Type>   xSelStep_sf(nS,nF);
   array<Type>   xSel95_sf(nS,nF);
+  // Fleet/species/Stock
+  array<Type>   xSel50_spf(nS,nP,nF);
+  array<Type>   xSelStep_spf(nS,nP,nF);
+  array<Type>   xSel95_spf(nS,nP,nF);
   // Now time-varying by stock
   array<Type>   xSel50_spft(nS,nP,nF,nT);
   array<Type>   xSelStep_spft(nS,nP,nF,nT);
@@ -430,33 +453,44 @@ Type objective_function<Type>::operator() ()
   xSel50_sf.setZero();
   xSel95_sf.setZero();
   xSelStep_sf.setZero();
+  xSel50_spf.setZero();
+  xSel95_spf.setZero();
+  xSelStep_spf.setZero();
   xSel50_spft.setZero();
   xSel95_spft.setZero();
   xSelStep_spft.setZero();
   epsxSel50_spft.setZero();
   epsxSelStep_spft.setZero();
   epslnq_spft.setZero();
+  F_spft.setZero();
+  Fbar_spf.setZero();
 
+  // Exponential species/fleet sel
+  xSel50_sf = exp(lnxSel50_sf);
+  xSelStep_sf = exp(lnxSelStep_sf);
+  xSel95_sf = xSel50_sf + xSelStep_sf;
 
   // Loop over gears, species, stocks and time steps, create a matrix
   // of deviations in selectivity pars and calculate the pars
   // for each time step
   int epsSelVecIdx = 0;
   int epslnqVecIdx = 0;
+  int vecIdx = 0;
   for(int f = 0; f < nF; f++ )
   {
-    xSel50_sf.col(f)    = exp(lnxSel50_sf.col(f));
-    xSelStep_sf.col(f)  = exp(lnxSelStep_sf.col(f));
-    xSel95_sf.col(f)    = xSel50_sf.col(f) + xSelStep_sf.col(f);
-    for( int s = 0; s < nS; s++)
-      for( int p = 0; p < nP; p++ )
+    for( int p = 0; p < nP; p++ )
+    {
+      xSel50_spf.col(f).col(p)    = exp(lnxSel50_sf.col(f) + epsxSel50_spf.col(f).col(p));
+      xSelStep_spf.col(f).col(p)  = exp(lnxSelStep_sf.col(f) + epsxSelStep_spf.col(f).col(p));
+      xSel95_spf.col(f).col(p)    = xSel50_spf.col(f).col(p) + xSelStep_spf.col(f).col(p);
+      for( int s = 0; s < nS; s++)
       {
+        int nPosCatch = 0;
         // Exponentiate q and tau for the index observations
         q_spf(s,p,f) = exp(lnq_spf(s,p,f));
-        tau_spf(s,p,f) = exp(lntau_spf(s,p,f));
 
-        xSel50_spft(s,p,f,0)      = xSel50_sf(s,f);
-        xSelStep_spft(s,p,f,0)    = xSelStep_sf(s,f);
+        xSel50_spft(s,p,f,0)      = xSel50_spf(s,p,f);
+        xSelStep_spft(s,p,f,0)    = xSelStep_spf(s,p,f);
         q_spft(s,p,f,0)           = q_spf(s,p,f);
         for( int t = 0; t < nT; t++ )
         { 
@@ -493,31 +527,31 @@ Type objective_function<Type>::operator() ()
 
           // Now update q
           q_spft(s,p,f,t)         *= exp(epslnq_spft(s,p,f,t));
-          
-        }
-      }
-  }
-  // Compute xSel95 for the time-varying arrays
-  xSel95_spft = xSel50_spft + xSelStep_spft;
-  
-  // Fishing mortality
-  array<Type>   F_spft(nS,nP,nF,nT);
-  F_spft.setZero();
-  int vecIdx = 0;
-  for( int s = 0; s < nS; s++ )
-    for( int f = 0; f < nF; f++ )
-      for( int p = 0; p < nP; p++ )
-        for( int t = 0; t < nT; t++ )
+
+          // Estimate F?
           if( C_spft(s,p,f,t) > 0)
           {
             F_spft(s,p,f,t) = exp( lnF_spft(vecIdx) );
             vecIdx++;
+            
+            Fbar_spf(s,p,f) += F_spft(s,p,f,t);
+            nPosCatch++;
           }
+          
+        }
+        // Divide Fbar by number of +ve catches
+        Fbar_spf(s,p,f) /= Type(nPosCatch);
+      }
+    }
+  }
+  // Compute xSel95 for the time-varying arrays
+  xSel95_spft = xSel50_spft + xSelStep_spft;
+        
 
   // recruitment deviations and initRecDevs - convert from vector
   // to array of deviations
-  array<Type> omegaRinit_spa(nS,nP,nA);
-  omegaRinit_spa.setZero();
+  array<Type> omegaRinit_asp(nA,nS,nP);
+  omegaRinit_asp.setZero();
   array<Type> omegaR_spt(nS,nP,nT);
   omegaR_spt.setZero();
   int initVecIdx = 0;
@@ -533,7 +567,7 @@ Type objective_function<Type>::operator() ()
       if(swRinit_s(s) == 1)
         for( int a = 0; a < A_s(s); a++ )
         {
-          omegaRinit_spa(s,p,a) = omegaRinit_vec(initVecIdx);
+          omegaRinit_asp(a,s,p) = omegaRinit_vec(initVecIdx);
           initVecIdx++;
         }
     }
@@ -742,6 +776,17 @@ Type objective_function<Type>::operator() ()
       int A    = A_s(s);
       for( int t = 0; t < nT; t++ )
       {
+        // Compute total mortality at age (for catch later)
+        Z_aspt.col(t).col(p).col(s).fill(M_sp(s,p));
+
+        for( int f = 0; f < nF; f++ )
+        {
+          // Compute fishing mortality at age by fleet
+          F_aspft.col(t).col(f).col(p).col(s) = sel_afspt.col(t).col(p).col(s).col(f) * F_spft(s,p,f,t);
+          // Add to Z
+          Z_aspt.col(t).col(p).col(s) += F_aspft.col(t).col(f).col(p).col(s);  
+        }
+
         // Initial time-step
         if( t == 0 )
         {
@@ -749,24 +794,11 @@ Type objective_function<Type>::operator() ()
           // or using the estimated fished initialisation
           // Populate first year
           N_aspt.col(t).col(p).col(s) += R0_sp(s,p) * Surv_asp.col(p).col(s);
-          for( int a = 0; a < A; a++ )
-          {            
-            // Produce init eqbm age structure
-            // N_aspt(a,s,p,t) += R0_sp(s,p) * Surv_asp(a,s,p);
-            // // Non-eqbm initialisation
-            if(swRinit_s(s) == 1)
-              N_aspt(a,s,p,t) *= exp( omegaRinit_spa(s,p,a));
-            
-            // Compute total mortality at age (for catch later)
-            Z_aspt(a,s,p,t) = M_sp(s,p);
-            for( int f = 0; f < nF; f++ )
-            {
-              // Compute fishing mortality at age
-              F_aspft(a,s,p,f,t) = sel_afspt(a,f,s,p,t) * F_spft(s,p,f,t);
-              // Add to Z
-              Z_aspt(a,s,p,t) += F_aspft(a,s,p,f,t);  
-            }
-          }            
+
+          // // Non-eqbm initialisation
+          if(swRinit_s(s) == 1)
+            N_aspt.col(t).col(p).col(s) *= exp( omegaRinit_asp.col(p).col(s));
+
         }
 
         // time series history
@@ -780,15 +812,6 @@ Type objective_function<Type>::operator() ()
           // Now loop over ages and apply fishing mortality (no discarding yet)
           for( int a = 0; a < A; a ++ )
           {
-            // Compute fishing mortality at age
-            // Compute total mortality at age
-            Z_aspt(a,s,p,t) = M_sp(s,p);
-            for( int f = 0; f < nF; f++ ) 
-            {
-              F_aspft(a,s,p,f,t) = sel_afspt(a,f,s,p,t) * F_spft(s,p,f,t);
-              Z_aspt(a,s,p,t) += F_aspft(a,s,p,f,t);
-            }
-
             // Update numbers according to age
             if( a > 0 )     
               N_aspt(a,s,p,t) = N_aspt( a-1, s, p, t-1 ) *  exp( - Z_aspt(a,s,p,t-1) );
@@ -810,21 +833,25 @@ Type objective_function<Type>::operator() ()
           Nv_aspft.col(t).col(f).col(p).col(s) = N_aspt.col(t).col(p).col(s) * sel_afspt.col(t).col(p).col(s).col(f);
           Nv_spft(s,p,f,t) = Nv_aspft.col(t).col(f).col(p).col(s).sum();
 
+          // Refactoring to remove a loop
+          C_aspft.col(t).col(f).col(p).col(s)   = N_aspt.col(t).col(p).col(s);
+          C_aspft.col(t).col(f).col(p).col(s)  *= (1. -1. * exp( -1. * Z_aspt.col(t).col(p).col(s))); 
+          C_aspft.col(t).col(f).col(p).col(s)  *= F_aspft.col(t).col(f).col(p).col(s); 
+          C_aspft.col(t).col(f).col(p).col(s)  /= Z_aspt.col(t).col(p).col(s);  
+          Cw_aspft.col(t).col(f).col(p).col(s) = C_aspft.col(t).col(f).col(p).col(s) * meanWtAge_asp.col(p).col(s);
+          // Generate predicted total catch in weight and numbers
+          predCw_spft(s,p,f,t) += Cw_aspft.col(t).col(f).col(p).col(s).sum();
+          predC_spft(s,p,f,t) += C_aspft.col(t).col(f).col(p).col(s).sum();
+
+          // Calculate vulnerable biomass
+          Bv_spft(s,p,f,t) += (Nv_aspft.col(t).col(f).col(p).col(s) * meanWtAge_asp.col(p).col(s)).sum();
+
           // Have to loop over ages here to avoid adding NaNs
           for(int a = 0; a < A; a++ )
           {
-            C_aspft(a,s,p,f,t) = N_aspt(a,s,p,t);
-            C_aspft(a,s,p,f,t) *= (Type(1) - exp( -Z_aspt(a,s,p,t) )) * F_aspft(a,s,p,f,t) / Z_aspt(a,s,p,t);  
-            Cw_aspft(a,s,p,f,t) = C_aspft(a,s,p,f,t) * meanWtAge_asp(a,s,p);
-            predCw_spft(s,p,f,t) += Cw_aspft(a,s,p,f,t);
-            predC_spft(s,p,f,t) += C_aspft(a,s,p,f,t);
-            Bv_spft(s,p,f,t) += Nv_aspft(a,s,p,f,t) * meanWtAge_asp(a,s,p);
-
             // Compute probAgeAtLen for each time step
             for( int l = minL_s(s) - 1; l < L_s(s); l++ )
               probAgeLen_alspft(a,l,s,p,f,t) += probLenAge_lasp(l,a,s,p) * N_aspt(a,s,p,t) * sel_lfspt(l,f,s,p,t);
-              
-
           }
           // Renormalise probAgeAtLen
           for( int l = minL_s(s) - 1; l < L_s(s); l++ )
@@ -881,9 +908,9 @@ Type objective_function<Type>::operator() ()
           // Create array of predicted length distributions
           // Need to do some thinking here... follow LIME to start with...
           // Probability of being harvested at age
-          vector<Type> probHarvAge(A);
+          vector<Type> probHarvAge(nA);
           probHarvAge.setZero();
-          probHarvAge += Nv_aspft.col(t).col(f).col(p).col(s) / N_aspt.col(t).col(p).col(s).sum();
+          probHarvAge = Nv_aspft.col(t).col(f).col(p).col(s) / N_aspt.col(t).col(p).col(s).sum();
           
           // Probability of sampling a given length bin
           vector<Type> probHarvLen(L);
@@ -926,7 +953,7 @@ Type objective_function<Type>::operator() ()
       // First initialisation deviations
       int A = A_s(s);
       for( int a = 0; a < A; a++)
-        recnll_sp(s,p) -= dnorm( omegaRinit_spa(s,p,a),Type(0),sigmaR_sp(s,p),true);
+        recnll_sp(s,p) -= dnorm( omegaRinit_asp(a,s,p),Type(0),sigmaR_sp(s,p),true);
 
       // then yearly recruitment deviations
       for( int t = 1; t <  nT; t++ )
@@ -999,11 +1026,15 @@ Type objective_function<Type>::operator() ()
       }
 
   // Observation likelihoods
-  array<Type> CPUEnll_spft(nS,nP,nF,nT);  // CPUE
-  array<Type> ageCompsnll_spf(nS,nP,nF);  // Age observations
-  array<Type> lenCompsnll_spf(nS,nP,nF);  // length observations
-  array<Type> Ctnll_sp(nS,nP);            // Catch
-  array<Type> Dtnll_sp(nS,nP);            // Discards
+  array<Type> CPUEnll_spf(nS,nP,nF);          // CPUE
+  array<Type> ageCompsnll_spf(nS,nP,nF);      // Age observations
+  array<Type> lenCompsnll_spf(nS,nP,nF);      // length observations
+  array<Type> Ctnll_sp(nS,nP);                // Catch
+  array<Type> Dtnll_sp(nS,nP);                // Discards
+  array<Type> residCPUE_spft(nS,nP,nF,nT);    // CPUE resids (concentrating variance parameter)
+  array<Type> validIdxObs_spf(nS,nP,nF);      // valid observations for condMLE variance
+  array<Type> ssrIdx_spf(nS,nP,nF);           // valid observations for condMLE variance
+  array<Type> tau2Idx_spf(nS,nP,nF);          //
   // Conditional MLEs of age/length observation error variance
   array<Type> tau2Age_spf(nS,nP,nF);
   array<Type> tau2Len_spf(nS,nP,nF);
@@ -1016,7 +1047,7 @@ Type objective_function<Type>::operator() ()
   array<Type> ageRes_aspft(nA,nS,nP,nF,nT);
   array<Type> lenRes_lspft(nL,nS,nP,nF,nT);
   // Zero-init
-  CPUEnll_spft.setZero();
+  CPUEnll_spf.setZero();
   ageCompsnll_spf.setZero();
   lenCompsnll_spf.setZero();
   Ctnll_sp.setZero();
@@ -1031,6 +1062,10 @@ Type objective_function<Type>::operator() ()
   nObsLen_spf.setZero();
   ageRes_aspft.setZero();
   lenRes_lspft.setZero();
+  residCPUE_spft.setZero();
+  validIdxObs_spf.setZero();
+  ssrIdx_spf.setZero();
+  tau2Idx_spf.setZero();
 
   for( int s = 0; s < nS; s++ )
     for( int p = 0; p < nP; p++ )
@@ -1066,7 +1101,15 @@ Type objective_function<Type>::operator() ()
 
           // Only use a year if the data exists and that fleet is used as a survey
           if( (I_spft(s,p,f,t) > 0) & (calcIndex_spf(s,p,f) > 0) )
-            CPUEnll_spft(s,p,f,t) += -dnorm( log(I_spft(s,p,f,t)), log(I_spft_hat(s,p,f,t)),tau_spf(s,p,f),true);
+          {
+            validIdxObs_spf(s,p,f) += 1;
+            residCPUE_spft(s,p,f,t) = ( log(I_spft(s,p,f,t)) - log(I_spft_hat(s,p,f,t)) );
+            ssrIdx_spf(s,p,f) += square(residCPUE_spft(s,p,f,t));
+
+
+
+            // CPUEnll_spft(s,p,f,t) += -dnorm( log(I_spft(s,p,f,t)), log(I_spft_hat(s,p,f,t)),tau_spf(s,p,f),true);
+          }
 
           // Now compute the catch and discards likelihoods
           if( C_spft(s,p,f,t) > 0 & predCw_spft(s,p,f,t) > 0 )
@@ -1082,8 +1125,8 @@ Type objective_function<Type>::operator() ()
           // Loop and fill length obs and pred matrices
           for( int l = 0; l < L; l++ )
           {
-            fleetLenObs(l)  = len_lspft(minL_s(s) + l - 1,s,p,f,t);
-            fleetLenPred(l) = lDist_lspft_hat(minL_s(s) + l,s,p,f,t);
+            fleetLenObs(l)  = len_lspft(minL_s(s) - 1 + l,s,p,f,t);
+            fleetLenPred(l) = lDist_lspft_hat(minL_s(s) - 1 + l,s,p,f,t);
           }
 
           // Now for compositional data. First, check if ages are 
@@ -1139,6 +1182,13 @@ Type objective_function<Type>::operator() ()
         fleetLenObs.setZero();
         fleetLenPred.setZero();
 
+        // Calculate conditional MLE for tau2Idx, and add likelihood contribution
+        if( validIdxObs_spf(s,p,f) > 0 &  ssrIdx_spf(s,p,f) > 0 )
+        {
+          tau2Idx_spf(s,p,f) = ssrIdx_spf(s,p,f) / validIdxObs_spf(s,p,f);
+          CPUEnll_spf(s,p,f) += 0.5 * validIdxObs_spf(s,p,f) * log( tau2Idx_spf(s,p,f) );
+        }
+
       }
     }
 
@@ -1155,6 +1205,10 @@ Type objective_function<Type>::operator() ()
   qnlpSyn_s.setZero();
   Type qnlpSurv = 0.;
 
+  Type Fnlp = 0;
+
+
+
   // Now a prior on catchability and observation error SD
   // Surveys only really act on one stock each, 
   // so their catchabiliity prior will be across species
@@ -1162,10 +1216,13 @@ Type objective_function<Type>::operator() ()
   tauObsnlp_f.setZero();
   for( int s = 0; s < nS; s++ )
     for( int p = 0; p < nP; p++ )
-      // Penalise fleet specific catchabilities if
-      // they are a calculated index
       for( int f = 0; f < nF; f++ )
       {
+
+        // if( Fbar_spf(s,p,f) > 0)
+        //   Fnlp += log(Fbar_spf(s,p,f));
+        // Penalise fleet specific catchabilities if
+        // they are a calculated index
         // Synoptic survey
         if( group_f(f) == 2)
           if( calcIndex_spf(s,p,f) > 0)
@@ -1177,7 +1234,14 @@ Type objective_function<Type>::operator() ()
             qnlpSurv -= dnorm( log(q_spf(s,p,f)), log(mqSurveys), sdqSurveys,true );
         
         // Observation error SD
-        tauObsnlp_f(f) += (IGatau_f(f)+Type(1))*lntau_spf(s,p,f)+IGbtau_f(f)/tau_spf(s,p,f);
+        if( calcIndex_spf(s,p,f) > 0 & tau2Idx_spf(s,p,f) > 0)
+          tauObsnlp_f(f) += (IGatau_f(f)+Type(1))*log(tau2Idx_spf(s,p,f))+IGbtau_f(f)/tau2Idx_spf(s,p,f);
+
+        // F regularisation 
+        if(regFfleets(f) == 1)
+          Fnlp -= dnorm( Fbar_spf(s,p,f), mF, sdF, true);
+
+        
       }
     
   // Synoptic species qs are penaliesd against a complex q
@@ -1233,8 +1297,17 @@ Type objective_function<Type>::operator() ()
     {
       sel_nlp -= dnorm( lnxSel50_sf(s,f), pmlnxSel50_sf(s,f), cvxSel, true);
       sel_nlp -= dnorm( lnxSelStep_sf(s,f), pmlnxSelStep_sf(s,f), cvxSel, true);
+
+      for( int p = 0; p < nP; p++)
+      {
+        sel_nlp -= dnorm( epsxSel50_spf(s,p,f), Type(0), cvxSel, true);
+        sel_nlp -= dnorm( epsxSelStep_spf(s,p,f), Type(0), cvxSel, true);  
+      }
+      
     }
 
+
+  
 
   // VonB priors
   vector<Type>  L2nlp_s(nS);
@@ -1249,6 +1322,8 @@ Type objective_function<Type>::operator() ()
   L1nlp_s   -= dnorm( lnL1_s, pmlnL1_s, cvL1, true);
   L2nlp_s   -= dnorm( log(L2_s), pmlnL2_s, cvL2, true);
   vonKnlp_s -= dnorm( lnvonK_s, pmlnVonK, cvVonK, true);
+
+
         
 
   // Loop over populations, penalise pop-specific deviations from spec-specific values
@@ -1342,7 +1417,7 @@ Type objective_function<Type>::operator() ()
   joint_nlp += Ctnll_sp.sum();       // Catch
   joint_nlp += ageLikeWt * lenCompsnll_spf.sum(); // Length compositions
   joint_nlp += lenLikeWt * ageCompsnll_spf.sum(); // Age compositions
-  joint_nlp += idxLikeWt * CPUEnll_spft.sum();     // Survey CPUE
+  joint_nlp += idxLikeWt * CPUEnll_spf.sum();     // Survey CPUE
   joint_nlp += steepnessnlp_s.sum() + steepnessnlp_sp.sum();
   joint_nlp += sel_nlp;
   joint_nlp += tauObsnlp_f.sum();
@@ -1352,9 +1427,10 @@ Type objective_function<Type>::operator() ()
   // Recruitment errors
   joint_nlp += recnll_sp.sum();      // recruitment process errors
   // Commercial q
-  joint_nlp += qnlpSurv + qnlpSyn_s.sum() + qnlpSyn;
+  joint_nlp += qnlpSurv + qnlpSyn_s.sum() + qnlpSyn + qnlp_tv;
   joint_nlp += Mnlp_s.sum() + Mnlp_s.sum();
   joint_nlp += B0nlp_sp.sum();
+  joint_nlp += Fnlp;
   // joint_nlp += pop_nlp + spec_nlp;
 
   
@@ -1380,18 +1456,21 @@ Type objective_function<Type>::operator() ()
   REPORT( tauC_f );
   REPORT( tauD_f );
   // Fishery/Survey model pars
-  REPORT( q_spf );           // Catchability
-  REPORT( q_spft );
-  REPORT( tau_spf );         // Observation error
-  REPORT( xSel50_spft );   // length at 50% sel by species/fleet/pop
-  REPORT( xSel95_spft );   // length at 95% sel by species/fleet/pop
-  REPORT( xSelStep_spft ); // length at 95% sel by species/fleet/pop
-  REPORT( xSel50_sf );     // length at 50% sel by species/fleet
-  REPORT( xSel95_sf );     // length at 95% sel by species/fleet
-  REPORT( xSelStep_sf );   // length at 95% sel by species/fleet
-  REPORT( F_spft );          // Fishing mortality
-  REPORT( sel_lfspt );
-  REPORT( sel_afspt );
+  REPORT( q_spf );          // Catchability
+  REPORT( q_spft );         // Time-varying catchability
+  REPORT( xSel50_spft );    // length at 50% sel by species/fleet/pop
+  REPORT( xSel95_spft );    // length at 95% sel by species/fleet/pop
+  REPORT( xSelStep_spft );  // length at 95% sel by species/fleet/pop
+  REPORT( xSel50_spf );     // length at 50% sel by species/fleet
+  REPORT( xSel95_spf );     // length at 95% sel by species/fleet
+  REPORT( xSelStep_spf );   // length at 95% sel by species/fleet
+  REPORT( xSel50_sf );      // length at 50% sel by species/fleet
+  REPORT( xSel95_sf );      // length at 95% sel by species/fleet
+  REPORT( xSelStep_sf );    // length at 95% sel by species/fleet
+  REPORT( F_spft );         // Fishing mortality
+  REPORT( sel_lfspt );      // Selectivity at length
+  REPORT( sel_afspt );      // Selectivity at age
+  REPORT( Fbar_spf );       // Average fishing mortality
   // Model states
   REPORT( B_aspt );
   REPORT( N_aspt );
@@ -1463,7 +1542,7 @@ Type objective_function<Type>::operator() ()
   REPORT( epsxSelStep_spft );
   REPORT( epslnq_spft );
   REPORT( omegaR_spt );
-  REPORT( omegaRinit_spa );
+  REPORT( omegaRinit_asp );
 
   // Species/stock effects
   REPORT( epsM_sp );
@@ -1476,7 +1555,11 @@ Type objective_function<Type>::operator() ()
   REPORT( joint_nlp );
   REPORT( recnll_sp );
   REPORT( vonBnll_spf );
-  REPORT( CPUEnll_spft );
+  REPORT( CPUEnll_spf );
+  REPORT( tau2Idx_spf );
+  REPORT( validIdxObs_spf );
+  REPORT( residCPUE_spft );
+  REPORT( ssrIdx_spf );
   REPORT( ageCompsnll_spf );
   REPORT( etaSumSqAge_spf );
   REPORT( nResidsAge_spf );
@@ -1495,6 +1578,7 @@ Type objective_function<Type>::operator() ()
   REPORT( qnlpSurv );
   REPORT( qnlpSyn );
   REPORT( qnlpSyn_s );
+  REPORT( qnlp_tv );
   REPORT( tauObsnlp_f );
   REPORT( minAgeProp );
   REPORT( minLenProp );
@@ -1502,6 +1586,7 @@ Type objective_function<Type>::operator() ()
   REPORT( L2nlp_s );
   REPORT( vonKnlp_s );
   REPORT( sel_nlp );
+  REPORT( Fnlp );
 
   // Data
   REPORT( I_spft );
@@ -1517,11 +1602,33 @@ Type objective_function<Type>::operator() ()
   REPORT( minL_s );
   REPORT( lenD_s );
   REPORT( calcIndex_spf );
+  REPORT( tvSelFleets );
+  REPORT( tvqFleets );
+  REPORT( regFfleets );
 
   // Predicted observations
   REPORT( lDist_lspft_hat );
   REPORT( aDist_aspft_hat );
   REPORT( I_spft_hat );
+
+  // Echo switches
+  REPORT( swRinit_s );
+  REPORT( parSwitch );
+  REPORT( calcIndex_spf );
+  REPORT( tvSelFleets );
+  REPORT( tvqFleets );
+  REPORT( regFfleets );
+  REPORT( idxLikeWt );
+  REPORT( ageLikeWt );
+  REPORT( lenLikeWt );
+  REPORT( growthLikeWt );
+  REPORT( tFirstRecDev_s );
+  REPORT( tLastRecDev_s );
+  REPORT( minAgeProp );
+  REPORT( minLenProp );
+  REPORT( minPAAL );
+  REPORT( lambdaB0 );
+  REPORT( minTimeIdx_spf );
 
   // REPORT( matX );
   // REPORT( selX );
