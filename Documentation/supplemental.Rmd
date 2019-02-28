@@ -1,0 +1,165 @@
+---  
+title: "Supplementary material for evaluating the role of data quality when sharing information in hierarchical multi-stock assessment models, with an application to dover sole"
+author: 
+  - Samuel D. N. Johnson (corresponding)
+  - Sean P. Cox
+affil:
+  - School of Resource and Environmental Management,
+    Simon Fraser University,
+    8888 University Drive,
+    BC, Canada
+email:
+  - samuelj@sfu.ca
+  - spcox@sfu.ca
+date: \today
+bibliography: /Users/sdnjohnson/Work/Library/library.bib
+csl: /Users/sdnjohnson/Work/write/templates/csl/cjfas.csl 
+geometry: letterpaper
+toc: false
+fontsize: 12pt
+lineno: false
+numbersections: false
+appendix: false
+supplement: true
+output: 
+  pdf_document:
+    citation_package: natbib
+    keep_tex: true
+    fig_caption: true
+    latex_engine: pdflatex
+    template: ~/Work/write/templates/tex/basic.latex
+  bookdown::pdf_document2:
+    citation_package: natbib
+    keep_tex: true
+    fig_caption: true
+    latex_engine: pdflatex
+    template: ~/Work/write/templates/tex/basic.latex
+  html_document:
+    self_contained: true
+    df_print: kable
+    keep_md: true
+  bookdown::html_document2:
+    self_contained: true
+    df_print: kable
+    keep_md: true
+  word_document:
+    df_print: kable
+    reference_docx: /Users/sdnjohnson/Work/write/templates/docx/basic.docx
+  bookdown::word_document2:
+    df_print: kable
+    reference_docx: /Users/sdnjohnson/Work/write/templates/docx/basic.docx
+---
+
+```{r SetupSupp, message=FALSE, warning=FALSE, include=FALSE}
+knitr::opts_chunk$set(fig.pos = 'p') # Places figures on their own pages
+knitr::opts_chunk$set(out.width = '100%', dpi=300)
+
+# I usually load my libraries up front to keep things organized
+library(bookdown)
+library(knitr)
+library(kableExtra)
+library(dplyr)
+library(stringr)
+
+```
+
+\beginsupplement
+
+# Assessment model
+
+The assessment model is an integrated age-structured model that is fit to 
+biomass indices from, depending on the year range and complex configuration, up 
+to 2 commercial fleets and 4 surveys. All fleets have observed biomass indices, 
+catch, and age and length compositions that are predicted by the assessment 
+model and fit to using penalised maximum likelihood. Penalties on the likelihood 
+function are either single level prior distributions with fixed hyperparameters, 
+implemented to improve model fits to data, or multi-level prior distributions 
+with estimated hyper-parameters, to share information between data-rich and 
+data-poor stocks that are in the same stock area, between stocks of the same 
+species, and between fleets that are different legs of the same survey. 
+
+Optimisation is performed using the Template Model Builder package in R 
+[@kristensen2015tmb].
+
+
+
+## Population dynamics
+
+For stock $p$ of species $s$ the general population dynamics
+use the age structured formulation
+\begin{align}
+N_{a,s,p,t} &= \left\{ 
+\begin{array}{lc} R_{s,p,t} & a = 1 \\
+                  N_{a-1,s,p,t-1}e^{-Z_{a-1,s,p,t-1}} & 2 \leq a < A_s \\  
+                  (N_{a-1,s,p,t-1}) + N_{a,s,p,t-1}) e^{-Z_{a-1,s,p,t-1}} & a = A_s, 
+\end{array} \right. \\
+\phi_{s,p}  &= \sum_{a=1}^{A_s} e^{-(a-1)M_{s,p}} m_a w_a, \\
+R_{0,s,p}   &= B_{0,s,p} / \phi_{s,p}, \\
+B_{s,p,t}   &= \sum_{a} N_{a,s,p,t} m_a w_a, \\
+R_{s,p,t}   &= \frac{a_{s,p} B_{s,p,t-1}}{1 + b_{s,p} B_{s,p,t-1}}, \\
+Z_{a,s,p,t} &= M_{s,p} + \sum_{f} s_{a,s,p,f,t} F_{s,p,f,t}.
+\end{align}
+
+
+
+
+
+## Growth model
+
+We integrated a random-at-length growth model into the stock assessment model.
+
+- Helps predict changes in observed length comps due to changes in selectivity
+- Accounts for fleet effects on the observed length comps
+
+Warning: CAAL data provides a very informative snapshot of the age/length structure of the population, so fitting to many fleets over many years can in fact bias the model (see Piner et al) - so we just chose to use survey data since 1984
+
+Equations:
+
+\begin{align}
+L_{a,s,p} &= L_{1,s} + (L_{2,s,p} - L_{1,s}) \cdot \frac{e^{-K_{s,p} A_{1,s}} - e^{-K_{s,p} a}}{e^{-K_{s,p} A_{1,s}} - e^{-K_{s,p} A_{2,s}}} \\
+\log L(\hat\theta ~|~ P^{obs}( a ~|~ l) ) &\sim MVL likelihood\\
+\hat{P}(a) &= S_{a,s,p,f,t} N_{a,s,p,t} / Nv_{s,p,f,t} \\
+\hat{P}_{s,p} (l~|~a) &= \phi(\log (l + 0.5) ~|~ \log L_{a,s,p}, \sigma_{a,s,p} ) - \phi(\log (l - 0.5) ~|~ \log L_{a,s,p}, \sigma_{a,s,p} ).
+\end{align}
+
+Note that the probability $\hat{P}(a)$ of observing an individual in age class $a$ is dependent on fleet selectivity, making samples biased from the mean length-at-age [@francis2016estimating]. Given the information contained in CAAL data, we chose to restrict the growth model to survey data only (ask Lee and Piner if I can cite their paper here).
+
+We assume that $L_{1,s}$ is the same for all stocks of species $s$. We estimate stock specific parameters $L_{2,s,p}$ and $K_{s,p}$. The early and late stage ages $A_1$ and $A_2$ were chosen by inspecting the length-at-age data, with $A_1$ chosen to capture the youngest age with more than 10 length samples, and $A_2$ as an age representative of the length asymptote, but at an age where data exists for every stock.
+
+### Modeling notes:
+- We used a log-normal distribution for the probability of length conditioned on age - this may introduce a slight skew but I'm not convinced it's major, and I think it's more realistic as this removes any density below 0
+
+
+## Observation models
+
+Observation model likelihoods were defined for biomass indices, compositional data and catch.
+
+### Biomass indices
+
+
+
+### Compositional data
+
+#### Age compositions
+
+#### Length compositions
+
+### Catch
+
+Fishing mortality rates $\hat{F}_{s,p,f,t}$ were estimated when $C_{s,p,f,t} > 0$. Deviations between predicted and observed catch were penalised with a log-normal likelihood, with a standard deviation of 0.01
+\begin{equation}
+\log\hat{C}_{s,p,f,t} \sim N(\log C_{s,p,f,t},0.01)
+\end{equation}
+
+## Hierarchical priors
+
+### Catchability
+
+### Steepness
+
+### Process errors
+
+## Time-varying quantities
+Under some model hypotheses, we fit to time-varying catchability and selectivity in the commercial fleets. Both time-varying quantities we modeled as random walks in the log-scale parameters
+
+
