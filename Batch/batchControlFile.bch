@@ -1,0 +1,45 @@
+# Batch File
+parameter value
+# Scenarios
+#
+# Scenario 1 : Dover
+#
+scenario$scenario1$ctrl$dataScenarioName 'Dover'
+scenario$scenario1$data$species "Dover"
+#
+# Scenario 2 : English
+#
+scenario$scenario2$ctrl$dataScenarioName 'English'
+scenario$scenario2$data$species "English"
+#
+# Scenario 3 : Rock
+#
+scenario$scenario3$ctrl$dataScenarioName 'Rock'
+scenario$scenario3$data$species "Rock"
+#
+# Scenario 4 : Petrale
+#
+scenario$scenario4$ctrl$dataScenarioName 'Petrale'
+scenario$scenario4$data$species "Petrale"
+#
+# Scenario 5 : Arrowtooth
+#
+scenario$scenario5$ctrl$dataScenarioName 'Arrowtooth'
+scenario$scenario5$data$species "Arrowtooth"
+#
+# Scenario 6 : DERPA
+#
+scenario$scenario6$ctrl$dataScenarioName 'DERPA'
+#
+# Management Procedures
+#
+# MP 1 : Base
+#
+mp$mp1$ctrl$modelHypName 'baseModel'
+#
+# MP 2 : LIMEComps
+#
+mp$mp2$ctrl$modelHypName 'LIMEcomps'
+mp$mp2$hypo$lenCompMethod "LIME"
+#
+# File Ends <not run>.

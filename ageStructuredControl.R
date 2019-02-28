@@ -63,6 +63,7 @@ library( scales )
 source("DERPAfuns.R")
 source("SCALfuns.R")
 source("mseRtools.r")
+source("batchTools.R")
 source("plots.R")
 # Survey ids for plotting/legends/array dims
 loadStockSpecNameLists()
