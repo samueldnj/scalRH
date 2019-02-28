@@ -41,8 +41,8 @@
 # 
 # <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
 
-source("loadPackages.R")
 
+source("loadPackages.R")
 source("DERPAfuns.R")
 source("SCALfuns.R")
 source("mseRtools.r")
@@ -50,6 +50,10 @@ source("batchTools.R")
 source("plots.R")
 # Survey ids for plotting/legends/array dims
 loadStockSpecNameLists()
+
+# Make Outputs directory if it doesn't exists
+if(!dir.exists("Outputs"))
+  dir.create("Outputs")
 
 # compile and load scalRH objective function.
 compile ("hierSCAL.cpp")
