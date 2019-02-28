@@ -24,10 +24,10 @@ data$lYearIdx 2016
 data$idxFleets c("HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
 #data$idxFleets c("comm.hist","comm.mod","HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
 #data$species c("Dover","English","Rock","Petrale","Arrowtooth")
-data$species c("Dover","English","Rock")
-data$stocks c("HSHG","QCS","WCVI")
+data$species c("English")
+#data$stocks c("HSHG","QCS","WCVI")
 #data$stocks c("HSHG","QCS")
-#data$stocks c("HSHG")
+data$stocks c("HSHG")
 data$idxFiles c("surveyBio.RData","commCPUE.RData")
 data$catchData c(survey="surveyCatch.RData",comm="catch_by_maj.csv")
 data$modelDisc FALSE

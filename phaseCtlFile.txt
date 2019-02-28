@@ -20,7 +20,7 @@ lnxSelStep_sf 6
 epsxSel50_spf 7
 epsxSelStep_spf 7
 omegaR_vec 4
-omegaRinit_vec -4
+omegaRinit_vec 2
 lnF_spft 1
 lntauC_f -1
 lntauD_f -1

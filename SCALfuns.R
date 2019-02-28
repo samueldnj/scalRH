@@ -583,7 +583,7 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                 lnM               = log(mM),
                 lnL2step_s        = log(initL2_s - initL1_s),
                 lnvonK_s          = log(hypoObj$initVonK[useSpecies]),
-                lnL1_s            = log(initL1_s[useSpecIdx]),
+                lnL1_s            = log(initL1_s),
                 # Stock specific growth pars
                 deltaL2_sp        = array(0,dim = c(nS,nP)),
                 deltaVonK_sp      = array(0,dim = c(nS,nP)),
@@ -677,12 +677,6 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                       dim = c(nS,nP,nF) )
   qmap_spf[calcIndex_spf == 0] <- NA
 
-  # Map Rinit
-  RinitMap <- array(NA, dim = c(nS,nP))
-  for( sIdx in 1:nS )
-    if( initFished_s[sIdx] == 1 )
-      RinitMap[sIdx,] <- (1:nP) + nP*(sIdx-1) + 100
-
   # Map selectivity at length
   selMap_spf <- array(NA, dim = c(nS,nP,nF) )
   # Make unique initially
@@ -725,6 +719,14 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   {
     phases$epsxSel50_vec    <- -1
     phases$epsxSelStep_vec  <- -1
+  }
+
+  checkDat <- lapply( X = data, FUN = .checkNA )
+  checkPar <- lapply( X = pars, FUN = .checkNA )
+
+  if( any(checkDat) | any( checkPar ) )
+  {
+    browser(cat("Data or Pars have NAs\n") )
   }
 
   
@@ -858,9 +860,16 @@ TMBphase <- function( data,
     TMB::newtonOption(obj,smartsearch=FALSE)
 
     if( phase_cur == 1 )
+    {
       outList$repInit <- obj$report()
 
+      checkInit <- lapply( X = outList$repInit, FUN = .checkNaN )
+      if(any(unlist(checkInit)))
+        browser(beep(expr=cat("NaN items in repInit\n")))
+    }
 
+
+  
     
     # Create a control list for the assessment model
     tmbCtrl <- list(  eval.max = maxEval, 
@@ -968,13 +977,13 @@ renameReportArrays <- function( repObj = repInit, datObj = data )
 
 
   # Observation models
-  dimnames(repObj$q_spf)      <- dimnames(datObj$age_aspft)[c(2:4)]  
-  dimnames(repObj$tau2Idx_spf)    <- dimnames(datObj$age_aspft)[c(2:4)]  
-  dimnames(repObj$sel_lfsp)   <- list(  len = lenNames, 
+  dimnames(repObj$q_spf)        <- dimnames(datObj$age_aspft)[c(2:4)]  
+  dimnames(repObj$tau2Idx_spf)  <- dimnames(datObj$age_aspft)[c(2:4)]  
+  dimnames(repObj$sel_lfsp)     <- list(  len = lenNames, 
                                         fleet = gearNames,
                                         species = specNames,
                                         stock = stockNames )
-  dimnames(repObj$sel_afsp)   <- list(  age = ageNames, 
+  dimnames(repObj$sel_afsp)     <- list(  age = ageNames, 
                                         fleet = gearNames,
                                         species = specNames,
                                         stock = stockNames )
@@ -1302,5 +1311,15 @@ savePlots <- function(  fitObj = reports,
 
 } # END savePlots()
 
+# Check NAs/NaNs in lists
+.checkNA <- function( listEntry )
+{
+  x <- any(is.na(listEntry))
+  x
+}
 
-
+.checkNaN <- function( listEntry )
+{
+  x <- any(is.nan(listEntry))
+  x
+}
