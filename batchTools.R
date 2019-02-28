@@ -88,12 +88,12 @@ doBatchRun <- function( arg )
   # Vector of simCtlFile names, like simCtlFile1.txt, simCtlFile2.txt, etc.
   batchParFile <- file.path( getwd(),.PRJFLD, .DEFBATFLD, basename( batchDesign$parFile ) )
   blobName     <- batchDesign$blobName  # Vector of blobNames.
-  nSims        <- length(blobName)      # Number of blobs (i.e., simulations).
+  nJobs        <- length(blobName)      # Number of blobs (i.e., simulations).
 
   # closeWin()                     # Close GUI to avoid TclTk ugliness.
 
-  result <- data.frame( sim=character(nSims), scenarioLabel=character(nSims),
-                        mpLabel=character(nSims), elapsed=numeric(nSims),
+  result <- data.frame( sim=character(nJobs), scenarioLabel=character(nJobs),
+                        mpLabel=character(nJobs), elapsed=numeric(nJobs),
                         stringsAsFactors=FALSE )
 
   # This is part where shell script PPSS could be used to parallelize the batch job
@@ -130,13 +130,13 @@ doBatchRun <- function( arg )
       }
     }
 
-    nSims <- length(parBatchArgList)
+    nJobs <- length(parBatchArgList)
 
     # Now set # of cores and make a cluster
     nCores  <- min(length(parBatchArgList),detectCores()-1)
     cl      <- makeCluster(nCores, outFile = "./parBatchMsg.txt")
     # Run parallel batch
-    cat ("Fitting ", nSims, " scenario/hypothesis combinations in parallel on ",
+    cat ("Fitting ", nJobs, " scenario/hypothesis combinations in parallel on ",
           nCores, " cores.\n", sep = "" )
     tBegin    <- proc.time()
     startDate <- date()
@@ -149,7 +149,7 @@ doBatchRun <- function( arg )
     cat( "\nMSG (.runBatchJob): Elapsed time for parallel batch = ",
       round(elapsed/60.0,digits=2)," minutes.\n" )
 
-  } else for ( i in initPar:nSims ) {
+  } else for ( i in initPar:nJobs ) {
     
     if ( file.exists( batchParFile[i] ) )
     {
@@ -176,11 +176,14 @@ doBatchRun <- function( arg )
     result[ i,"mpLabel" ]       <- batchDesign[ i,"mpLabel" ]
     result[ i,"elapsed" ]       <- round( elapsed/60.0, digits=2)
     
-    cat( "\nMSG (.runBatchJob) Progress as of ", date()," Simulation ",i," of ",nSims,"\n\n" )
+    cat( "\nMSG (.runBatchJob) Progress as of ", date()," Fit ",i," of ",nJobs,"\n\n" )
     print( result[1:i,] )
   }
 
-  cat( "\n" )
+  # Play sound to signal that work is complete
+  beep(sound = "complete")
+
+  cat( "\n Work Complete! \n" )
   invisible()
 }     # END function .runBatchJob
 
