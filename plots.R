@@ -202,7 +202,7 @@ plotIspft <- function(  repObj = repOpt,
   tmpPlot <-  ggplot( data = meltI, aes(x = years, y = index, col = fleets ) ) +
               facet_grid( stocks ~ species, scale = "fixed" ) +
               geom_point() +
-              geom_smooth() +
+              geom_line() + 
               theme_sleek()
 
   print(tmpPlot)
@@ -737,6 +737,31 @@ plotRspt <- function( repObj = repInit,
 } # END plotSBspt()
 
 
+plotALFreq <- function( repObj = repOpt,
+                        sIdx = 1:5, pIdx = 1:3, fIdx = 1:7 )
+{
+  ALFreq_spalft <- repObj$ALK_spalft[sIdx,pIdx,,,fIdx,,drop = FALSE]
+
+  ALFreq.df <- melt(ALFreq_spalft) %>%
+                group_by( species, stocks, ages, lengths ) %>%
+                summarise( value = sum(value) ) %>%
+                ungroup() %>%
+                filter( value > 0 )
+
+  # Get colours
+  cols <- wes_palette("Zissou1", 50, type = "continuous")
+
+  tmpPlot <- ggplot( data = ALFreq.df ) +
+              geom_tile( aes( x = ages, y = lengths, fill = value ) ) +
+              facet_grid( stocks ~ species,
+                      scale = "fixed" ) +
+              scale_fill_gradientn(colours = cols) + 
+              theme_sleek()
+
+  print(tmpPlot)
+
+}
+
 
 # plotSBt()
 # Plots the spawning biomass over time for a given
@@ -770,7 +795,7 @@ plotSBt <- function(  repObj = repInit,
   scaledI_ft <- I_ft
   for( f in 1:nF )
   {
-    scaledI_ft[f,] <- I_ft[f,] / q_ft[f] *( SB_t / Bv_ft[f,])
+    scaledI_ft[f,] <- I_ft[f,] / q_ft[f,] *( SB_t / Bv_ft[f,])
   }
 
   gearCols <- brewer.pal(nF, "Dark2")

@@ -1694,7 +1694,7 @@ makeCatchDiscArrays <- function(  commData = catchData,
 makeALFreq <- function( ALFreqList = ALfreq,
                         years = 1954:2018,
                         gears = gearNames,
-                        maxA = 35, maxL = 80 )
+                        maxA = 45, maxL = 80 )
 {
   nS <- length(ALFreqList)
   specIDs <- names( ALFreqList )
@@ -1720,12 +1720,14 @@ makeALFreq <- function( ALFreqList = ALfreq,
 
   ALK_spalftx <- array( 0, dim = c( nS, nP, maxA, maxL, nGears, nYears, 2),
                             dimnames = list(  species = specIDs,
-                                              stocks = stockIDs,
-                                              ages = 1:maxA,
-                                              lengths = 1:maxL,
+                                              stock = stockIDs,
+                                              age = 1:maxA,
+                                              length = 1:maxL,
                                               fleet = gears,
-                                              years = years,
+                                              year = years,
                                               sex = sexIDs ) )
+
+
 
   for( sIdx in 1:nS )
   {

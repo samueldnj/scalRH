@@ -188,7 +188,7 @@ vector<Type> calcLogistNormLikelihood(  vector<Type>& yObs,
 // Source:    S. D. N. Johnson
 // Reference: Schnute and Haigh, 2007; Francis, 2014
 template<class Type>
-vector<Type> calcLogistNormLikelihood2(  vector<Type>& yObs, 
+vector<Type> calcLogistNormLikelihood2( vector<Type>& yObs, 
                                         vector<Type>& pPred,
                                         Type minProp,
                                         Type& etaSumSq,

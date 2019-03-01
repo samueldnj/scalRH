@@ -28,11 +28,8 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt", folder=NULL, quiet=TRUE )
   controlList <- .readParFile ( ctlFile )
   controlList <- .createList  ( controlList )
 
-  phaseList <- .readParFile ( "phaseCtlFile.txt" )
-  phaseList <- .createList  ( phaseList )
-
   # Run simEst Procedure
-  reports <- .runHierSCAL( obj = controlList, phases = phaseList )
+  reports <- .runHierSCAL( obj = controlList )
   # save output to project folder
   # First, if a folder name isn't nominated, create a default sim folder
   if ( is.null(folder) )
@@ -120,12 +117,13 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
 # some path specific features here that relate to YE
 # assessment stuff, so take care if copying to other
 # locations
-.runHierSCAL <- function( obj = controlList, phases )
+.runHierSCAL <- function( obj = controlList )
 {
   # Get data scenario and model hypothesis control lists
   dataObj <- obj$data
   hypoObj <- obj$hypo
   ctrlObj <- obj$ctrl
+  phases  <- obj$phases
 
   # Get model dimensions
   nA_s      <- dataObj$nA_s
@@ -275,6 +273,7 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   # CAAL data - Lee et al 2019+ (shared privately)
   ALfleetNames    <- dimnames(ALFreq_spalftx)[[5]]
   growthFleetIdx  <- which(ALfleetNames %in% dataObj$growthFleets)
+  
   # Set all observations outside those fleets to 0
   ALFreq_spalftx[,,,,-growthFleetIdx,,] <- 0
 
@@ -283,7 +282,6 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   ALFreq_spalft <- ALFreq_spalft[useSpecies,useStocks,,,useFleets,yrChar,drop = FALSE]
 
   # Maybe aggregate ages into plus groups?
-
 
 
   # Load age and length compositions
@@ -533,19 +531,24 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
     meanLenAge <- sum(totLenAtAge)/nLenAtAge
 
     if(!is.finite(meanLenAge))
-      browser()
+      browser(cat("Non-finite mean length-at-age."))
 
     meanLenAge
   }
 
+  # Pull the fleets used for growth models
+  growthFleets <- dataObj$growthFleets
+
   initL1_s <- sapply( X = 1:nS, 
                       FUN = calcMeanLenAge, 
                       ALK = ALFreq_spalft, 
-                      age = A1_s[useSpecies] )
+                      age = A1_s[useSpecies],
+                      fleets = growthFleets[growthFleets %in% useFleets] )
   initL2_s <- sapply( X = 1:nS, 
                       FUN = calcMeanLenAge, 
                       ALK = ALFreq_spalft, 
-                      age = A2_s[useSpecies] )
+                      age = A2_s[useSpecies],
+                      fleets = growthFleets[growthFleets %in% useFleets]  )
 
 
   # Generate the data list
@@ -1132,6 +1135,15 @@ savePlots <- function(  fitObj = reports,
         width = 11, height = 8.5, units = "in", res = 300)
   plotHeatmapProbLenAge( repObj = report, 
                           sIdx = 1:nS, pIdx = 1:nP)
+  dev.off()
+
+  # Plot indices
+  png( file.path(saveDir,"plotStdzedIndices.png"),
+        width = 11, height = 8.5, units = "in", res = 300)
+  plotIspft(  repObj = report,
+              fYear = fYear, lYear = lYear,
+              sIdx = 1:nS, pIdx = 1:nP,
+              fIdx = 1:nF )
   dev.off()
 
   for( fIdx in 1:nF )
