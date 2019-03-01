@@ -1794,7 +1794,7 @@ makeCompsArray <- function( compList = ageComps,
         for( tIdx in 1:nT)
         {
           yearLab <- as.character(years[tIdx])
-          sumComps <- sum(specComps[stockID,fleetID,yearLab,1:(specX-1),1],na.rm = T)
+          sumComps <- sum(specComps[stockID,fleetID,yearLab,1:(obsX-1),1],na.rm = T)
           if(sumComps <= minSampSize )
             comps_xspft[ , specID, stockID ,fleetID, yearLab ] <- -1
           else {
