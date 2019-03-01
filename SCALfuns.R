@@ -290,6 +290,8 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   load(file.path("./Data",dataObj$ageData))
   load(file.path("./Data",dataObj$lenData))
 
+  browser()
+
   # Create compositional arrays
   age_aspft <- makeCompsArray(  compList = ageComps,
                                 plusGroups = nA_s,
@@ -393,8 +395,11 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
     LWa_s[sIdx] <- exp(coef(wtLen[[specName]]$wtLen$coastWide$wtLenAll)[1])
     LWb_s[sIdx] <- coef(wtLen[[specName]]$wtLen$coastWide$wtLenAll)[2]
   }
-  
 
+  matOgives <- NULL
+  wtLen <- NULL
+  gc()
+  
   # Count number of free F parameters
   nPosCatch <- length(which(C_spft > 0) )
 

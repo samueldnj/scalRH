@@ -1793,6 +1793,7 @@ makeCompsArray <- function( compList = ageComps,
         stockID <- stockIDs[stockIdx]
         for( tIdx in 1:nT)
         {
+
           yearLab <- as.character(years[tIdx])
           sumComps <- sum(specComps[stockID,fleetID,yearLab,1:(obsX-1),1],na.rm = T)
           if(sumComps <= minSampSize )
@@ -1807,10 +1808,10 @@ makeCompsArray <- function( compList = ageComps,
             }
             if( obsX <= specX )
             {
-              minX <- min(obsX,specX)
-              comps_xspft[specMin:minX, specID, stockID ,fleetID,yearLab] <- specComps[stockID,fleetID,yearLab,specMin:minX,1]
-              if( minX < nX )
-                comps_xspft[(minX+1):nX, specID, stockID ,fleetID,yearLab] <- 0
+              minIdx <- min(obsX,specX)
+              comps_xspft[specMin:minIdx, specID, stockID ,fleetID,yearLab] <- specComps[stockID,fleetID,yearLab,specMin:minIdx,1]
+              if( minIdx < nX )
+                comps_xspft[(minIdx+1):nX, specID, stockID ,fleetID,yearLab] <- 0
             }
             
           }
