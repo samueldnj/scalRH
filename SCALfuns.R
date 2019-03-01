@@ -363,7 +363,7 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   names(tvqFleets) <- useFleets
   tvqFleets[ useFleets %in% hypoObj$tvqFleets ] <- 1 
 
-  # And the same for time-varying catchability
+  # And the same for F regularisation
   regFfleets <- rep(0,nF)
   names(regFfleets) <- useFleets
   regFfleets[ useFleets %in% hypoObj$regFfleets ] <- 1 

@@ -23,8 +23,6 @@
 //      - Complex level means are leading pars
 //      - Species and stock level values are modeled as random 
 //        effects (deviations from higher level mean values)
-//  7. Investigate whether integrating growth model will improve 
-//      length composition fits.
 // 
 // 
 // Intended features:
