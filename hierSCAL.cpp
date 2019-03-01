@@ -635,7 +635,8 @@ Type objective_function<Type>::operator() ()
           
         }
         // Divide Fbar by number of +ve catches
-        Fbar_spf(s,p,f) /= Type(nPosCatch);
+        if(nPosCatch > 0)
+          Fbar_spf(s,p,f) /= Type(nPosCatch);
       }
     }
   }
@@ -1335,7 +1336,7 @@ Type objective_function<Type>::operator() ()
           tauObsnlp_f(f) += (IGatau_f(f)+Type(1))*log(tau2Idx_spf(s,p,f))+IGbtau_f(f)/tau2Idx_spf(s,p,f);
 
         // F regularisation 
-        if(regFfleets(f) == 1)
+        if(regFfleets(f) == 1 & Fbar_spf(s,p,f) > 0 )
           Fnlp -= dnorm( Fbar_spf(s,p,f), mF, sdF, true);
 
         

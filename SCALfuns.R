@@ -290,8 +290,6 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   load(file.path("./Data",dataObj$ageData))
   load(file.path("./Data",dataObj$lenData))
 
-  browser()
-
   # Create compositional arrays
   age_aspft <- makeCompsArray(  compList = ageComps,
                                 plusGroups = nA_s,
@@ -341,12 +339,18 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
 
   # Calculate number of q deviations
   nqDevs <- 0
-  for( fIdx in which( idxFleets %in% hypoObj$tvqFleets ) )
+  tvqFleetIdx <- which(idxFleets %in% hypoObj$tvqFleets )
+  for( fIdx in tvqFleetIdx )
     for( sIdx in 1:nS )
       for( pIdx in 1:nP )
-        nqDevs <- nqDevs + (length( which( I_spft[sIdx,pIdx,fIdx,] > 0) ) - 1)
+      {
+        nObs <- (length( which( I_spft[sIdx,pIdx,idxFleets[fIdx],] > 0) ) - 1)
+        if(nObs > 0)
+          nqDevs <- nqDevs + nObs
+      }
 
-  
+
+
 
   # Now make a vector to switch time varying selectivity
   # on and off
