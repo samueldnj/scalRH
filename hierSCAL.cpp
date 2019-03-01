@@ -73,7 +73,6 @@ template <class Type>
 Type square(Type x){return pow(x,2);}
 // VECTORIZE1_t(square)
 
-
 // calcLogistNormLikelihood()
 // Calculates the logistic normal likelihood for compositional data.
 // Automatically accumulates proportions below a given threshold. Takes
@@ -144,7 +143,9 @@ vector<Type> calcLogistNormLikelihood(  vector<Type>& yObs,
   vector<Type> res(nAbove);
   res.setZero(); 
   
-  res = log(newObs) - log(newPred);
+  for(int j = 0; j < nAbove; j ++)
+    if( newObs(j) > 0 &  newPred(j) > 0)
+      res(j) = log(newObs(j)) - log(newPred(j));
 
   // Calculate mean residual
   Type meanRes = res.sum()/nAbove;
@@ -169,6 +170,100 @@ vector<Type> calcLogistNormLikelihood(  vector<Type>& yObs,
   nResids   += nAbove;
 
   return(resids);
+} // end calcLogistNormLikelihood()
+
+
+// calcLogistNormLikelihood()
+// Calculates the logistic normal likelihood for compositional data.
+// Automatically accumulates proportions below a given threshold. Takes
+// cumulative sum of squared resids and number of classes for which
+// residuals are calculated as pointers, so that these can be accumulated
+// across years for conditional MLE of variance. 
+// Will extend to correlated residuals and time-varying variance later.
+// inputs:    yObs    = Type vector of observed compositions (samples or proportions)
+//            pPred   = Type vector of predicted parameters (true class proportions)
+//            minProp = minimum proportion threshold to accumulate classes above
+//            etaSumSq= cumulative sum of squared 0-mean resids
+//            nResids = cumulative sum of composition classes (post-accumulation)
+// outputs:   resids = vector of resids (accumulated to match bins >= minProp)
+// Usage:     For computing the likelihood of observed compositional data
+// Source:    S. D. N. Johnson
+// Reference: Schnute and Haigh, 2007; Francis, 2014
+template<class Type>
+vector<Type> calcLogistNormLikelihood2(  vector<Type>& yObs, 
+                                        vector<Type>& pPred,
+                                        Type minProp,
+                                        Type& etaSumSq,
+                                        Type& nResids )
+
+{
+  // Get size of vector 
+  int nX = yObs.size();
+
+  // Normalise the observed samples in case they are numbers
+  // and not proportions
+  yObs /= yObs.sum();
+  pPred /= pPred.sum();
+
+  // Create vector of residuals to return
+  vector<Type> resids(nX);
+  vector<Type> aboveInd(nX);
+  resids.setZero();
+  aboveInd.setZero();
+
+  // Create accumulated obs and pred vectors
+  vector<Type> yObsAcc = yObs;
+  vector<Type> pPredAcc = pPred;
+
+  // Start a counter for number
+  // of observations above the threshold
+  int nAbove = 0;
+  int lastBin = nX-1;
+  // Start from the right, accumulate
+  for( int x = nX - 1; x < nX; x--)
+    if(yObsAcc(x) > minProp)
+    {
+      nAbove++;
+      aboveInd(x) = 1;
+      lastBin = x;
+      break;
+    } else {
+      yObsAcc(x-1) += yObsAcc(x);
+      pPredAcc(x-1) += pPredAcc(x);
+    }
+
+  // Now loop from 0 to lastBin
+  for( int x = 0; x < lastBin; x++ )
+    if( yObsAcc(x) > minProp )
+    {
+      nAbove++;
+      aboveInd(x) = 1;
+    } else {
+      yObsAcc(x + 1) += yObsAcc(x);
+      pPredAcc(x + 1) += pPredAcc(x);
+    }
+
+  // Now loop and fill
+  // Create a residual vector
+  vector<Type> res(nX);
+  res.setZero(); 
+  for( int x = 0; x < nX; x++)
+  {
+    if(yObsAcc(x) > 0 &  pPredAcc(x) > 0 )
+      res = log(yObsAcc(x)) - log(pPredAcc(x));
+  }
+  // Calculate mean residual
+  Type meanRes = 0.;
+  meanRes = res.sum()/nAbove;
+  // centre residuals
+  res -= meanRes;
+
+  
+  // Now add squared resids to etaSumSq and nRes to nResids
+  etaSumSq  += (res*res).sum();
+  nResids   += nAbove;
+
+  return(res);
 } // end calcLogistNormLikelihood()
 
 
@@ -952,7 +1047,7 @@ Type objective_function<Type>::operator() ()
     {
       // First initialisation deviations  
       for( int a = 0; a < nA; a++)
-        recnll_sp(s,p) -= dnorm( omegaRinit_asp(a,s,p),Type(0),0.2 * sigmaR_sp(s,p),true);
+        recnll_sp(s,p) -= dnorm( omegaRinit_asp(a,s,p),Type(0), sigmaR_sp(s,p),true);
 
       // then yearly recruitment deviations
       for( int t = tFirstRecDev_s(s); t <=  nT; t++ )
@@ -971,9 +1066,7 @@ Type objective_function<Type>::operator() ()
   array<Type> tau2AgeAtLenObs_spf(nS,nP,nF);
   // containers for a given year/fleet/length/species/pop - function
   // expects vector<Type>
-  vector<Type> obs(nA);
-  vector<Type> pred(nA);
-  vector<Type> resids(nA);
+  
 
   // Zero-init all arrays
   tau2AgeAtLenObs_spf.setZero();
@@ -984,6 +1077,10 @@ Type objective_function<Type>::operator() ()
 
   // Now loop and compute
   for( int s = 0; s < nS; s++ )
+  {
+    vector<Type> obs(A_s(s));
+    vector<Type> pred(A_s(s));
+    vector<Type> resids(A_s(s));
     for( int p = 0; p < nP; p++ )
       for( int f = 0; f < nF; f++)
       {
@@ -997,7 +1094,7 @@ Type objective_function<Type>::operator() ()
             resids.setZero();
 
             // Fill containers
-            for(int a = 0; a < nA; a++)
+            for(int a = 0; a < A_s(s); a++)
             {
               obs(a) += ALK_spalft(s,p,a,l,f,t);
               pred(a) += probAgeLen_alspft(a,l,s,p,f,t);
@@ -1011,9 +1108,9 @@ Type objective_function<Type>::operator() ()
                                                   etaSumSqAgeAtLen_spf(s,p,f),
                                                   nResidsAgeAtLen_spf(s,p,f) );
               nObsAgeAtLen_spf(s,p,f) += 1;
-
-              ageAtLenResids_alspft.col(t).col(f).col(p).col(s).col(l) += resids;
             }
+            for(int a = 0; a < A_s(s); a++)
+              ageAtLenResids_alspft(a,l,s,p,f,t) += resids(a);
           } 
         }
         if( nResidsAgeAtLen_spf(s,p,f) > 0)
@@ -1023,6 +1120,7 @@ Type objective_function<Type>::operator() ()
           vonBnll_spf(s,p,f) *= log(tau2AgeAtLenObs_spf(s,p,f));
         }
       }
+  }
 
   // Observation likelihoods
   array<Type> CPUEnll_spf(nS,nP,nF);          // CPUE

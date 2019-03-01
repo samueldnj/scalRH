@@ -431,8 +431,8 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
     # length at Sel50_sf initial value
     xSel50_sf <- matrix(  c(    41, 39, 29, 31, 33, 33, 33,
                                 35, 35, 23, 25, 25, 25, 25,
-                                35, 35, 35, 35, 35, 35, 35,
-                                35, 35, 35, 35, 35, 35, 35,
+                                33, 30, 18, 18, 20, 20, 20,
+                                38, 38, 30, 30, 30, 30, 30,
                                 35, 35, 35, 35, 35, 35, 35 ), 
                                 nrow = length(allSpecies),
                                 ncol = length(allFleets), 
@@ -443,8 +443,8 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
     # length at SelStep_sf initial value
     xSelStep_sf <- matrix(  c(    2, 2, 2, 2, 2, 2, 2,
                                   2, 2, 2, 2, 2, 2, 2,
-                                  2, 2, 2, 2, 2, 2, 2,
-                                  2, 2, 2, 2, 2, 2, 2,
+                                  2, 4, 5, 5, 5, 5, 5,
+                                  2, 2, 6, 6, 6, 6, 6,
                                   2, 2, 2, 2, 2, 2, 2 ), 
                                   nrow = length(allSpecies),
                                   ncol = length(allFleets), 
@@ -721,6 +721,12 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
     phases$epsxSelStep_vec  <- -1
   }
 
+  if( nP == 1)
+  {
+    phases$epsxSel50_spf <- -1
+    phases$epsxSelStep_spf <- -1
+  }
+
   checkDat <- lapply( X = data, FUN = .checkNA )
   checkPar <- lapply( X = pars, FUN = .checkNA )
 
@@ -823,18 +829,25 @@ TMBphase <- function( data,
     {
       parName <- names(parameters)[i]
 
-      if( (phases[[parName]] > phase_cur) | phases[[parName]] < 0 ) 
-      { 
-        # Check if parName is included in the base_map
-        if(parName %in% names(map_use))
-          map_use[[parName]] <- fill_vals(parameters[[i]],NA)
-        else
-        {
-          j <- j + 1
-          map_use[[j]] <- fill_vals(parameters[[i]],NA)
-          names(map_use)[j] <- parName
-        }
+      if( parName %in% names(phases) )
+      {
+        if( (phases[[parName]] > phase_cur) | phases[[parName]] < 0 ) 
+        { 
+          # Check if parName is included in the base_map
+          if(parName %in% names(map_use))
+            map_use[[parName]] <- fill_vals(parameters[[i]],NA)
+          else
+          {
+            j <- j + 1
+            map_use[[j]] <- fill_vals(parameters[[i]],NA)
+            names(map_use)[j] <- parName
+          }
 
+        }
+      } else {
+        j <- j + 1
+        map_use[[j]] <- fill_vals(parameters[[i]],NA)
+        names(map_use)[j] <- parName
       }
 
     }
@@ -900,7 +913,6 @@ TMBphase <- function( data,
     phaseReports[[phase_cur]]$opt     <- opt
     phaseReports[[phase_cur]]$success <- TRUE
     phaseReports[[phase_cur]]$map     <- map_use
-    phaseReports[[phase_cur]]$obj     <- obj
     outList$maxPhaseComplete          <- phase_cur
 
 
