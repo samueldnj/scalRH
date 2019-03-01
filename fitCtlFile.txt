@@ -13,7 +13,7 @@ data$survNames_g c("HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
 #data$survNames_g c("HSAss","HSSyn","QCSSyn","WCVISyn")
 data$nA_s c(Dover=35,English=15,Rock=20,Petrale=20,Arrowtooth=20)
 data$minA_s c(Dover=3,English=2,Rock=1,Petrale=1,Arrowtooth=1)
-data$nL_s c(Dover=73,English=55,Rock=55,Petrale=75,Arrowtooth=75)
+data$nL_s c(Dover=80,English=55,Rock=55,Petrale=75,Arrowtooth=85)
 data$minL_s c(Dover=20,English=10,Rock=10,Petrale=10,Arrowtooth=10)
 data$A1_s c(Dover=2,English=1,Rock=1,Petrale=2,Arrowtooth=1)
 data$A2_s c(Dover=20,English=10,Rock=20,Petrale=15,Arrowtooth=17)
@@ -59,12 +59,12 @@ hypo$tvSelFleets c("comm.hist","comm.mod")
 hypo$sigmaSelDevs 0.1
 hypo$cvxSel 0.2
 hypo$initFished c(Dover=0,English=1,Rock=1,Petrale=1,Arrowtooth=0)
-hypo$tvqFleets c("comm.hist","comm.mod")
+hypo$tvqFleets c("comm.hist","comm.mod","HSAss")
 hypo$sigmaqdevs 1
 hypo$nonLinIdxFleets c("comm.hist","comm.mod")
 hypo$nonLinIdx FALSE
-hypo$mq rep(.5,13)
-hypo$sdq rep(2,13)
+hypo$mq rep(.3,13)
+hypo$sdq rep(.3,13)
 hypo$regFfleets c("comm.hist","comm.mod")
 #hypo$regFfleets c()
 hypo$regFMaxPhase 7
