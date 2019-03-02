@@ -474,6 +474,10 @@ Type objective_function<Type>::operator() ()
   for( int a = 0; a < nA; a++)
     age(a) = a+1;
 
+  // parallel_accumulator<Type> f(this);
+  Type f = 0;
+  Type joint_nlp = 0.0;
+
 
 
   // Prior Hyperparameters //
@@ -1499,9 +1503,8 @@ Type objective_function<Type>::operator() ()
   // Now take the sum of all the likelihoods, keep separate
   // in case we want to weight data later
   // if( parSwitch == 1 )
-  //   parallel_accumulator<Type> joint_nlp(this);
+    // parallel_accumulator<Type> joint_nlp(this);
   // else
-  Type joint_nlp = 0.0;
 
   array<Type> B0nlp_sp(nS,nP);
   B0nlp_sp.setZero();
@@ -1511,24 +1514,26 @@ Type objective_function<Type>::operator() ()
 
   
   // Observations
-  joint_nlp += Ctnll_sp.sum();       // Catch
-  joint_nlp += ageLikeWt * lenCompsnll_spf.sum(); // Length compositions
-  joint_nlp += lenLikeWt * ageCompsnll_spf.sum(); // Age compositions
-  joint_nlp += idxLikeWt * CPUEnll_spf.sum();     // Survey CPUE
-  joint_nlp += steepnessnlp_s.sum() + steepnessnlp_sp.sum();
-  joint_nlp += sel_nlp;
-  joint_nlp += tauObsnlp_f.sum();
+  f += Ctnll_sp.sum();       // Catch
+  f += ageLikeWt * lenCompsnll_spf.sum(); // Length compositions
+  f += lenLikeWt * ageCompsnll_spf.sum(); // Age compositions
+  f += idxLikeWt * CPUEnll_spf.sum();     // Survey CPUE
+  f += steepnessnlp_s.sum() + steepnessnlp_sp.sum();
+  f += sel_nlp;
+  f += tauObsnlp_f.sum();
   // Growth model
-  joint_nlp += growthLikeWt * vonBnll_spf.sum();     // Growth model
-  joint_nlp += growthLikeWt * (L1nlp_s.sum() + L2nlp_s.sum() + vonKnlp_s.sum());
+  f += growthLikeWt * vonBnll_spf.sum();     // Growth model
+  f += growthLikeWt * (L1nlp_s.sum() + L2nlp_s.sum() + vonKnlp_s.sum());
   // Recruitment errors
-  joint_nlp += recnll_sp.sum();      // recruitment process errors
+  f += recnll_sp.sum();      // recruitment process errors
   // Commercial q
-  joint_nlp += qnlpSurv + qnlpSyn_s.sum() + qnlpSyn + qnlp_tv;
-  joint_nlp += Mnlp_s.sum() + Mnlp_s.sum();
-  joint_nlp += B0nlp_sp.sum();
-  joint_nlp += Fnlp;
+  f += qnlpSurv + qnlpSyn_s.sum() + qnlpSyn + qnlp_tv;
+  f += Mnlp_s.sum() + Mnlp_s.sum();
+  f += B0nlp_sp.sum();
+  f += Fnlp;
   // joint_nlp += pop_nlp + spec_nlp;
+
+  joint_nlp += f;
 
   
   // // Return quantities
@@ -1748,7 +1753,7 @@ Type objective_function<Type>::operator() ()
   // ADREPORT(lnF_spft)         // Fishing mortality
 
 
-  return( joint_nlp );
+  return( f );
 
 }
 
