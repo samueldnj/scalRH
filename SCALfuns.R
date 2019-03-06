@@ -48,11 +48,16 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt", folder=NULL, quiet=TRUE )
 
   # Save reports object
   save(reports,file = file.path(path,paste(folder,".RData",sep="")))
-  # Save plots
 
-  savePlots(  fitObj = reports,
-              useRep = reports$plotRep,
-              saveDir = path  )
+  # Write out fitReport
+  fitRepPath <- file.path(path,"fitReport.csv")
+  write.csv( reports$phaseList$fitReport, file = fitRepPath )
+
+  # Save plots?
+  if(controlList$ctrl$plots)
+    savePlots(  fitObj = reports,
+                useRep = reports$plotRep,
+                saveDir = path  )
 
   # Copy control file to sim folder for posterity
   file.copy(from=ctlFile,to=file.path(path,"fitCtlFile.txt"))
@@ -831,12 +836,22 @@ TMBphase <- function( data,
   # of NAs
   fill_vals <- function(x,vals){ factor( rep( vals, length(x) ) ) }
 
+
   # compile the model
   DLL_use <- model_name  
   
   #loop over phases
   if(!is.null(maxPhase))
     maxPhase <- min( maxPhase, max(unlist(phases) ) )
+  else maxPhase <- max(unlist(phases))
+
+
+  # Make a data.frame that will hold the phase info
+  fitReport <- matrix(NA, nrow = maxPhase + 1, ncol = 7 )
+  colnames(fitReport) <- c("phase","objFun","maxGrad","nPar","convCode","convMsg", "time")
+  fitReport <- as.data.frame(fitReport)
+
+  fitReport$phase <- c(1:maxPhase,"RE")
 
   phaseReports <- vector(mode = "list", length = maxPhase)
 
@@ -847,6 +862,9 @@ TMBphase <- function( data,
 
   for( phase_cur in 1:maxPhase ) 
   {
+    # Start timing
+    tBegin <- proc.time()
+
     # work out the map for this phase
     # if the phase for a parameter is greater than the current phase 
     # or a negative value, then map will contain a factor filled with NAs
@@ -942,6 +960,18 @@ TMBphase <- function( data,
     phaseReports[[phase_cur]]$map     <- map_use
     outList$maxPhaseComplete          <- phase_cur
 
+    # Update fitReport
+    if(class(opt) != "try-error")
+    {
+      fitReport[phase_cur,]$objFun      <- obj$fn()
+      fitReport[phase_cur,]$maxGrad     <- max(obj$gr())
+      fitReport[phase_cur,]$nPar        <- length(opt$par)
+      fitReport[phase_cur,]$convCode    <- opt$convergence
+      fitReport[phase_cur,]$convMsg     <- opt$message
+    }
+    fitReport[phase_cur,]$time           <- (proc.time() - tBegin)/60
+
+
 
     cat(  "\nPhase ", phase_cur, " completed with code ",
           opt$convergence, " and following message:\n", sep = "" )
@@ -953,7 +983,8 @@ TMBphase <- function( data,
   # Fit the model
   if( !is.null(random) &  class(opt) != "try-error" )
   { 
-    params_use <- obj$env$parList( opt$par )
+    tBegin      <- proc.time()
+    params_use  <- obj$env$parList( opt$par )
 
     obj <- TMB::MakeADFun(  data = data,
                             parameters = parameters,
@@ -969,6 +1000,18 @@ TMBphase <- function( data,
                           gradient  = obj$gr,
                           control   = tmbCtrl ) )
 
+    # Update fitReports
+    if(class(opt) != "try-error")
+    {
+      fitReport[maxPhase + 1,]$objFun      <- obj$fn()
+      fitReport[maxPhase + 1,]$maxGrad     <- max(obj$gr())
+      fitReport[maxPhase + 1,]$nPar        <- length(opt$par)
+      fitReport[maxPhase + 1,]$convCode    <- opt$convergence
+      fitReport[maxPhase + 1,]$convMsg     <- opt$message
+    }
+
+    fitReport[maxPhase + 1,]$time          <- (proc.time() - tBegin)/60
+
   }
   
   if(outList$success & calcSD )
@@ -978,6 +1021,8 @@ TMBphase <- function( data,
   outList$repOpt        <- obj$report()
   outList$objfun        <- obj$fn()
   outList$maxGrad       <- max(obj$gr())
+  outList$fitReport     <- fitReport
+  outList$totTime       <- sum(fitReport$time)
   
   return( outList )  
 
