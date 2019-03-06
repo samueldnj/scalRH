@@ -1439,8 +1439,8 @@ Type objective_function<Type>::operator() ()
     vector<Type> vonKVec  = deltaVonK_sp.transpose().col(s);
     vector<Type> L2Vec    = deltaL2_sp.transpose().col(s);
     
-    steepnessnlp_sp.transpose().col(s)  -= dnorm( steepVec, epsSteep_s(s), sigmah_s(s), true);
-    Mnlp_sp.transpose().col(s)          -= dnorm( mortVec, epsM_s(s), sigmaM_s(s), true);
+    steepnessnlp_sp.transpose().col(s)  -= dnorm( steepVec, Type(0), sigmah_s(s), true);
+    Mnlp_sp.transpose().col(s)          -= dnorm( mortVec, Type(0), sigmaM_s(s), true);
     vonKnlp_s(s)                        -= dnorm( vonKVec, Type(0), sigmavonK_s(s), true).sum();
     L2nlp_s(s)                          -= dnorm( L2Vec, Type(0), sigmaL2_s(s), true).sum();
 
