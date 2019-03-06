@@ -734,7 +734,7 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   }
 
   # Turn off tvq deviations if not used
-  if( !hypObj$tvq | nqDevs == 0 )
+  if( !hypoObj$tvq | nqDevs == 0 )
     phases$epslnq_vec       <- -1
 
   if( nP == 1)

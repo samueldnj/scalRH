@@ -163,7 +163,6 @@ doBatchRun <- function( arg )
       
       folderName <- paste(prefix,"bat",i,sep ="")
      
-      # runSimEst() assumes that input is simCtlFile.txt
       fitHierSCAL( batchParFile[i], folder = folderName )
 
       elapsed <- (proc.time() - tBegin)[ "elapsed" ]
