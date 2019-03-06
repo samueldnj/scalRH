@@ -735,8 +735,18 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
 
   if( nP == 1)
   {
-    phases$epsxSel50_spf <- -1
-    phases$epsxSelStep_spf <- -1
+    phases$epsxSel50_spf    <- -1
+    phases$epsxSelStep_spf  <- -1
+    phases$epsM_sp          <- -1
+    phases$epsSteep_sp      <- -1
+    phases$deltaL2_sp       <- -1
+    phases$deltaVonK_sp     <- -1
+  }
+
+  if( nS == 1 )
+  {
+    phases$epsSteep_s       <- -1
+    phases$epsM_s           <- -1
   }
 
   checkDat <- lapply( X = data, FUN = .checkNA )

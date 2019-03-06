@@ -24,7 +24,7 @@ data$lYearIdx 2016
 #data$idxFleets c("HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
 data$idxFleets c("comm.hist","comm.mod","HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
 #data$species c("Dover","English","Rock","Petrale","Arrowtooth")
-data$species c("Dover")
+data$species c("Dover","Petrale")
 data$stocks c("HSHG","QCS","WCVI")
 data$idxFiles c("surveyBio.RData","commCPUE.RData")
 data$catchData c(survey="surveyCatch.RData",comm="catch_by_maj.csv")
@@ -71,7 +71,7 @@ hypo$sdF 1e-4
 hypo$mM 0.3
 hypo$sdM 0.03
 hypo$yFirstRecDev c(Dover=1984,English=1984,Rock=1984,Petrale=1984,Arrowtooth=1984)
-hypo$yLastRecDev c(Dover=2015,English=2015,Rock=2015,Petrale=2015,Arrowtooth=2015)
+hypo$yLastRecDev c(Dover=2014,English=2014,Rock=2014,Petrale=2014,Arrowtooth=2014)
 hypo$sigmaR .7
 hypo$sigmaM 0.1
 hypo$sigmaL .1
@@ -109,10 +109,10 @@ phases$lnqbarSyn_s -1
 phases$lntauqSyn_s -1
 phases$lnqbarSyn -1
 phases$lntauqSyn -1
-phases$epsSteep_s -1
-phases$epsM_s -1
-phases$epsSteep_sp -1
-phases$epsM_sp -1
+phases$epsSteep_s 3
+phases$epsM_s 3
+phases$epsSteep_sp 4
+phases$epsM_sp 4
 phases$lnsigmah_s -1
 phases$logit_muSteep -1
 phases$lnsigmah -1

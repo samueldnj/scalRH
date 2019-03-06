@@ -442,6 +442,10 @@ Type objective_function<Type>::operator() ()
   vector<Type>  L2_s(nS);
   vector<Type>  vonK_s(nS);
 
+  // Growth model stock priors
+  vector<Type>  deltaVonKbar_p(nP);
+  vector<Type>  deltaL2bar_p(nP);
+
 
   // derived variables
   // Stock recruitment //
@@ -486,6 +490,7 @@ Type objective_function<Type>::operator() ()
   vector<Type>  sigmah_s      = exp(lnsigmah_s);
   Type          mh            = .2 + Type(0.8) / ( Type(1.0) + exp( -1 * logit_muSteep) );
   Type          sigmah        = exp(lnsigmah);
+
   // Natural mortality
   vector<Type>  M_s           = exp(lnM + epsM_s);
   vector<Type>  sigmaM_s      = exp(lnsigmaM_s);
@@ -1296,8 +1301,6 @@ Type objective_function<Type>::operator() ()
   // Shared Hierarchical Prior Distributions //
   // loop over species and stocks, add penalty for stock deviations from
   // species mean
-  vector<Type> steepnessnlp_s(nS);
-  array<Type> steepnessnlp_sp(nS,nP);
 
   // Synoptic catchability prior
   vector<Type> qnlpSyn_s(nS);
@@ -1362,31 +1365,102 @@ Type objective_function<Type>::operator() ()
   qnlp_tv -= dnorm( epslnq_vec, 0, sigmalnq, true).sum();
 
 
+  // Steepness
+  vector<Type>  steepnessnlp_s(nS);
+  array<Type>   steepnessnlp_sp(nS,nP);
+  Type steepnessnlp = 0.;
+
+  // Mortality
+  vector<Type>  Mnlp_s(nS);
+  array<Type>   Mnlp_sp(nS,nP);
+  Type Mnlp = 0.;
+
+  // VonB priors
+  // Growth rate
+  vector<Type>  vonKnlp_s(nS);
+  vector<Type>  vonKnlp_p(nP);
+  Type          vonKnlp = 0.;
+  // L2
+  vector<Type>  L2nlp_s(nS);
+  vector<Type>  L2nlp_p(nP);
+  Type          L2nlp = 0.;
+
+  // Zero initialise
+  vonKnlp_s.setZero();
+  vonKnlp_p.setZero();
+  L2nlp_s.setZero();
+  L2nlp_p.setZero();
+
+  // Fix sigmaVonK and sigmaL2 for now
+  Type sigmavonK  = 0.1;
+  Type sigmaL2    = 0.1;
+
+  vector<Type>    sigmavonK_s(nS);
+                  sigmavonK_s.fill(.1);
+  vector<Type>    sigmaL2_s(nS);
+                  sigmaL2_s.fill(0.1);
+
+
+  // Calculate stock mean delta values for
+  // growth model, to extend growth pars to 
+  // species/stock combinations without data
+  for( int p = 0; p < nP; p++ )
+  {
+    deltaVonKbar_p(p) = deltaVonK_sp.col(p).sum()/nP;
+    deltaL2bar_p(p) = deltaL2_sp.col(p).sum()/nP;
+
+    vector<Type> vonKVec  = deltaVonK_sp.col(p);
+    vector<Type> L2Vec    = deltaL2_sp.col(p);
+
+    // Within stock growth par deviation priors - essentially
+    // a regularisation to stop the unobserved stocks from overfitting  
+    vonKnlp_p(p)          -= dnorm( vonKVec, deltaVonKbar_p(p), sigmavonK, true).sum();
+    L2nlp_p(p)            -= dnorm( L2Vec, deltaL2bar_p(p), sigmaL2, true).sum();
+
+  }
+
 
   // Mortality prior
-  vector<Type>  Mnlp_s(nS);
-  vector<Type>  Mnlp_p(nP);
-  array<Type>   Mnlp_sp(nS,nP);
+  // vector<Type>  Mnlp_s(nS);
+  // vector<Type>  Mnlp_p(nP);
+  // array<Type>   Mnlp_sp(nS,nP);
   // 0-initialise
   steepnessnlp_s.setZero();
   steepnessnlp_sp.setZero();
   Mnlp_s.setZero();
-  Mnlp_p.setZero();
   Mnlp_sp.setZero();
   Type sel_nlp = 0.;
 
 
   for( int s = 0; s < nS; s++ )
-    for(int p = 0; p < nP; p++ )
-    {
-      // Steepness
-      steepnessnlp_sp(s,p) -= dnorm( log(h_sp(s,p)), log(h_s(s)), sigmah_s(s), true);
-      Mnlp_sp(s,p) -= dnorm( log(M_sp(s,p)), log(M_s(s)), sigmaM_s(s), true);
-    }
+  { 
+    vector<Type> steepVec = epsSteep_sp.transpose().col(s);
+    vector<Type> mortVec  = epsM_sp.transpose().col(s);
+    vector<Type> vonKVec  = deltaVonK_sp.transpose().col(s);
+    vector<Type> L2Vec    = deltaL2_sp.transpose().col(s);
+    
+    steepnessnlp_sp.transpose().col(s)  -= dnorm( steepVec, epsSteep_s(s), sigmah_s(s), true);
+    Mnlp_sp.transpose().col(s)          -= dnorm( mortVec, epsM_s(s), sigmaM_s(s), true);
+    vonKnlp_s(s)                        -= dnorm( vonKVec, Type(0), sigmavonK_s(s), true).sum();
+    L2nlp_s(s)                          -= dnorm( L2Vec, Type(0), sigmaL2_s(s), true).sum();
+
+  }
   
   // add species level h prior
-  steepnessnlp_s -= dnorm( log(h_s), log(mh), sigmah, true );
-  Mnlp_s -= dnorm( log(M_s), log(muM), sigmaM, true );
+  steepnessnlp_s  -= dnorm( epsSteep_s, 0, sigmah, true );
+  Mnlp_s          -= dnorm( epsM_s, 0, sigmaM, true );
+  
+  // Now prior on complex mean M
+  // Currently have sigmaM/sigmah doing double duty, replace
+  // with another hyperparameter - we might want to estimate
+  // the complex variance later
+  Mnlp            -= dnorm( lnM, log(muM), sigmaM, true);
+  steepnessnlp    -= dnorm( logitSteep, logit_muSteep, sigmah, true);
+    
+  // And penalties stock mean growth model
+  // deviations
+  L2nlp           -= dnorm( deltaL2bar_p, Type(0.), sigmaL2, true).sum();
+  vonKnlp         -= dnorm( deltaVonKbar_p, Type(0.), sigmavonK, true).sum();
 
   // Add time-varying selectivity deviations
   sel_nlp -= dnorm( epsxSel50_vec, Type(0), sigmaSel, true).sum();
@@ -1410,101 +1484,15 @@ Type objective_function<Type>::operator() ()
   
 
   // VonB priors
-  vector<Type>  L2nlp_s(nS);
   vector<Type>  L1nlp_s(nS);
-  vector<Type>  vonKnlp_s(nS);
   // Zero-init
-  L2nlp_s.setZero();
   L1nlp_s.setZero();
-  vonKnlp_s.setZero();
 
   // Compute
   L1nlp_s   -= dnorm( lnL1_s, pmlnL1_s, cvL1, true);
   L2nlp_s   -= dnorm( log(L2_s), pmlnL2_s, cvL2, true);
   vonKnlp_s -= dnorm( lnvonK_s, pmlnVonK, cvVonK, true);
 
-
-        
-
-  // Loop over populations, penalise pop-specific deviations from spec-specific values
-  // vector<Type> vonBnlp_p(nP);
-  // vector<Type> qnlp_p(nP);
-  // vector<Type> steepnessnlp_p(nP);
-  // vector<Type> Mnlp_p(nP);
-  // vonBnlp_p.setZero();
-  // qnlp_p.setZero();
-  // steepnessnlp_p.setZero();
-  // Mnlp_p.setZero();
-  // for( int p = 0; p < nP; p ++ )
-  // {
-  //   int specID = s_p(p);
-  //   // Growth
-  //   // asymptotic length
-  //   vonBnlp_p(p) += Type(0.5) * ( log(sigmaL2_s(specID)) + square(L2_p(p) - muL2_s(specID) ) / square(sigmaL2_s (specID)) );
-  //   // growth coefficient
-  //   vonBnlp_p(p) += Type(0.5) * ( log(sigmavonK_s(specID)) + square(vonK_p(p) - muvonK_s(specID) ) / square(sigmavonK_s (specID) ));
-  //   // time at length 0
-  //   vonBnlp_p(p) += Type(0.5) * ( log(sigmat0_s(specID)) + square(vont0_p(p) - mut0_s(specID) ) / square(sigmat0_s (specID) ));
-  //   // Steepness
-  //   Type sigmaSteep_spec = exp(lnsigmaSteep_s(specID));
-  //   steepnessnlp_p(p) += Type(0.5) * ( lnsigmaSteep_s(specID) + square(h_p(p) - h_s(specID)) / square(sigmaSteep_spec) );
-  //   // Natural mortality?
-  //   Mnlp_p(p) += Type(0.5) * ( lnsigmaM_s(specID) + square(M_p(p) - M_s(specID)) / square(sigmaM_s(specID)) );
-
-  //   // For selectivity and catchability, loop over fleets
-  //   for( int f = 0; f < nF; f++ )
-  //   {      
-  //     // Catchability
-  //     if( group_f(f) == 0) 
-  //       qnlp_p(p) += Type(0.5) * ( lntauq_fs(f,specID) + square( lnq_fp(f,p) - lnqbar_fs(f,specID) ) / exp(2*lntauq_fs(f,specID)) );
-  //   }
-  // }
-  // Type pop_nlp = 0.0;
-  // pop_nlp += vonBnlp_p.sum() + steepnessnlp_p.sum() + Mnlp_p.sum() + qnlp_p.sum();
-
-  // // Now loop over species and penalise by "complex level" means - will have to think
-  // // carefully about what parameters have a complex mean, and what don't
-  // // vector<Type> vonBnlp_p(nP);
-  // // vector<Type> selnlp_p(nP);
-  // vector<Type> qnlp_s(nS);
-  // vector<Type> selnlp_s(nS);
-  // vector<Type> steepnessnlp_s(nS);
-  // vector<Type> Mnlp_s(nS);
-  // // vonBnlp_p.setZero();
-  // selnlp_s.setZero();
-  // qnlp_s.setZero();
-  // steepnessnlp_s.setZero();
-  // Mnlp_s.setZero();
-  // for( int s = 0; s < nS; s++ )
-  // {
-  //   // Steepness
-  //   Type sigmaSteep = exp(lnsigmaSteep);
-  //   steepnessnlp_s(s) += Type(0.5) * ( lnsigmaSteep + square(h_s(s) - muSteep) / square(sigmaSteep) );
-
-  //   // Natural mortality
-  //   Mnlp_s(s) += Type(0.5) * ( lnsigmaM + square(M_s(s) - muM) / square(sigmaM) );
-
-  //   // Catchability
-  //   for( int f = 0; f < nF; f++ )
-  //   {
-  //     // Catchability
-  //     if( group_f(f) == 0) 
-  //       qnlp_s(s) += Type(0.5) * ( lntauq_f(f) + square( lnqbar_fs(f,s) - lnqbar_f(f) ) / exp(2*lntauq_f(f)) );
-
-  //     // Selectivity
-  //     selnlp_s(s) += Type(0.5) * ( log(sigmaxSel50_f(f) ) + square( muxSel50_f(f) - xSel50_sf(s,f) ) / square(sigmaxSel50_f(f)) );
-  //     selnlp_s(s) += Type(0.5) * ( log(sigmaxSel95_f(f) ) + square( muxSel95_f(f) - xSel95_sf(s,f) ) / square(sigmaxSel95_f(f)) );
-  //   }
-  // }
-  // Type spec_nlp = 0.0;  
-  // spec_nlp += steepnessnlp_s.sum() + Mnlp_s.sum() + qnlp_s.sum();
-  
-
-  // Now take the sum of all the likelihoods, keep separate
-  // in case we want to weight data later
-  // if( parSwitch == 1 )
-    // parallel_accumulator<Type> joint_nlp(this);
-  // else
 
   array<Type> B0nlp_sp(nS,nP);
   B0nlp_sp.setZero();
@@ -1518,19 +1506,23 @@ Type objective_function<Type>::operator() ()
   f += ageLikeWt * lenCompsnll_spf.sum(); // Length compositions
   f += lenLikeWt * ageCompsnll_spf.sum(); // Age compositions
   f += idxLikeWt * CPUEnll_spf.sum();     // Survey CPUE
-  f += steepnessnlp_s.sum() + steepnessnlp_sp.sum();
   f += sel_nlp;
   f += tauObsnlp_f.sum();
+  f += Fnlp;
   // Growth model
   f += growthLikeWt * vonBnll_spf.sum();     // Growth model
   f += growthLikeWt * (L1nlp_s.sum() + L2nlp_s.sum() + vonKnlp_s.sum());
+  f += growthLikeWt * ( L2nlp_p.sum() + vonKnlp_p.sum());
+  f += growthLikeWt * ( L2nlp + vonKnlp );
   // Recruitment errors
   f += recnll_sp.sum();      // recruitment process errors
-  // Commercial q
+  // q groups
   f += qnlpSurv + qnlpSyn_s.sum() + qnlpSyn + qnlp_tv;
-  f += Mnlp_s.sum() + Mnlp_s.sum();
+  
+  // Biological parameters
+  f += steepnessnlp_s.sum() + steepnessnlp_sp.sum() + steepnessnlp;
+  f += Mnlp_s.sum() + Mnlp_sp.sum() + Mnlp;
   f += B0nlp_sp.sum();
-  f += Fnlp;
   // joint_nlp += pop_nlp + spec_nlp;
 
   joint_nlp += f;
