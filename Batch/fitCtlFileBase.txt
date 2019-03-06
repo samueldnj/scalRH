@@ -55,6 +55,7 @@ hypo$sigmaSelDevs 0.2
 hypo$cvxSel 0.2
 hypo$initFished c(Dover=0,English=1,Rock=1,Petrale=1,Arrowtooth=0)
 hypo$tvqFleets c("comm.hist","comm.mod","HSAss")
+hypo$tvq FALSE
 hypo$sigmaqdevs .2
 hypo$nonLinIdxFleets c("comm.hist","comm.mod")
 hypo$nonLinIdx FALSE

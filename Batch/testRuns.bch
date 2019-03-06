@@ -49,8 +49,8 @@ mp$mp3$hypo$yFirstRecDev c(Dover=1984,English=1984,Rock=1984,Petrale=1984,Arrowt
 #
 # MP 4 : qconst
 #
-mp$mp4$ctrl$modelHypName 'qconst'
-mp$mp4$hypo$tvq FALSE
+mp$mp4$ctrl$modelHypName 'tvq'
+mp$mp4$hypo$tvq TRUE
 #
 # MP 5 : tvSel
 #
