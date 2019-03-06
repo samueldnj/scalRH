@@ -62,8 +62,9 @@ hypo$tvq FALSE
 hypo$sigmaqdevs .2
 hypo$nonLinIdxFleets c("comm.hist","comm.mod")
 hypo$nonLinIdx FALSE
-hypo$mq rep(.3,13)
-hypo$sdq rep(.3,13)
+hypo$mq .3
+hypo$sdq .3
+hypo$tauqSyn .1
 hypo$regFfleets c("comm.hist","comm.mod")
 hypo$regFMaxPhase 4
 hypo$mF .2
@@ -78,7 +79,7 @@ hypo$sigmaL .1
 hypo$tau2ObsIGa rep(.1,7)
 hypo$tau2ObsPriorMode c(.1,.1,.1,.04,.04,.04,.04)
 hypo$hPriorMean 0.78
-hypo$hPriorSD 0.01
+hypo$hPriorSD 0.05
 hypo$fleetGroups list(comm=c("comm.hist","comm.mod"),Ass=c("HSAss"),Syn=c("WCHGSyn","QCSSyn","WCVISyn","HSSyn"))
 hypo$RE NULL
 phases$lnB0_sp 2
@@ -92,6 +93,7 @@ phases$deltaVonK_sp -1
 phases$sigmaLa_s 7
 phases$sigmaLb_s -1
 phases$lnq_spf 1
+phases$epslnq_vec 8
 phases$lnxSel50_sf 5
 phases$lnxSelStep_sf 6
 phases$epsxSel50_spf 7

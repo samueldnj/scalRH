@@ -628,12 +628,12 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                 sigmaxSel50_sg    = array(.2, dim = c(nS,3)),
                 sigmaxSel95_sg    = array(.2, dim = c(nS,3)),
                 # Catchability
-                lnqbarSyn_s       = rep(0,nS),
-                lntauqSyn_s       = rep(log(1),nS),
-                lnqbarSyn         = log(1),
-                lntauqSyn         = log(1),
-                mqSurveys         = 1,
-                sdqSurveys        = 1,
+                lnqbarSyn_s       = rep(log(hypoObj$mq),nS),
+                lntauqSyn_s       = rep(log(hypoObj$tauqSyn),nS),
+                lnqbarSyn         = log(hypoObj$mq),
+                lntauqSyn         = log(hypoObj$tauqSyn),
+                mqSurveys         = hypoObj$mq,
+                sdqSurveys        = hypoObj$sdq,
                 # Steepness
                 lnsigmah_s        = rep(log(sdh),nS),
                 logit_muSteep     = log((mh - .2)/(1 - mh)),
@@ -727,11 +727,15 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                 lnxSelStep_sf     = factor(selMap_sf + 300) )
 
   # Turn off tv sel deviations if not being used
-  if(!hypoObj$tvSel)
+  if( !hypoObj$tvSel | nSelDevs == 0 )
   {
     phases$epsxSel50_vec    <- -1
     phases$epsxSelStep_vec  <- -1
   }
+
+  # Turn off tvq deviations if not used
+  if( !hypObj$tvq | nqDevs == 0 )
+    phases$epslnq_vec       <- -1
 
   if( nP == 1)
   {
@@ -799,7 +803,8 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
 } # END .runHierSCAL()
 
 # Custom TMBphase() function for running hierSCAL in phases. 
-# Modified from the version in Kasper Kristensen's TMB_contrib_R github repository 
+# Modified from the version in Kasper Kristensen's 
+# TMB_contrib_R github repository 
 # https://github.com/kaskr/TMB_contrib_R
 # Author:Gavin Fay email: gfay42@gmail.com
 # 
@@ -892,7 +897,7 @@ TMBphase <- function( data,
                             DLL= DLL_use,
                             map= map_use,
                             silent = silent )  
-    TMB::newtonOption(obj,smartsearch=FALSE)
+    TMB::newtonOption(obj, trace = 10, tol10 = 0.0001)
 
     if( phase_cur == 1 )
     {
@@ -945,10 +950,34 @@ TMBphase <- function( data,
     # close phase loop
   }
 
+  # Fit the model
+  if( !is.null(random) &  class(opt) != "try-error" )
+  { 
+    params_use <- obj$env$parList( opt$par )
+
+    obj <- TMB::MakeADFun(  data = data,
+                            parameters = parameters,
+                            random = random_use,
+                            DLL= DLL_use,
+                            map= map_use,
+                            silent = silent )  
+    TMB::newtonOption(obj,trace = 10, tol10 = 0.0001 )
+
+    # Try the optimisation
+    opt <- try( nlminb (  start     = obj$par,
+                          objective = obj$fn,
+                          gradient  = obj$gr,
+                          control   = tmbCtrl ) )
+
+  }
+  
   if(outList$success & calcSD )
     outList$sdrep <- TMB::sdreport(obj)
 
-  outList$phaseReports <- phaseReports
+  outList$phaseReports  <- phaseReports
+  outList$repOpt        <- obj$report()
+  outList$objfun        <- obj$fn()
+  outList$maxGrad       <- max(obj$gr())
   
   return( outList )  
 

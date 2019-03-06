@@ -1,7 +1,7 @@
 # Base fitCtlFile.txt for hierSCAL assessment model
 # written Friday, Nov 23, 2018 
 parameter value
-ctrl$dataScenarioName 'base'
+ctrl$dataScenarioName 'fullData'
 ctrl$modelHypName 'base'
 ctrl$maxFunEval 10000
 ctrl$maxIterations 10000
@@ -53,20 +53,21 @@ hypo$identSel FALSE
 hypo$tvSelFleets c("comm.hist","comm.mod")
 hypo$sigmaSelDevs 0.2
 hypo$cvxSel 0.2
-hypo$initFished c(Dover=0,English=1,Rock=0,Petrale=0,Arrowtooth=0)
+hypo$initFished c(Dover=0,English=1,Rock=1,Petrale=1,Arrowtooth=0)
 hypo$tvqFleets c("comm.hist","comm.mod","HSAss")
 hypo$sigmaqdevs .2
 hypo$nonLinIdxFleets c("comm.hist","comm.mod")
 hypo$nonLinIdx FALSE
-hypo$mq rep(.5,13)
-hypo$sdq rep(2,13)
+hypo$mq .5
+hypo$sdq .1
+hypo$tauqSyn .1
 hypo$regFfleets c("comm.hist","comm.mod")
 hypo$regFMaxPhase 4
 hypo$mF .2
 hypo$sdF 1e-3
 hypo$mM 0.3
 hypo$sdM 0.01
-hypo$yFirstRecDev c(Dover=1984,English=1984,Rock=1984,Petrale=1984,Arrowtooth=1984)
+hypo$yFirstRecDev c(Dover=1955,English=1955,Rock=1955,Petrale=1955,Arrowtooth=1955)
 hypo$yLastRecDev c(Dover=2015,English=2015,Rock=2015,Petrale=2015,Arrowtooth=2015)
 hypo$sigmaR .7
 hypo$sigmaM 0.1
@@ -88,6 +89,7 @@ phases$deltaVonK_sp -1
 phases$sigmaLa_s 7
 phases$sigmaLb_s -1
 phases$lnq_spf 1
+phases$epslnq_vec 8
 phases$lnxSel50_sf 5
 phases$lnxSelStep_sf 6
 phases$epsxSel50_spf 7
@@ -105,13 +107,14 @@ phases$lnqbarSyn_s -1
 phases$lntauqSyn_s -1
 phases$lnqbarSyn -1
 phases$lntauqSyn -1
-phases$epsSteep_s -1
-phases$epsM_s -1
-phases$epsSteep_sp -1
-phases$epsM_sp -1
+phases$epsSteep_s 3
+phases$epsM_s 3
+phases$epsSteep_sp 4
+phases$epsM_sp 4
 phases$lnsigmah_s -1
 phases$logit_muSteep -1
 phases$lnsigmah -1
 phases$lnsigmaM_s -1
 phases$ln_muM -1
 phases$lnsigmaM -1
+# <END>
