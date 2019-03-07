@@ -969,7 +969,6 @@ TMBphase <- function( data,
       fitReport[phase_cur,]$convCode    <- opt$convergence
       fitReport[phase_cur,]$convMsg     <- opt$message
     }
-    browser()
     fitReport[phase_cur,]$time           <- (proc.time()[3] - tBegin)/60
 
 
