@@ -980,6 +980,48 @@ plotProbLenAge <- function( repObj = repInit,
               col = cols[aIdx], lwd = 1 )
 } # END plotProbLenAge()
 
+# plotYeq
+# Plot equilibrium yield reference curve as a function
+# of F
+plotYeqF <- function( repObj = repOpt,
+                      sIdx = 1, pIdx = 1 )
+{
+  # Pull reference points object
+  refPoints <- repObj$refPts
+  refCurves <- refPoints$refCurves
+
+  # Pull eqbm yields
+  YeqF_spf     <- refCurves$Yeq_sp[sIdx,pIdx,,drop = FALSE]
+  Fmsy_sp      <- refPoints$FmsyRefPts$Fmsy_sp[sIdx,pIdx,drop = FALSE]
+  YeqFmsy_sp   <- refPoints$FmsyRefPts$YeqFmsy_sp[sIdx,pIdx,drop = FALSE]
+
+  # Now melt
+  YeqF.df     <- melt(YeqF_spf) %>%
+                  rename(yield = value) %>%
+                  filter( yield >= 0 )
+  Fmsy.df     <- melt(Fmsy_sp) %>%
+                  rename( Fmsy = value)
+  YeqFmsy.df  <- melt(YeqFmsy_sp) %>%
+                  rename( yield = value) %>%
+                  left_join(Fmsy.df)
+
+  # Figure out how to stack multiple YPR/SPR ref point
+  # tables together, with a column for the ref point
+  # label, for easier plotting of multiple ref points
+
+  tmp <-  ggplot(data = YeqF.df, aes(x=F, y=yield)) + 
+          geom_line() +
+          facet_grid( stock ~ species, scale = "fixed") +
+          theme_sleek() +
+          geom_point( data = YeqFmsy.df, inherit.aes = FALSE,
+                      mapping = aes( x = Fmsy, y = yield ),
+                      col = "red", size = 1.5 )
+
+  print(tmp)
+
+  return(tmp)
+} # END plotYeqF()
+
 # plotProbLenAge()
 plotHeatmapProbLenAge <- function(  repObj = repInit,
                                     sIdx = 1, pIdx = 1,

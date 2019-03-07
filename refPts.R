@@ -18,21 +18,15 @@
 # ouputs:   refPts = list() of reference points
 calcRefPts <- function( obj )
 {
-  # Pull number of species
-  nS          <- obj$nS
-  nP          <- obj$nP
+  # Calculate selectivity
+  obj <- .calcSel_sp(obj, fleetIdx = 2)
 
   # Calculate reference curves
   refCurves <- .calcRefCurves( obj )
 
   # First, let's just do Fmsy reference points
-  FmsyRefPts          <- vector( mode = "list", length = nS )
-  names( FmsyRefPts ) <- obj$speciesNames
-  for( sIdx in 1:nS )
-  {
-    FmsyRefPts <- .getFmsy_sp(  obj = obj, 
+  FmsyRefPts <- .getFmsy_sp(  obj = obj, 
                                 refCurves = refCurves )
-  }
   
   obj$refPts <- list()
   obj$refPts$refCurves    <- refCurves
@@ -135,6 +129,50 @@ calcRefPts <- function( obj )
   return(equil)
 }
 
+
+.calcSel_sp <- function( obj, fleetIdx = 2)
+{
+  # Model dimensions
+  nS    <- obj$nS
+  nP    <- obj$nP
+  A_s   <- obj$A_s
+  nA    <- obj$nA
+  nL    <- obj$nL
+
+  # Probability of being a given length-at-age
+  probLenAge_lasp <- obj$probLenAge_lasp
+
+  # Selectivity - this is mean over each fleet's 
+  # time period, not time-varying
+  # Might be useful to take the group mean for the comm fleet...
+  xSel50_sp   <- obj$xSel50_spf[ , , fleetIdx, drop = FALSE ]
+  xSel95_sp   <- obj$xSel95_spf[ , , fleetIdx, drop = FALSE ]
+  xSelStep_sp <- obj$xSelStep_spf[ , , fleetIdx, drop = FALSE ]
+
+  # Harcode for comm.mod for now,
+  # and length based selectivity
+  selLen_lsp <- array(NA, dim = c(nL,nS,nP) )
+  selAge_asp <- array(NA, dim = c(nA,nS,nP) )
+
+  # Loop over species and stocks, calculate
+  # selLen so we can get selAge
+  for( s in 1:nS )
+    for(p in 1:nP )
+    {
+      selLen_lsp[,s,p] <- (1 + exp(-(1:nL - xSel50_sp[s,p,])/xSelStep_sp[s,p,]/log(19)))^(-1)
+      for( a in 1:nA )
+      {
+        selAge_asp[a,s,p] <- sum(probLenAge_lasp[,a,s,p] * selLen_lsp[,s,p])
+      }
+      selAge_asp[,s,p] <- selAge_asp[,s,p] / max(selAge_asp[,s,p])
+    }
+
+  obj$selLen_lsp <- selLen_lsp
+  obj$selAge_asp <- selAge_asp
+
+  obj
+}
+
 # .calcPerRecruit
 # Purpose:     Calculate all equilibrium per-recruit quantities of interest for an
 #              input fishing mortality.
@@ -160,31 +198,8 @@ calcRefPts <- function( obj )
   lenAge_asp      <- obj$lenAge_asp
   wtAge_asp       <- obj$meanWtAge_asp
   probLenAge_lasp <- obj$probLenAge_lasp
+  selAge_asp      <- obj$selAge_asp
 
-  # Selectivity - this is mean over each fleet's 
-  # time period, not time-varying
-  # Might be useful to take the group mean for the comm fleet...
-  xSel50_sp   <- obj$xSel50_spf[,,2]
-  xSel95_sp   <- obj$xSel95_spf[,,2]
-  xSelStep_sp <- obj$xSelStep_spf[,,2]
-
-  # Harcode for comm.mod for now,
-  # and length based selectivity
-  selLen_lsp <- array(NA, dim = c(nL,nS,nP) )
-  selAge_asp <- array(NA, dim = c(nA,nS,nP) )
-
-  # Loop over species and stocks, calculate
-  # selLen so we can get selAge
-  for( s in 1:nS )
-    for(p in 1:nP )
-    {
-      selLen_lsp[,s,p] <- (1 + exp(-(1:nL - xSel50_sp[s,p])/xSelStep_sp[s,p]/log(19)))^(-1)
-      for( a in 1:nA )
-      {
-        selAge_asp[a,s,p] <- sum(probLenAge_lasp[,a,s,p] * selLen_lsp[,s,p])
-      }
-      selAge_asp[,s,p] <- selAge_asp[,s,p] / max(selAge_asp[,s,p])
-    }
 
   # Compute Z_asp
   Z_asp <- array( NA, dim = c(nA,nS,nP))

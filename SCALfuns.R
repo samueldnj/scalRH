@@ -108,6 +108,12 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   if(!is.null(reports$repRE))
     reports$repRE <- renameReportArrays( reports$repRE, reports$data )
 
+  if(!is.null(reports$repOpt))
+    reports$repOpt <- renameReportArrays( reports$repOpt, reports$data )
+
+  if(is.null(reports$refPoints))
+    reports$repOpt <- calcRefPts(reports$repOpt)
+
   # rerun savePlots
   savePlots(  fitObj = reports,
               useRep = reports$plotRep,
@@ -787,12 +793,12 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
     plotRep <- "opt"
 
   # Calculate refPts for repOpt
-  refPoints <- calcRefPts( phaseList$phaseReports[[maxSuccPhz]]$report )
+  repOpt <- calcRefPts( phaseList$phaseReports[[maxSuccPhz]]$report )
   
 
   # Update names on report objects
   outList <- list(  repInit = renameReportArrays(phaseList$repInit,data),
-                    repOpt = renameReportArrays(phaseList$phaseReports[[maxSuccPhz]]$report,data),
+                    repOpt = renameReportArrays(repOpt,data),
                     sdrepOpt = phaseList$sdrep,
                     refPoints = refPoints,
                     fYear = fYear, 
@@ -1232,6 +1238,12 @@ savePlots <- function(  fitObj = reports,
               fYear = fYear, lYear = lYear,
               sIdx = 1:nS, pIdx = 1:nP,
               fIdx = 1:nF )
+  dev.off()
+
+  png(  file.path(saveDir,"plotYieldCurves.png"),
+        width = 11, height = 8.5, units = "in", res = 300 )
+  plotYeqF( repObj = report,
+            sIdx = 1:nS, pIdx = 1:nP )
   dev.off()
 
   for( fIdx in 1:nF )
