@@ -48,6 +48,7 @@ source("SCALfuns.R")
 source("mseRtools.r")
 source("batchTools.R")
 source("plots.R")
+source("refPts.R")
 # Survey ids for plotting/legends/array dims
 loadStockSpecNameLists()
 

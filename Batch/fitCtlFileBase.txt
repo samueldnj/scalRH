@@ -91,13 +91,13 @@ phases$deltaVonK_sp 8
 phases$sigmaLa_s 7
 phases$sigmaLb_s -1
 phases$lnq_spf 1
-phases$epslnq_vec 9
+phases$epslnq_vec 8
 phases$lnxSel50_sf 5
 phases$lnxSelStep_sf 6
-phases$epsxSel50_spf 7
-phases$epsxSelStep_spf 7
-phases$epsxSel50_vec 9
-phases$epsxSelStep_vec 9
+phases$epsxSel50_spf 9
+phases$epsxSelStep_spf 9
+phases$epsxSel50_vec 10
+phases$epsxSelStep_vec 10
 phases$omegaR_vec 4
 phases$omegaRinit_vec 2
 phases$lnF_spft 1
@@ -105,9 +105,9 @@ phases$muxSel50_sg -1
 phases$muxSel95_sg -1
 phases$sigmaxSel50_sg -1
 phases$sigmaxSel95_sg -1
-phases$lnqbarSyn_s 2
+phases$lnqbarSyn_s -1
 phases$lntauqSyn_s -1
-phases$lnqbarSyn 2
+phases$lnqbarSyn -1
 phases$lntauqSyn -1
 phases$epsSteep_s 3
 phases$epsM_s 3
@@ -119,4 +119,4 @@ phases$lnsigmah -1
 phases$lnsigmaM_s -1
 phases$ln_muM -1
 phases$lnsigmaM -1
-# <END>
+# END

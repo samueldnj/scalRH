@@ -72,8 +72,12 @@ doBatchRun <- function( arg )
 # Side Effects: A simulation folder containing *.info and *.Rdata file (blob) and
 #               for each row of the design dataframe, i.e., for each simulation.
 # Source:       A.R. Kronlund
-.runBatchJob <- function( batchDesign=NULL, par=FALSE,prefix=NULL, initPar = 1,
-                          subset = NULL )
+.runBatchJob <- function( batchDesign=NULL, 
+                          par=FALSE, 
+                          prefix=NULL, 
+                          initPar = 1,
+                          subset = NULL, 
+                          nCores = detectCores()-1 )
 {
   # Runs simulations from the design data.frame specified in batchDesign object.
   # 1. Does the mseR input parameter file exist? If YES then read the file.
@@ -133,7 +137,7 @@ doBatchRun <- function( arg )
     nJobs <- length(parBatchArgList)
 
     # Now set # of cores and make a cluster
-    nCores  <- min(length(parBatchArgList),detectCores()-1)
+    nCores  <- min(length(parBatchArgList),nCores)
     cl      <- makeCluster(nCores, outFile = "./parBatchMsg.txt")
     # Run parallel batch
     cat ("Fitting ", nJobs, " scenario/hypothesis combinations in parallel on ",

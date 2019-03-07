@@ -785,12 +785,16 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   maxSuccPhz <- phaseList$maxPhaseComplete
   if( maxSuccPhz > 0)
     plotRep <- "opt"
+
+  # Calculate refPts for repOpt
+  refPoints <- calcRefPts( phaseList$phaseReports[[maxSuccPhz]]$report )
   
 
   # Update names on report objects
   outList <- list(  repInit = renameReportArrays(phaseList$repInit,data),
                     repOpt = renameReportArrays(phaseList$phaseReports[[maxSuccPhz]]$report,data),
                     sdrepOpt = phaseList$sdrep,
+                    refPoints = refPoints,
                     fYear = fYear, 
                     lYear = lYear,
                     gearLabs = useFleets,
