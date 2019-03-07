@@ -8,6 +8,7 @@ ctrl$maxIterations 100000
 ctrl$quiet FALSE
 ctrl$maxPhase 7
 ctrl$calcSD FALSE
+ctrl$plots TRUE
 data$commNames_g c("comm.hist","comm.mod")
 #data$survNames_g c("HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
 data$survNames_g c("HSAss","HSSyn","QCSSyn","WCVISyn")
@@ -25,7 +26,9 @@ data$lYearIdx 2016
 data$idxFleets c("comm.hist","comm.mod","HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
 #data$species c("Dover","English","Rock","Petrale","Arrowtooth")
 data$species c("Dover","Petrale")
+#data$species "Dover"
 data$stocks c("HSHG","QCS","WCVI")
+#data$stocks "HSHG"
 data$idxFiles c("surveyBio.RData","commCPUE.RData")
 data$catchData c(survey="surveyCatch.RData",comm="catch_by_maj.csv")
 data$modelDisc FALSE
@@ -79,7 +82,7 @@ hypo$sigmaL .1
 hypo$tau2ObsIGa rep(.1,7)
 hypo$tau2ObsPriorMode c(.1,.1,.1,.04,.04,.04,.04)
 hypo$hPriorMean 0.78
-hypo$hPriorSD 0.05
+hypo$hPriorSD 0.01
 hypo$fleetGroups list(comm=c("comm.hist","comm.mod"),Ass=c("HSAss"),Syn=c("WCHGSyn","QCSSyn","WCVISyn","HSSyn"))
 hypo$RE NULL
 phases$lnB0_sp 2

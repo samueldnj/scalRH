@@ -863,7 +863,7 @@ TMBphase <- function( data,
   for( phase_cur in 1:maxPhase ) 
   {
     # Start timing
-    tBegin <- proc.time()
+    tBegin <- proc.time()[3]
 
     # work out the map for this phase
     # if the phase for a parameter is greater than the current phase 
@@ -969,7 +969,8 @@ TMBphase <- function( data,
       fitReport[phase_cur,]$convCode    <- opt$convergence
       fitReport[phase_cur,]$convMsg     <- opt$message
     }
-    fitReport[phase_cur,]$time           <- (proc.time() - tBegin)/60
+    browser()
+    fitReport[phase_cur,]$time           <- (proc.time()[3] - tBegin)/60
 
 
 
@@ -983,7 +984,7 @@ TMBphase <- function( data,
   # Fit the model
   if( !is.null(random) &  class(opt) != "try-error" )
   { 
-    tBegin      <- proc.time()
+    tBegin      <- proc.time()[3]
     params_use  <- obj$env$parList( opt$par )
 
     obj <- TMB::MakeADFun(  data = data,
@@ -1010,7 +1011,7 @@ TMBphase <- function( data,
       fitReport[maxPhase + 1,]$convMsg     <- opt$message
     }
 
-    fitReport[maxPhase + 1,]$time          <- (proc.time() - tBegin)/60
+    fitReport[maxPhase + 1,]$time          <- (proc.time()[3] - tBegin)/60
 
   }
   
