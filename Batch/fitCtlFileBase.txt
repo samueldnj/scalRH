@@ -8,6 +8,7 @@ ctrl$maxIterations 10000
 ctrl$quiet TRUE
 ctrl$maxPhase 9
 ctrl$calcSD FALSE
+ctrl$plots FALSE
 data$commNames_g c("comm.hist","comm.mod")
 data$survNames_g c("HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
 data$nA_s c(Dover=35,English=15,Rock=20,Petrale=20,Arrowtooth=20)
