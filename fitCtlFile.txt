@@ -6,11 +6,11 @@ ctrl$modelHypName 'noJointPriors'
 ctrl$maxFunEval 100000
 ctrl$maxIterations 100000
 ctrl$quiet FALSE
-ctrl$maxPhase 1
+ctrl$maxPhase 6
 ctrl$calcSD FALSE
 ctrl$plots TRUE
 ctrl$parBen FALSE
-ctrl$intMethod "MCMC"
+ctrl$intMethod "RE"
 data$commNames_g c("comm.hist","comm.mod")
 #data$survNames_g c("HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
 data$survNames_g c("HSAss","HSSyn","QCSSyn","WCVISyn")
@@ -82,7 +82,7 @@ hypo$tau2ObsPriorMode c(.1,.1,.1,.04,.04,.04,.04)
 hypo$hPriorMean 0.78
 hypo$hPriorSD 0.01
 hypo$fleetGroups list(comm=c("comm.hist","comm.mod"),Ass=c("HSAss"),Syn=c("WCHGSyn","QCSSyn","WCVISyn","HSSyn"))
-hypo$RE c("omegaR_vec")
+hypo$RE c("omegaR_vec","lnF_spft")
 phases$lnB0_sp 2
 phases$logitSteep 3
 phases$lnM 3

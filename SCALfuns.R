@@ -1027,14 +1027,15 @@ TMBphase <- function( data,
     tol10 <- 0.01
     
     TMB::newtonOption(obj, tol10 = tol10)
-
-    browser()
     
     if( parBen )
     {
       randEffBenchmark <- benchmark( obj, cores = 1:detectCores() )
 
     }
+
+    browser()
+
 
     # Try the optimisation
     opt <- try( nlminb (  start     = obj$par,
@@ -1072,7 +1073,6 @@ TMBphase <- function( data,
                             silent = silent )  
     mcmc <- tmbstan( obj, init = "last.par.best" )
 
-    browser()
   }
   
   if(outList$success & calcSD )

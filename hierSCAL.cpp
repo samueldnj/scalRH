@@ -478,8 +478,7 @@ Type objective_function<Type>::operator() ()
   for( int a = 0; a < nA; a++)
     age(a) = a+1;
 
-  // parallel_accumulator<Type> f(this);
-  Type f = 0;
+  parallel_accumulator<Type> objFun(this);
   Type joint_nlp = 0.0;
 
 
@@ -633,7 +632,7 @@ Type objective_function<Type>::operator() ()
           // Estimate F?
           if( C_spft(s,p,f,t) > 0)
           {
-            F_spft(s,p,f,t) = 4 / (1 + exp( - lnF_spft(vecIdx) ) );
+            F_spft(s,p,f,t) = 3 / (1 + exp( - lnF_spft(vecIdx) ) );
             vecIdx++;
             
             Fbar_spf(s,p,f) += F_spft(s,p,f,t);
@@ -1055,11 +1054,11 @@ Type objective_function<Type>::operator() ()
     {
       // First initialisation deviations  
       vector<Type> initRecDevVec = omegaRinit_asp.col(p).col(s);
-      recnll_sp(s,p) -= dnorm( initRecDevVec,Type(0), sigmaR_sp(s,p),true).sum();
+      objFun -= dnorm( initRecDevVec,Type(0), sigmaR_sp(s,p),true).sum();
 
        // then yearly recruitment deviations
       for( int t = 0; t < nT; t++)
-        recnll_sp(s,p) -= dnorm( omegaR_spt(s,p,t), Type(0.), sigmaR_sp(s,p),true);
+        objFun -= dnorm( omegaR_spt(s,p,t), Type(0.), sigmaR_sp(s,p),true);
         
     }
 
@@ -1127,6 +1126,7 @@ Type objective_function<Type>::operator() ()
           tau2AgeAtLenObs_spf(s,p,f) += etaSumSqAgeAtLen_spf(s,p,f) / nResidsAgeAtLen_spf(s,p,f);
           vonBnll_spf(s,p,f) += 0.5 * (nResidsAgeAtLen_spf(s,p,f) - nObsAgeAtLen_spf(s,p,f));
           vonBnll_spf(s,p,f) *= log(tau2AgeAtLenObs_spf(s,p,f));
+          objFun += vonBnll_spf(s,p,f);
         }
       }
   }
@@ -1274,13 +1274,13 @@ Type objective_function<Type>::operator() ()
         }
         if( nResidsAge_spf(s,p,f) > 0)
         {
-          tau2Age_spf(s,p,f)      += etaSumSqAge_spf(s,p,f) / nResidsAge_spf(s,p,f);
-          ageCompsnll_spf(s,p,f)  += 0.5 * (nResidsAge_spf(s,p,f) - nObsAge_spf(s,p,f)) * log(tau2Age_spf(s,p,f));
+          tau2Age_spf(s,p,f)    += etaSumSqAge_spf(s,p,f) / nResidsAge_spf(s,p,f);
+          objFun                += 0.5 * (nResidsAge_spf(s,p,f) - nObsAge_spf(s,p,f)) * log(tau2Age_spf(s,p,f));
         }
         if( nResidsLen_spf(s,p,f) > 0)
         {
-          tau2Len_spf(s,p,f)      += etaSumSqLen_spf(s,p,f) / nResidsLen_spf(s,p,f);
-          lenCompsnll_spf(s,p,f)  += 0.5 * (nResidsLen_spf(s,p,f) - nObsLen_spf(s,p,f))  * log(tau2Len_spf(s,p,f));
+          tau2Len_spf(s,p,f)    += etaSumSqLen_spf(s,p,f) / nResidsLen_spf(s,p,f);
+          objFun                += 0.5 * (nResidsLen_spf(s,p,f) - nObsLen_spf(s,p,f))  * log(tau2Len_spf(s,p,f));
         }
         // Set tmp vectors to zero 
         fleetAgeObs.setZero();
@@ -1292,7 +1292,7 @@ Type objective_function<Type>::operator() ()
         if( validIdxObs_spf(s,p,f) > 0 &  ssrIdx_spf(s,p,f) > 0 )
         {
           tau2Idx_spf(s,p,f) = ssrIdx_spf(s,p,f) / validIdxObs_spf(s,p,f);
-          CPUEnll_spf(s,p,f) += 0.5 * validIdxObs_spf(s,p,f) * log( tau2Idx_spf(s,p,f) );
+          objFun            += 0.5 * validIdxObs_spf(s,p,f) * log( tau2Idx_spf(s,p,f) );
         }
 
       }
@@ -1330,20 +1330,20 @@ Type objective_function<Type>::operator() ()
         // Synoptic survey
         if( group_f(f) == 2)
           if( calcIndex_spf(s,p,f) > 0)
-            qnlpSyn_s(s) -= dnorm( log(q_spf(s,p,f)), lnqbarSyn_s(s), tauqSyn_s(s), true);
+            objFun -= dnorm( log(q_spf(s,p,f)), lnqbarSyn_s(s), tauqSyn_s(s), true);
     
         // HS Assemblage survey
         if( group_f(f) == 1)
           if( calcIndex_spf(s,p,f) > 0)
-            qnlpSurv -= dnorm( log(q_spf(s,p,f)), log(mqSurveys), sdqSurveys,true );
+            objFun -= dnorm( log(q_spf(s,p,f)), log(mqSurveys), sdqSurveys,true );
         
         // Observation error SD
         if( calcIndex_spf(s,p,f) > 0 & tau2Idx_spf(s,p,f) > 0)
-          tauObsnlp_f(f) += (IGatau_f(f)+Type(1))*log(tau2Idx_spf(s,p,f))+IGbtau_f(f)/tau2Idx_spf(s,p,f);
+          objFun += (IGatau_f(f)+Type(1))*log(tau2Idx_spf(s,p,f))+IGbtau_f(f)/tau2Idx_spf(s,p,f);
 
         // F regularisation 
         if(regFfleets(f) == 1 & Fbar_spf(s,p,f) > 0 )
-          Fnlp -= dnorm( Fbar_spf(s,p,f), mF, sdF, true);
+          objFun -= dnorm( Fbar_spf(s,p,f), mF, sdF, true);
 
         
       }
@@ -1352,18 +1352,18 @@ Type objective_function<Type>::operator() ()
   // if there are more than 1 species
   if(nS > 1)
   {
-    qnlpSyn -= dnorm( lnqbarSyn_s, lnqbarSyn, tauqSyn, true ).sum();
+    objFun -= dnorm( lnqbarSyn_s, lnqbarSyn, tauqSyn, true ).sum();
     // Synoptic complex qs have a prior
-    qnlpSurv -= dnorm( lnqbarSyn, log(mqSurveys), sdqSurveys, true);
+    objFun -= dnorm( lnqbarSyn, log(mqSurveys), sdqSurveys, true);
   }
   // Synoptic species qs are penalised against
   // the overal q prior if there is only 1 species
   if(nS == 1)
-    qnlpSyn -= dnorm( lnqbarSyn_s, log(mqSurveys), sdqSurveys, true ).sum();
+    objFun -= dnorm( lnqbarSyn_s, log(mqSurveys), sdqSurveys, true ).sum();
   
   // time-varying catchability
   Type qnlp_tv = 0;
-  qnlp_tv -= dnorm( epslnq_vec, 0, sigmalnq, true).sum();
+  objFun -= dnorm( epslnq_vec, 0, sigmalnq, true).sum();
 
 
   // Steepness
@@ -1415,8 +1415,8 @@ Type objective_function<Type>::operator() ()
 
     // Within stock growth par deviation priors - essentially
     // a regularisation to stop the unobserved stocks from overfitting  
-    vonKnlp_p(p)          -= dnorm( vonKVec, deltaVonKbar_p(p), sigmavonK, true).sum();
-    L2nlp_p(p)            -= dnorm( L2Vec, deltaL2bar_p(p), sigmaL2, true).sum();
+    objFun          -= dnorm( vonKVec, deltaVonKbar_p(p), sigmavonK, true).sum();
+    objFun          -= dnorm( L2Vec, deltaL2bar_p(p), sigmaL2, true).sum();
 
   }
 
@@ -1437,47 +1437,47 @@ Type objective_function<Type>::operator() ()
   { 
     vector<Type> vonKVec  = deltaVonK_sp.transpose().col(s);
     vector<Type> L2Vec    = deltaL2_sp.transpose().col(s);
-    vonKnlp_s(s)                        -= dnorm( vonKVec, Type(0), sigmavonK_s(s), true).sum();
-    L2nlp_s(s)                          -= dnorm( L2Vec, Type(0), sigmaL2_s(s), true).sum();
+    objFun               -= dnorm( vonKVec, Type(0), sigmavonK_s(s), true).sum();
+    objFun               -= dnorm( L2Vec, Type(0), sigmaL2_s(s), true).sum();
 
     for( int p = 0; p < nP; p ++)
     {
-      steepnessnlp_sp(s,p)  -= dnorm( epsSteep_sp(s,p), Type(0), sigmah_s(s), true);
-      Mnlp_sp(s,p)          -= dnorm( epsM_sp(s,p), Type(0), sigmaM_s(s), true);
+      objFun  -= dnorm( epsSteep_sp(s,p), Type(0), sigmah_s(s), true);
+      objFun  -= dnorm( epsM_sp(s,p), Type(0), sigmaM_s(s), true);
     }
 
   }
   
   // add species level h prior
-  steepnessnlp_s  -= dnorm( epsSteep_s, 0, sigmah, true );
-  Mnlp_s          -= dnorm( epsM_s, 0, sigmaM, true );
+  objFun  -= dnorm( epsSteep_s, 0, sigmah, true ).sum();
+  objFun  -= dnorm( epsM_s, 0, sigmaM, true ).sum();
   
   // Now prior on complex mean M
   // Currently have sigmaM/sigmah doing double duty, replace
   // with another hyperparameter - we might want to estimate
   // the complex variance later
-  Mnlp            -= dnorm( lnM, log(muM), sigmaM, true);
-  steepnessnlp    -= dnorm( logitSteep, logit_muSteep, sigmah, true);
+  objFun  -= dnorm( lnM, log(muM), sigmaM, true);
+  objFun  -= dnorm( logitSteep, logit_muSteep, sigmah, true);
     
   // And penalties stock mean growth model
   // deviations
-  L2nlp           -= dnorm( deltaL2bar_p, Type(0.), sigmaL2, true).sum();
-  vonKnlp         -= dnorm( deltaVonKbar_p, Type(0.), sigmavonK, true).sum();
+  objFun  -= dnorm( deltaL2bar_p, Type(0.), sigmaL2, true).sum();
+  objFun  -= dnorm( deltaVonKbar_p, Type(0.), sigmavonK, true).sum();
 
   // Add time-varying selectivity deviations
-  sel_nlp -= dnorm( epsxSel50_vec, Type(0), sigmaSel, true).sum();
-  sel_nlp -= dnorm( epsxSelStep_vec, Type(0), sigmaSel, true).sum();
+  objFun -= dnorm( epsxSel50_vec, Type(0), sigmaSel, true).sum();
+  objFun -= dnorm( epsxSelStep_vec, Type(0), sigmaSel, true).sum();
   // Prior on xSel95_sf
   for(int s = 0; s < nS; s++)
     for( int f = 0; f < nF; f++)
     {
-      sel_nlp -= dnorm( lnxSel50_sf(s,f), pmlnxSel50_sf(s,f), cvxSel, true);
-      sel_nlp -= dnorm( lnxSelStep_sf(s,f), pmlnxSelStep_sf(s,f), cvxSel, true);
+      objFun -= dnorm( lnxSel50_sf(s,f), pmlnxSel50_sf(s,f), cvxSel, true);
+      objFun -= dnorm( lnxSelStep_sf(s,f), pmlnxSelStep_sf(s,f), cvxSel, true);
 
       for( int p = 0; p < nP; p++)
       {
-        sel_nlp -= dnorm( epsxSel50_spf(s,p,f), Type(0), cvxSel, true);
-        sel_nlp -= dnorm( epsxSelStep_spf(s,p,f), Type(0), cvxSel, true);  
+        objFun -= dnorm( epsxSel50_spf(s,p,f), Type(0), cvxSel, true);
+        objFun -= dnorm( epsxSelStep_spf(s,p,f), Type(0), cvxSel, true);  
       }
       
     }
@@ -1491,43 +1491,43 @@ Type objective_function<Type>::operator() ()
   L1nlp_s.setZero();
 
   // Compute
-  L1nlp_s   -= dnorm( lnL1_s, pmlnL1_s, cvL1, true);
-  L2nlp_s   -= dnorm( log(L2_s), pmlnL2_s, cvL2, true);
-  vonKnlp_s -= dnorm( lnvonK_s, pmlnVonK, cvVonK, true);
+  objFun   -= dnorm( lnL1_s, pmlnL1_s, cvL1, true).sum();
+  objFun   -= dnorm( log(L2_s), pmlnL2_s, cvL2, true).sum();
+  objFun   -= dnorm( lnvonK_s, pmlnVonK, cvVonK, true).sum();
 
 
   array<Type> B0nlp_sp(nS,nP);
   B0nlp_sp.setZero();
   for( int p = 0; p < nP; p++)
-    B0nlp_sp.col(p) += lambdaB0 * B_spt.col(0).col(p);
+    objFun += lambdaB0 * B_spt.col(0).col(p).sum();
   
 
   
   // Observations
-  f += Ctnll_sp.sum();       // Catch
-  f += ageLikeWt * lenCompsnll_spf.sum(); // Length compositions
-  f += lenLikeWt * ageCompsnll_spf.sum(); // Age compositions
-  f += idxLikeWt * CPUEnll_spf.sum();     // Survey CPUE
-  f += sel_nlp;
-  f += tauObsnlp_f.sum();
-  f += Fnlp;
-  // Growth model
-  f += growthLikeWt * vonBnll_spf.sum();     // Growth model
-  f += growthLikeWt * (L1nlp_s.sum() + L2nlp_s.sum() + vonKnlp_s.sum());
-  f += growthLikeWt * ( L2nlp_p.sum() + vonKnlp_p.sum());
-  f += growthLikeWt * ( L2nlp + vonKnlp );
-  // Recruitment errors
-  f += recnll_sp.sum();      // recruitment process errors
-  // q groups
-  f += qnlpSurv + qnlpSyn_s.sum() + qnlpSyn + qnlp_tv;
+  objFun += Ctnll_sp.sum();       // Catch
+  // f += ageLikeWt * lenCompsnll_spf.sum(); // Length compositions
+  // f += lenLikeWt * ageCompsnll_spf.sum(); // Age compositions
+  // f += idxLikeWt * CPUEnll_spf.sum();     // Survey CPUE
+  // f += sel_nlp;
+  // f += tauObsnlp_f.sum();
+  // f += Fnlp;
+  // // Growth model
+  // f += growthLikeWt * vonBnll_spf.sum();     // Growth model
+  // f += growthLikeWt * (L1nlp_s.sum() + L2nlp_s.sum() + vonKnlp_s.sum());
+  // f += growthLikeWt * ( L2nlp_p.sum() + vonKnlp_p.sum());
+  // f += growthLikeWt * ( L2nlp + vonKnlp );
+  // // Recruitment errors
+  // f += recnll_sp.sum();      // recruitment process errors
+  // // q groups
+  // f += qnlpSurv + qnlpSyn_s.sum() + qnlpSyn + qnlp_tv;
   
-  // Biological parameters
-  f += steepnessnlp_s.sum() + steepnessnlp_sp.sum() + steepnessnlp;
-  f += Mnlp_s.sum() + Mnlp_sp.sum() + Mnlp;
-  f += B0nlp_sp.sum();
-  // joint_nlp += pop_nlp + spec_nlp;
+  // // Biological parameters
+  // f += steepnessnlp_s.sum() + steepnessnlp_sp.sum() + steepnessnlp;
+  // f += Mnlp_s.sum() + Mnlp_sp.sum() + Mnlp;
+  // f += B0nlp_sp.sum();
+  // // joint_nlp += pop_nlp + spec_nlp;
 
-  joint_nlp += f;
+  joint_nlp += objFun;
 
   
   // // Return quantities
@@ -1758,7 +1758,7 @@ Type objective_function<Type>::operator() ()
   // ADREPORT(lnF_spft)         // Fishing mortality
 
 
-  return( f );
+  return( objFun );
 
 }
 
