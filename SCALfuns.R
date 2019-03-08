@@ -785,7 +785,8 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                           silent = ctrlObj$quiet,
                           maxEval = ctrlObj$maxFunEval,
                           maxIter = ctrlObj$maxIterations,
-                          calcSD = ctrlObj$calcSD ) 
+                          calcSD = ctrlObj$calcSD,
+                          parBen = ctrlObj$parBen ) 
 
 
   maxSuccPhz <- phaseList$maxPhaseComplete
@@ -839,7 +840,8 @@ TMBphase <- function( data,
                       calcSD = FALSE,
                       maxEval = 1000,
                       maxIter = 1000,
-                      regFMaxPhase = 3 ) 
+                      regFMaxPhase = 3,
+                      parBen = FALSE ) 
 {
   # function to fill list component with a factor
   # of NAs
@@ -923,7 +925,13 @@ TMBphase <- function( data,
                             random = NULL,
                             DLL= DLL_use,
                             map= map_use,
-                            silent = silent )  
+                            silent = silent )
+
+    # Run benchmark for parallel accumulation
+    if(parBen &  phase_cur == 1)
+    {
+      phase1Benchmark <- benchmark(obj, cores = 1:detectCores())
+    }  
 
     # Create a control list for the assessment model
     tmbCtrl <- list(  eval.max = maxEval, 
@@ -1012,7 +1020,12 @@ TMBphase <- function( data,
                             DLL= DLL_use,
                             map= map_use,
                             silent = silent )  
-    TMB::newtonOption(obj,trace = 10, tol10 = 0.0001 )
+    
+    if( parBen )
+    {
+      randEffBenchmark <- benchmark( obj, cores = 1:detectCores() )
+
+    }
 
     # Try the optimisation
     opt <- try( nlminb (  start     = obj$par,
@@ -1037,12 +1050,14 @@ TMBphase <- function( data,
   if(outList$success & calcSD )
     outList$sdrep <- TMB::sdreport(obj)
 
-  outList$phaseReports  <- phaseReports
-  outList$repOpt        <- obj$report()
-  outList$objfun        <- obj$fn()
-  outList$maxGrad       <- max(obj$gr())
-  outList$fitReport     <- fitReport
-  outList$totTime       <- sum(fitReport$time)
+  outList$phaseReports      <- phaseReports
+  outList$repOpt            <- obj$report()
+  outList$objfun            <- obj$fn()
+  outList$maxGrad           <- max(obj$gr())
+  outList$fitReport         <- fitReport
+  outList$totTime           <- sum(fitReport$time)
+  outList$phase1Benchmark   <- phase1Benchmark
+  outList$randEffBenchmark  <- randEffBenchmark
   
   return( outList )  
 

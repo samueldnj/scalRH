@@ -9,6 +9,7 @@ ctrl$quiet FALSE
 ctrl$maxPhase 12
 ctrl$calcSD FALSE
 ctrl$plots TRUE
+ctrl$parBen TRUE
 data$commNames_g c("comm.hist","comm.mod")
 #data$survNames_g c("HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
 data$survNames_g c("HSAss","HSSyn","QCSSyn","WCVISyn")
