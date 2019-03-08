@@ -478,17 +478,17 @@ Type objective_function<Type>::operator() ()
   for( int a = 0; a < nA; a++)
     age(a) = a+1;
 
-  parallel_accumulator<Type> f(this);
-  // Type f = 0;
+  // parallel_accumulator<Type> f(this);
+  Type f = 0;
   Type joint_nlp = 0.0;
 
 
 
   // Prior Hyperparameters //
   // Steepness
-  vector<Type>  h_s           = .2 + Type(0.8) / ( Type(1.0) + exp( -1 * (logitSteep + epsSteep_s ) ) );
+  vector<Type>  h_s           = .2 + Type(0.78) / ( Type(1.0) + exp( -1 * (logitSteep + epsSteep_s ) ) );
   vector<Type>  sigmah_s      = exp(lnsigmah_s);
-  Type          mh            = .2 + Type(0.8) / ( Type(1.0) + exp( -1 * logit_muSteep) );
+  Type          mh            = .2 + Type(0.78) / ( Type(1.0) + exp( -1 * logit_muSteep) );
   Type          sigmah        = exp(lnsigmah);
 
   // Natural mortality
@@ -633,7 +633,7 @@ Type objective_function<Type>::operator() ()
           // Estimate F?
           if( C_spft(s,p,f,t) > 0)
           {
-            F_spft(s,p,f,t) = exp( lnF_spft(vecIdx) );
+            F_spft(s,p,f,t) = 4 / (1 + exp( - lnF_spft(vecIdx) ) );
             vecIdx++;
             
             Fbar_spf(s,p,f) += F_spft(s,p,f,t);
@@ -662,15 +662,15 @@ Type objective_function<Type>::operator() ()
   for( int s = 0; s < nS; s++ )
     for( int p = 0; p < nP; p++ )
     {
-      for( int t = tFirstRecDev_s(s); t < tLastRecDev_s(s); t++ )
+      for( int t = tFirstRecDev_s(s); t <= tLastRecDev_s(s); t++ )
       {
-        omegaR_spt(s,p,t) = omegaR_vec(devVecIdx);
+        omegaR_spt(s,p,t) = -5. + 10. / (1. + exp(-omegaR_vec(devVecIdx)));
         devVecIdx++;
       }
       if(swRinit_s(s) == 1)
         for( int a = 0; a < A_s(s); a++ )
         {
-          omegaRinit_asp(a,s,p) = omegaRinit_vec(initVecIdx);
+          omegaRinit_asp(a,s,p) = -5. + 10./( 1 + exp(-omegaRinit_vec(initVecIdx) ));
           initVecIdx++;
         }
     }
@@ -1058,11 +1058,8 @@ Type objective_function<Type>::operator() ()
       recnll_sp(s,p) -= dnorm( initRecDevVec,Type(0), sigmaR_sp(s,p),true).sum();
 
        // then yearly recruitment deviations
-      vector<Type> recDevVec = omegaR_spt.transpose().col(s).col(p);
-      recnll_sp(s,p) -= dnorm( recDevVec, Type(0.), sigmaR_sp(s,p),true).sum();
-
-     
-     
+      for( int t = 0; t < nT; t++)
+        recnll_sp(s,p) -= dnorm( omegaR_spt(s,p,t), Type(0.), sigmaR_sp(s,p),true);
         
     }
 
@@ -1076,8 +1073,6 @@ Type objective_function<Type>::operator() ()
   array<Type> nResidsAgeAtLen_spf(nS,nP,nF);
   array<Type> etaSumSqAgeAtLen_spf(nS,nP,nF);
   array<Type> tau2AgeAtLenObs_spf(nS,nP,nF);
-  // containers for a given year/fleet/length/species/pop - function
-  // expects vector<Type>
   
 
   // Zero-init all arrays
@@ -1090,6 +1085,8 @@ Type objective_function<Type>::operator() ()
   // Now loop and compute
   for( int s = 0; s < nS; s++ )
   {
+    // containers for a given year/fleet/length/species/pop - function
+    // expects vector<Type>
     vector<Type> obs(A_s(s));
     vector<Type> pred(A_s(s));
     vector<Type> resids(A_s(s));
@@ -1438,15 +1435,16 @@ Type objective_function<Type>::operator() ()
 
   for( int s = 0; s < nS; s++ )
   { 
-    vector<Type> steepVec = epsSteep_sp.transpose().col(s);
-    vector<Type> mortVec  = epsM_sp.transpose().col(s);
     vector<Type> vonKVec  = deltaVonK_sp.transpose().col(s);
     vector<Type> L2Vec    = deltaL2_sp.transpose().col(s);
-    
-    steepnessnlp_sp.transpose().col(s)  -= dnorm( steepVec, Type(0), sigmah_s(s), true);
-    Mnlp_sp.transpose().col(s)          -= dnorm( mortVec, Type(0), sigmaM_s(s), true);
     vonKnlp_s(s)                        -= dnorm( vonKVec, Type(0), sigmavonK_s(s), true).sum();
     L2nlp_s(s)                          -= dnorm( L2Vec, Type(0), sigmaL2_s(s), true).sum();
+
+    for( int p = 0; p < nP; p ++)
+    {
+      steepnessnlp_sp(s,p)  -= dnorm( epsSteep_sp(s,p), Type(0), sigmah_s(s), true);
+      Mnlp_sp(s,p)          -= dnorm( epsM_sp(s,p), Type(0), sigmaM_s(s), true);
+    }
 
   }
   
@@ -1541,7 +1539,7 @@ Type objective_function<Type>::operator() ()
   REPORT( nL );
   REPORT( nA );
 
-  // Leading parameters
+  // Natural scale leading parameters
   REPORT( B0_sp );    
   REPORT( h_sp );     
   REPORT( M_sp );     
@@ -1551,8 +1549,9 @@ Type objective_function<Type>::operator() ()
   REPORT( sigmaLa_s );
   REPORT( sigmaLb_s );
   REPORT( sigmaR_sp );
-  REPORT( tauC_f );
-  REPORT( tauD_f );
+
+
+
   // Fishery/Survey model pars
   REPORT( q_spf );          // Catchability
   REPORT( q_spft );         // Time-varying catchability
@@ -1569,6 +1568,9 @@ Type objective_function<Type>::operator() ()
   REPORT( sel_lfspt );      // Selectivity at length
   REPORT( sel_afspt );      // Selectivity at age
   REPORT( Fbar_spf );       // Average fishing mortality
+  REPORT( tauC_f );
+  REPORT( tauD_f );
+
   // Model states
   REPORT( B_aspt );
   REPORT( N_aspt );
@@ -1584,6 +1586,7 @@ Type objective_function<Type>::operator() ()
   REPORT( Nv_aspft );
   REPORT( SB_spt );
   REPORT( B_spt );
+
   // Stock recruit parameters
   REPORT( Surv_asp );
   REPORT( SSBpr_asp );
@@ -1674,8 +1677,10 @@ Type objective_function<Type>::operator() ()
   REPORT( lenRes_lspft );
   REPORT( steepnessnlp_sp );
   REPORT( steepnessnlp_s );
+  REPORT( steepnessnlp );
   REPORT( Mnlp_sp );
   REPORT( Mnlp_s );
+  REPORT( Mnlp );
   REPORT( Ctnll_sp );
   REPORT( qnlpSurv );
   REPORT( qnlpSyn );

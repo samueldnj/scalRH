@@ -22,7 +22,8 @@ cranPackages <- c("coda",
                   "stringr",
                   "wesanderson",
                   "scales",
-                  "beepr" )
+                  "beepr",
+                  "tmbstan" )
 
 for( pkg in cranPackages )
   while(!require(pkg, character.only = TRUE) )

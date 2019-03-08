@@ -427,7 +427,8 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   # Non-eq initialisation deviations
   nInitDevs <- sum( nP * (nA_s[useSpecIdx] * initFished_s ) )
 
-  # Generate tFirstRecDev from yFirstRecDev and fYear
+  # Generate tFirstRecDev from yFirstRecDev and fYear - these are 
+  # created adjusting for TMB zero initialisation
   tFirstRecDev_s <- yFirstRecDev_s - fYear 
   tFirstRecDev_s[ tFirstRecDev_s < 1 ] <- 1
   # same for last rec deviation
@@ -786,7 +787,8 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                           maxEval = ctrlObj$maxFunEval,
                           maxIter = ctrlObj$maxIterations,
                           calcSD = ctrlObj$calcSD,
-                          parBen = ctrlObj$parBen ) 
+                          parBen = ctrlObj$parBen,
+                          intMethod = ctrlObj$intMethod ) 
 
 
   maxSuccPhz <- phaseList$maxPhaseComplete
@@ -830,7 +832,7 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
 # of loops in the model, speeding up fitting time.
 TMBphase <- function( data, 
                       parameters, 
-                      random, 
+                      random = NULL, 
                       phases, 
                       base_map = list(),
                       maxPhase = NULL,
@@ -841,7 +843,8 @@ TMBphase <- function( data,
                       maxEval = 1000,
                       maxIter = 1000,
                       regFMaxPhase = 3,
-                      parBen = FALSE ) 
+                      parBen = FALSE,
+                      intMethod = "RE" ) 
 {
   # function to fill list component with a factor
   # of NAs
@@ -1009,17 +1012,23 @@ TMBphase <- function( data,
   }
 
   # Fit the model
-  if( !is.null(random) &  class(opt) != "try-error" )
+  if( intMethod == "RE" & !is.null(random) &  class(opt) != "try-error" )
   { 
     tBegin      <- proc.time()[3]
     params_use  <- obj$env$parList( opt$par )
 
     obj <- TMB::MakeADFun(  data = data,
-                            parameters = parameters,
-                            random = random_use,
+                            parameters = params_use,
+                            random = c(random),
                             DLL= DLL_use,
                             map= map_use,
                             silent = silent )  
+
+    tol10 <- 0.01
+    
+    TMB::newtonOption(obj, tol10 = tol10)
+
+    browser()
     
     if( parBen )
     {
@@ -1033,6 +1042,8 @@ TMBphase <- function( data,
                           gradient  = obj$gr,
                           control   = tmbCtrl ) )
 
+
+
     # Update fitReports
     if(class(opt) != "try-error")
     {
@@ -1045,6 +1056,23 @@ TMBphase <- function( data,
 
     fitReport[maxPhase + 1,]$time          <- (proc.time()[3] - tBegin)/60
 
+  }
+
+  if( intMethod == "MCMC" )
+  {
+    tBegin      <- proc.time()[3]
+    params_use  <- obj$env$parList( opt$par )
+
+
+    obj <- TMB::MakeADFun(  data = data,
+                            parameters = params_use,
+                            random = NULL,
+                            DLL= DLL_use,
+                            map= map_use,
+                            silent = silent )  
+    mcmc <- tmbstan( obj, init = "last.par.best" )
+
+    browser()
   }
   
   if(outList$success & calcSD )
