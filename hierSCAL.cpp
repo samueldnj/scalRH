@@ -171,101 +171,6 @@ vector<Type> calcLogistNormLikelihood(  vector<Type>& yObs,
 } // end calcLogistNormLikelihood()
 
 
-// calcLogistNormLikelihood()
-// Calculates the logistic normal likelihood for compositional data.
-// Automatically accumulates proportions below a given threshold. Takes
-// cumulative sum of squared resids and number of classes for which
-// residuals are calculated as pointers, so that these can be accumulated
-// across years for conditional MLE of variance. 
-// Will extend to correlated residuals and time-varying variance later.
-// inputs:    yObs    = Type vector of observed compositions (samples or proportions)
-//            pPred   = Type vector of predicted parameters (true class proportions)
-//            minProp = minimum proportion threshold to accumulate classes above
-//            etaSumSq= cumulative sum of squared 0-mean resids
-//            nResids = cumulative sum of composition classes (post-accumulation)
-// outputs:   resids = vector of resids (accumulated to match bins >= minProp)
-// Usage:     For computing the likelihood of observed compositional data
-// Source:    S. D. N. Johnson
-// Reference: Schnute and Haigh, 2007; Francis, 2014
-template<class Type>
-vector<Type> calcLogistNormLikelihood2( vector<Type>& yObs, 
-                                        vector<Type>& pPred,
-                                        Type minProp,
-                                        Type& etaSumSq,
-                                        Type& nResids )
-
-{
-  // Get size of vector 
-  int nX = yObs.size();
-
-  // Normalise the observed samples in case they are numbers
-  // and not proportions
-  yObs /= yObs.sum();
-  pPred /= pPred.sum();
-
-  // Create vector of residuals to return
-  vector<Type> resids(nX);
-  vector<Type> aboveInd(nX);
-  resids.setZero();
-  aboveInd.setZero();
-
-  // Create accumulated obs and pred vectors
-  vector<Type> yObsAcc = yObs;
-  vector<Type> pPredAcc = pPred;
-
-  // Start a counter for number
-  // of observations above the threshold
-  int nAbove = 0;
-  int lastBin = nX-1;
-  // Start from the right, accumulate
-  for( int x = nX - 1; x < nX; x--)
-    if(yObsAcc(x) > minProp)
-    {
-      nAbove++;
-      aboveInd(x) = 1;
-      lastBin = x;
-      break;
-    } else {
-      yObsAcc(x-1) += yObsAcc(x);
-      pPredAcc(x-1) += pPredAcc(x);
-    }
-
-  // Now loop from 0 to lastBin
-  for( int x = 0; x < lastBin; x++ )
-    if( yObsAcc(x) > minProp )
-    {
-      nAbove++;
-      aboveInd(x) = 1;
-    } else {
-      yObsAcc(x + 1) += yObsAcc(x);
-      pPredAcc(x + 1) += pPredAcc(x);
-    }
-
-  // Now loop and fill
-  // Create a residual vector
-  vector<Type> res(nX);
-  res.setZero(); 
-  for( int x = 0; x < nX; x++)
-  {
-    if(yObsAcc(x) > 0 &  pPredAcc(x) > 0 )
-      res = log(yObsAcc(x)) - log(pPredAcc(x));
-  }
-  // Calculate mean residual
-  Type meanRes = 0.;
-  meanRes = res.sum()/nAbove;
-  // centre residuals
-  res -= meanRes;
-
-  
-  // Now add squared resids to etaSumSq and nRes to nResids
-  etaSumSq  += (res*res).sum();
-  nResids   += nAbove;
-
-  return(res);
-} // end calcLogistNormLikelihood()
-
-
-
 
 // objective function
 template<class Type>
@@ -279,9 +184,9 @@ Type objective_function<Type>::operator() ()
   DATA_ARRAY(I_spft);                   // CPUE data
   DATA_ARRAY(C_spft);                   // Catch data (biomass)
   DATA_ARRAY(D_spft);                   // Discard data (biomass)
-  DATA_ARRAY(ALK_spalft);               // Age-length observations (in freq) by pop, separated by fleet and year
-  DATA_ARRAY(age_aspft);                // Age observations for each population and fleet over time (-1 missing)
-  DATA_ARRAY(len_lspft);                // Length observations for each population and fleet over time (-1 missing)
+  DATA_ARRAY(ALK_spalftx);              // Age-length observations (in freq) by pop, separated by fleet and year
+  DATA_ARRAY(age_aspftx);               // Age observations for each population and fleet over time (-1 missing)
+  DATA_ARRAY(len_lspftx);               // Length observations for each population and fleet over time (-1 missing)
   DATA_IVECTOR(group_f);                // Fleet group (0=comm, 1=HSAss,2=Synoptic)
   DATA_IVECTOR(A_s);                    // +Group age by species
   DATA_IVECTOR(L_s);                    // +Group length by species
@@ -294,8 +199,9 @@ Type objective_function<Type>::operator() ()
   int nP = I_spft.dim(1);               // No. of stocks in each species
   int nF = I_spft.dim(2);               // No. of fleets (surveys + trawl)  
   int nT = I_spft.dim(3);               // No of time steps
-  int nL = len_lspft.dim(0);            // max no of length bins (for creating state arrays)
-  int nA = age_aspft.dim(0);            // max no of age bins (for creating state arrays)
+  int nL = len_lspftx.dim(0);           // max no of length bins (for creating state arrays)
+  int nA = age_aspftx.dim(0);           // max no of age bins (for creating state arrays)
+  int nX = age_aspftx.dim(5);           // number of sex classes (may also be used for growth classes later)
 
   // Model switches - fill these in when we know what we want
   DATA_IVECTOR(swRinit_s);              // species fished initialisation switch (0 == unfished, 1 == fished)
@@ -486,9 +392,9 @@ Type objective_function<Type>::operator() ()
 
   // Prior Hyperparameters //
   // Steepness
-  vector<Type>  h_s           = .2 + Type(0.78) / ( Type(1.0) + exp( -1 * (logitSteep + epsSteep_s ) ) );
+  vector<Type>  h_s           = .2 + Type(0.8) / ( Type(1.0) + exp( -1 * (logitSteep + epsSteep_s ) ) );
   vector<Type>  sigmah_s      = exp(lnsigmah_s);
-  Type          mh            = .2 + Type(0.78) / ( Type(1.0) + exp( -1 * logit_muSteep) );
+  Type          mh            = .2 + Type(0.8) / ( Type(1.0) + exp( -1 * logit_muSteep) );
   Type          sigmah        = exp(lnsigmah);
 
   // Natural mortality
@@ -633,7 +539,7 @@ Type objective_function<Type>::operator() ()
           // Estimate F?
           if( C_spft(s,p,f,t) > 0)
           {
-            F_spft(s,p,f,t) = 4 / (1 + exp( - lnF_spft(vecIdx) ) );
+            F_spft(s,p,f,t) = exp( lnF_spft(vecIdx) );
             vecIdx++;
             
             Fbar_spf(s,p,f) += F_spft(s,p,f,t);
@@ -662,15 +568,15 @@ Type objective_function<Type>::operator() ()
   for( int s = 0; s < nS; s++ )
     for( int p = 0; p < nP; p++ )
     {
-      for( int t = tFirstRecDev_s(s); t <= tLastRecDev_s(s); t++ )
+      for( int t = tFirstRecDev_s(s); t < tLastRecDev_s(s); t++ )
       {
-        omegaR_spt(s,p,t) = -5. + 10. / (1. + exp(-omegaR_vec(devVecIdx)));
+        omegaR_spt(s,p,t) = omegaR_vec(devVecIdx);
         devVecIdx++;
       }
       if(swRinit_s(s) == 1)
         for( int a = 0; a < A_s(s); a++ )
         {
-          omegaRinit_asp(a,s,p) = -5. + 10./( 1 + exp(-omegaRinit_vec(initVecIdx) ));
+          omegaRinit_asp(a,s,p) = omegaRinit_vec(initVecIdx);
           initVecIdx++;
         }
     }
@@ -1054,13 +960,12 @@ Type objective_function<Type>::operator() ()
     for( int p = 0; p < nP; p++ )
     {
       // First initialisation deviations  
-      vector<Type> initRecDevVec = omegaRinit_asp.col(p).col(s);
-      recnll_sp(s,p) -= dnorm( initRecDevVec,Type(0), sigmaR_sp(s,p),true).sum();
+      for( int a = 0; a < nA; a++)
+        recnll_sp(s,p) -= dnorm( omegaRinit_asp(a,s,p),Type(0), sigmaR_sp(s,p),true);
 
-       // then yearly recruitment deviations
-      for( int t = 0; t < nT; t++)
-        recnll_sp(s,p) -= dnorm( omegaR_spt(s,p,t), Type(0.), sigmaR_sp(s,p),true);
-        
+      // then yearly recruitment deviations
+      for( int t = tFirstRecDev_s(s); t <=  nT; t++ )
+        recnll_sp(s,p) -= dnorm( omegaR_spt(s,p,t-1), Type(0.), sigmaR_sp(s,p),true);
     }
 
   // vonB growth model likelihood //
@@ -1073,6 +978,8 @@ Type objective_function<Type>::operator() ()
   array<Type> nResidsAgeAtLen_spf(nS,nP,nF);
   array<Type> etaSumSqAgeAtLen_spf(nS,nP,nF);
   array<Type> tau2AgeAtLenObs_spf(nS,nP,nF);
+  // containers for a given year/fleet/length/species/pop - function
+  // expects vector<Type>
   
 
   // Zero-init all arrays
@@ -1085,8 +992,6 @@ Type objective_function<Type>::operator() ()
   // Now loop and compute
   for( int s = 0; s < nS; s++ )
   {
-    // containers for a given year/fleet/length/species/pop - function
-    // expects vector<Type>
     vector<Type> obs(A_s(s));
     vector<Type> pred(A_s(s));
     vector<Type> resids(A_s(s));
@@ -1435,16 +1340,15 @@ Type objective_function<Type>::operator() ()
 
   for( int s = 0; s < nS; s++ )
   { 
+    vector<Type> steepVec = epsSteep_sp.transpose().col(s);
+    vector<Type> mortVec  = epsM_sp.transpose().col(s);
     vector<Type> vonKVec  = deltaVonK_sp.transpose().col(s);
     vector<Type> L2Vec    = deltaL2_sp.transpose().col(s);
+    
+    steepnessnlp_sp.transpose().col(s)  -= dnorm( steepVec, Type(0.), sigmah_s(s), true);
+    Mnlp_sp.transpose().col(s)          -= dnorm( mortVec, Type(0.), sigmaM_s(s), true);
     vonKnlp_s(s)                        -= dnorm( vonKVec, Type(0), sigmavonK_s(s), true).sum();
     L2nlp_s(s)                          -= dnorm( L2Vec, Type(0), sigmaL2_s(s), true).sum();
-
-    for( int p = 0; p < nP; p ++)
-    {
-      steepnessnlp_sp(s,p)  -= dnorm( epsSteep_sp(s,p), Type(0), sigmah_s(s), true);
-      Mnlp_sp(s,p)          -= dnorm( epsM_sp(s,p), Type(0), sigmaM_s(s), true);
-    }
 
   }
   
@@ -1539,7 +1443,7 @@ Type objective_function<Type>::operator() ()
   REPORT( nL );
   REPORT( nA );
 
-  // Natural scale leading parameters
+  // Leading parameters
   REPORT( B0_sp );    
   REPORT( h_sp );     
   REPORT( M_sp );     
@@ -1549,9 +1453,8 @@ Type objective_function<Type>::operator() ()
   REPORT( sigmaLa_s );
   REPORT( sigmaLb_s );
   REPORT( sigmaR_sp );
-
-
-
+  REPORT( tauC_f );
+  REPORT( tauD_f );
   // Fishery/Survey model pars
   REPORT( q_spf );          // Catchability
   REPORT( q_spft );         // Time-varying catchability
@@ -1568,9 +1471,6 @@ Type objective_function<Type>::operator() ()
   REPORT( sel_lfspt );      // Selectivity at length
   REPORT( sel_afspt );      // Selectivity at age
   REPORT( Fbar_spf );       // Average fishing mortality
-  REPORT( tauC_f );
-  REPORT( tauD_f );
-
   // Model states
   REPORT( B_aspt );
   REPORT( N_aspt );
@@ -1586,7 +1486,6 @@ Type objective_function<Type>::operator() ()
   REPORT( Nv_aspft );
   REPORT( SB_spt );
   REPORT( B_spt );
-
   // Stock recruit parameters
   REPORT( Surv_asp );
   REPORT( SSBpr_asp );
@@ -1616,8 +1515,6 @@ Type objective_function<Type>::operator() ()
   REPORT( A2_s );
   REPORT( deltaVonK_sp );
   REPORT( deltaL2_sp );
-  REPORT( deltaVonKbar_p );
-  REPORT( deltaL2bar_p );
 
   // Species and complex level hyperparameters
   REPORT( h_s );
@@ -1677,10 +1574,6 @@ Type objective_function<Type>::operator() ()
   REPORT( lenRes_lspft );
   REPORT( steepnessnlp_sp );
   REPORT( steepnessnlp_s );
-  REPORT( steepnessnlp );
-  REPORT( Mnlp_sp );
-  REPORT( Mnlp_s );
-  REPORT( Mnlp );
   REPORT( Ctnll_sp );
   REPORT( qnlpSurv );
   REPORT( qnlpSyn );
