@@ -478,8 +478,8 @@ Type objective_function<Type>::operator() ()
   for( int a = 0; a < nA; a++)
     age(a) = a+1;
 
-  // parallel_accumulator<Type> f(this);
-  Type f = 0;
+  parallel_accumulator<Type> f(this);
+  // Type f = 0;
   Type joint_nlp = 0.0;
 
 
