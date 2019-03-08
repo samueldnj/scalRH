@@ -687,8 +687,8 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                 pmlnL1_s          = log(initL1_s),
                 cvL2              = .05,
                 cvL1              = .05,
-                pmlnVonK          = log(.2),
-                cvVonK            = .1,
+                pmlnVonK          = log(.3),
+                cvVonK            = .05,
                 mF                = hypoObj$mF,
                 sdF               = hypoObj$sdF  )
 
@@ -800,7 +800,6 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   outList <- list(  repInit = renameReportArrays(phaseList$repInit,data),
                     repOpt = renameReportArrays(repOpt,data),
                     sdrepOpt = phaseList$sdrep,
-                    refPoints = refPoints,
                     fYear = fYear, 
                     lYear = lYear,
                     gearLabs = useFleets,
@@ -921,11 +920,28 @@ TMBphase <- function( data,
     # Fit the model
     obj <- TMB::MakeADFun(  data = data,
                             parameters = params_use,
-                            random= random_use,
+                            random = NULL,
                             DLL= DLL_use,
                             map= map_use,
                             silent = silent )  
-    TMB::newtonOption(obj, trace = 10, tol10 = 0.0001)
+
+    # Create a control list for the assessment model
+    tmbCtrl <- list(  eval.max = maxEval, 
+                      iter.max = maxIter  )
+
+    # if( phase_cur < maxPhase )
+    # {
+    #   tol10 <- 1
+    #   gradTol <- 1
+    #   stepTol <- 0.01
+
+    #   tmbCtrl$reltol <- 1e-2 
+    # } else { 
+    #   tol10 <- 0.001
+    #   gradTol <- 0.001
+    #   stepTol <- 0.0001
+    #   tmbCtrl$reltol <- 1e-4
+    # }
 
     if( phase_cur == 1 )
     {
@@ -936,12 +952,6 @@ TMBphase <- function( data,
         browser(beep(expr=cat("NaN items in repInit\n")))
     }
 
-
-  
-    
-    # Create a control list for the assessment model
-    tmbCtrl <- list(  eval.max = maxEval, 
-                      iter.max = maxIter  )
     cat("\nStarting optimisation for phase ", phase_cur, "\n\n")
     # Try the optimisation
     opt <- try( nlminb (  start     = obj$par,

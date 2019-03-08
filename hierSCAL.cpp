@@ -478,8 +478,8 @@ Type objective_function<Type>::operator() ()
   for( int a = 0; a < nA; a++)
     age(a) = a+1;
 
-  // parallel_accumulator<Type> f(this);
-  Type f = 0;
+  parallel_accumulator<Type> f(this);
+  // Type f = 0;
   Type joint_nlp = 0.0;
 
 
@@ -1054,12 +1054,16 @@ Type objective_function<Type>::operator() ()
     for( int p = 0; p < nP; p++ )
     {
       // First initialisation deviations  
-      for( int a = 0; a < nA; a++)
-        recnll_sp(s,p) -= dnorm( omegaRinit_asp(a,s,p),Type(0), sigmaR_sp(s,p),true);
+      vector<Type> initRecDevVec = omegaRinit_asp.col(p).col(s);
+      recnll_sp(s,p) -= dnorm( initRecDevVec,Type(0), sigmaR_sp(s,p),true).sum();
 
-      // then yearly recruitment deviations
-      for( int t = tFirstRecDev_s(s); t <=  nT; t++ )
-        recnll_sp(s,p) -= dnorm( omegaR_spt(s,p,t-1), Type(0.), sigmaR_sp(s,p),true);
+       // then yearly recruitment deviations
+      vector<Type> recDevVec = omegaR_spt.transpose().col(s).col(p);
+      recnll_sp(s,p) -= dnorm( recDevVec, Type(0.), sigmaR_sp(s,p),true).sum();
+
+     
+     
+        
     }
 
   // vonB growth model likelihood //
@@ -1609,6 +1613,8 @@ Type objective_function<Type>::operator() ()
   REPORT( A2_s );
   REPORT( deltaVonK_sp );
   REPORT( deltaL2_sp );
+  REPORT( deltaVonKbar_p );
+  REPORT( deltaL2bar_p );
 
   // Species and complex level hyperparameters
   REPORT( h_s );
@@ -1668,6 +1674,8 @@ Type objective_function<Type>::operator() ()
   REPORT( lenRes_lspft );
   REPORT( steepnessnlp_sp );
   REPORT( steepnessnlp_s );
+  REPORT( Mnlp_sp );
+  REPORT( Mnlp_s );
   REPORT( Ctnll_sp );
   REPORT( qnlpSurv );
   REPORT( qnlpSyn );
