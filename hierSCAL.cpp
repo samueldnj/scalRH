@@ -1393,32 +1393,33 @@ Type objective_function<Type>::operator() ()
   L2nlp_p.setZero();
 
   // Fix sigmaVonK and sigmaL2 for now
-  Type sigmavonK  = 0.1;
-  Type sigmaL2    = 0.1;
+  Type sigmavonK  = 0.01;
+  Type sigmaL2    = 0.01;
 
   vector<Type>    sigmavonK_s(nS);
-                  sigmavonK_s.fill(.1);
+                  sigmavonK_s.fill(.01);
   vector<Type>    sigmaL2_s(nS);
-                  sigmaL2_s.fill(0.1);
+                  sigmaL2_s.fill(0.01);
 
 
   // Calculate stock mean delta values for
   // growth model, to extend growth pars to 
   // species/stock combinations without data
-  for( int p = 0; p < nP; p++ )
-  {
-    deltaVonKbar_p(p) = deltaVonK_sp.col(p).sum()/nP;
-    deltaL2bar_p(p) = deltaL2_sp.col(p).sum()/nP;
+  if(nS > 1)
+    for( int p = 0; p < nP; p++ )
+    {
+      deltaVonKbar_p(p) = deltaVonK_sp.col(p).sum()/nP;
+      deltaL2bar_p(p) = deltaL2_sp.col(p).sum()/nP;
 
-    vector<Type> vonKVec  = deltaVonK_sp.col(p);
-    vector<Type> L2Vec    = deltaL2_sp.col(p);
+      vector<Type> vonKVec  = deltaVonK_sp.col(p);
+      vector<Type> L2Vec    = deltaL2_sp.col(p);
 
-    // Within stock growth par deviation priors - essentially
-    // a regularisation to stop the unobserved stocks from overfitting  
-    vonKnlp_p(p)          -= dnorm( vonKVec, deltaVonKbar_p(p), sigmavonK, true).sum();
-    L2nlp_p(p)            -= dnorm( L2Vec, deltaL2bar_p(p), sigmaL2, true).sum();
+      // Within stock growth par deviation priors - essentially
+      // a regularisation to stop the unobserved stocks from overfitting  
+      vonKnlp_p(p)          -= dnorm( vonKVec, deltaVonKbar_p(p), sigmavonK, true).sum();
+      L2nlp_p(p)            -= dnorm( L2Vec, deltaL2bar_p(p), sigmaL2, true).sum();
 
-  }
+    }
 
 
   // Mortality prior

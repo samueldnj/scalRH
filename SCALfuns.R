@@ -1027,8 +1027,6 @@ TMBphase <- function( data,
     tol10 <- 0.01
     
     TMB::newtonOption(obj, tol10 = tol10)
-
-    browser()
     
     if( parBen )
     {
@@ -1058,7 +1056,7 @@ TMBphase <- function( data,
 
   }
 
-  if( intMethod == "MCMC" )
+  if( intMethod == "MCMC" & class(opt) != "try-error" )
   {
     tBegin      <- proc.time()[3]
     params_use  <- obj$env$parList( opt$par )
@@ -1070,9 +1068,8 @@ TMBphase <- function( data,
                             DLL= DLL_use,
                             map= map_use,
                             silent = silent )  
-    mcmc <- tmbstan( obj, init = "last.par.best" )
-
-    browser()
+    
+    outList$mcmc <- tmbstan( obj, init = "last.par.best" )
   }
   
   if(outList$success & calcSD )
