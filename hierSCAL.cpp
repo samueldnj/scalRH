@@ -426,8 +426,12 @@ Type objective_function<Type>::operator() ()
     M_sp.col(pIdx)       = exp(lnM) * exp(epsM_s) * exp(epsM_sp.col(pIdx) );
     L1_sp.col(pIdx)      = L1_s;
     sigmaR_sp.col(pIdx)  = exp(lnsigmaR_sp.col(pIdx));
-    L2_sp.col(pIdx)      = L2_s * exp(deltaL2_sp.col(pIdx));
-    vonK_sp.col(pIdx)    = vonK_s * exp(deltaVonK_sp.col(pIdx));
+    for( int x = 0; x < nX; x++)
+    {
+      M_spx.col(x).col(pIdx)    = M_sp.col(pIdx) * exp(epsM_spx.col(x).col(pIdx));
+      L2_spx.col(x).col(pIdx)   = L2_sp.col(pIdx) * exp(deltaL2_spx.col(x).col(pIdx));
+      vonK_spx.col(x).col(pIdx) = vonK_sp.col(pIdx) * exp(deltaVonK_spx.col(x).col(pIdx));
+    }
   }
 
 
@@ -589,21 +593,21 @@ Type objective_function<Type>::operator() ()
   vector<Type>  tauD_f        = exp(lntauD_f);    
   
   // Set up model state arrays
-  array<Type> B_aspt(nA,nS,nP,nT);          // Biomass at age-pop-time
-  array<Type> N_aspt(nA,nS,nP,nT);          // Numbers at age-pop-time
+  array<Type> B_asptx(nA,nS,nP,nT,nX);      // Biomass at age-pop-time
+  array<Type> N_asptx(nA,nS,nP,nT,nX);      // Numbers at age-pop-time
   array<Type> R_spt(nS,nP,nT);              // Recruits by pop-time
-  array<Type> F_aspft(nA,nS,nP,nF,nT);      // Fishing mortality by age, fleet, population and time
-  array<Type> Z_aspt(nA,nS,nP,nT);          // Total mortality by age, population and time
-  array<Type> C_aspft(nA,nS,nP,nF,nT);      // Predicted catch-at-age (in numbers), fleet, population and time
-  array<Type> Cw_aspft(nA,nS,nP,nF,nT);     // Predicted catch-at-age (in weight), population and time
+  array<Type> F_aspftx(nA,nS,nP,nF,nT,nX);  // Fishing mortality by age, fleet, population and time
+  array<Type> Z_asptx(nA,nS,nP,nT,nX);      // Total mortality by age, population and time
+  array<Type> C_aspftx(nA,nS,nP,nF,nT,nX);  // Predicted catch-at-age (in numbers), fleet, population and time
+  array<Type> Cw_aspftx(nA,nS,nP,nF,nT,nX); // Predicted catch-at-age (in weight), population and time
   array<Type> predCw_spft(nS,nP,nF,nT);     // Predicted catch (in weight) by population and time
   array<Type> predC_spft(nS,nP,nF,nT);      // Predicted catch (in numbers) by population and time
   array<Type> B_spt(nS,nP,nT);              // Total biomass by species, pop, time
   array<Type> SB_spt(nS,nP,nT);             // Spawning biomass by species, pop, time
   array<Type> Bv_spft(nS,nP,nF,nT);         // Vulnerable biomass by species, pop, time
   array<Type> Nv_spft(nS,nP,nF,nT);         // Vulnerable numbers by species, pop, time
-  array<Type> Nv_aspft(nA,nS,nP,nF,nT);     // Vulnerable numbers at age by species, pop, time
-  array<Type> Surv_asp(nA,nS,nP);           // Eqbm survival at age
+  array<Type> Nv_aspftx(nA,nS,nP,nF,nT,nX); // Vulnerable numbers at age by species, pop, time
+  array<Type> Surv_aspx(nA,nS,nP,nX);       // Eqbm survival at age
   array<Type> SSBpr_asp(nA,nS,nP);          // Spawning stock biomass per rec. at age
 
 
@@ -629,82 +633,83 @@ Type objective_function<Type>::operator() ()
   // In the same loop, we're going to compute the ssbpr parameter phi
   // for each stock
   lenAge_asp.setZero();
-  probLenAge_lasp.setZero();
-  meanWtAge_asp.setZero();
+  probLenAge_laspx.setZero();
+  meanWtAge_aspx.setZero();
   phi_sp.setZero();
-  Surv_asp.setZero();
+  Surv_aspx.setZero();
   SSBpr_asp.setZero();
   matAge_asp.setZero();
 
-  for( int s = 0; s < nS; s++)
-  {
-    int A1 = A1_s(s);
-    int A2 = A2_s(s);
-    for( int p = 0; p < nP; p++ )
+  for( int x = 0; x < nX; x++)
+    for( int s = 0; s < nS; s++)
     {
-      Type tmpPhi = 0;
-      for( int a = 0; a < A_s(s); a ++ )
+      int A1 = A1_s(s);
+      int A2 = A2_s(s);
+      for( int p = 0; p < nP; p++ )
       {
-        Type  sumProbs  = 0;
-        Type vonK_tmp = vonK_sp(s,p);
-        lenAge_asp(a,s,p) += L2_sp(s,p) - L1_sp(s,p);
-        lenAge_asp(a,s,p) *= (exp(-vonK_tmp * A1 ) - exp(-vonK_tmp * (a+1)) );
-        lenAge_asp(a,s,p) /= (exp(-vonK_tmp * A1 ) - exp(-vonK_tmp * A2) );
-        lenAge_asp(a,s,p) += L1_sp(s,p);
-        Type sigmaL = sigmaLa_s(s) + sigmaLb_s(s) * lenAge_asp(a,s,p);
-        for( int l = 0; l < L_s(s); l++ )
+        Type tmpPhi = 0;
+        for( int a = 0; a < A_s(s); a ++ )
         {
-          // Get length bin ranges
-          Type len = l + 1;
-          Type lenHi = len + .5;
-          Type lenLo = len - .5;
-          // Compute density in each bin
-          // Compute LH tail of the distribution
-          
-          if( (l >= 0) & (l < L_s(s) - 1 ) )
+          Type  sumProbs  = 0;
+          Type vonK_tmp = vonK_spx(s,p,x);
+          lenAge_aspx(a,s,p,x) += L2_spx(s,p,x) - L1_sp(s,p);
+          lenAge_aspx(a,s,p,x) *= (exp(-vonK_tmp * A1 ) - exp(-vonK_tmp * (a+1)) );
+          lenAge_aspx(a,s,p,x) /= (exp(-vonK_tmp * A1 ) - exp(-vonK_tmp * A2) );
+          lenAge_aspx(a,s,p,x) += L1_sp(s,p);
+          Type sigmaL = sigmaLa_s(s) + sigmaLb_s(s) * lenAge_asp(a,s,p);
+          for( int l = 0; l < L_s(s); l++ )
           {
-            probLenAge_lasp(l,a,s,p) = pnorm( log(lenHi), log(lenAge_asp(a,s,p)), sigmaL );
-            // Subtract LH tail for interior bins
-            if(l > 0)
-              probLenAge_lasp(l,a,s,p) -= pnorm( log(lenLo), log(lenAge_asp(a,s,p)), sigmaL );
-            // Accumulate probability
-            sumProbs += probLenAge_lasp(l,a,s,p);
+            // Get length bin ranges
+            Type len = l + 1;
+            Type lenHi = len + .5;
+            Type lenLo = len - .5;
+            // Compute density in each bin
+            // Compute LH tail of the distribution
+            
+            if( (l >= 0) & (l < L_s(s) - 1 ) )
+            {
+              probLenAge_laspx(l,a,s,p,x) = pnorm( log(lenHi), log(lenAge_aspx(a,s,p,x)), sigmaL );
+              // Subtract LH tail for interior bins
+              if(l > 0)
+                probLenAge_laspx(l,a,s,p,x) -= pnorm( log(lenLo), log(lenAge_aspx(a,s,p,x)), sigmaL );
+              // Accumulate probability
+              sumProbs += probLenAge_laspx(l,a,s,p,x);
+            }
+            
+            // Now the RH tail
+            if( l == L_s(s) - 1 ) 
+              probLenAge_laspx(l,a,s,p,x) = Type(1.0) - sumProbs;
+
+            // Calculate mean weight at age from probLenAge
+            meanWtAge_aspx(a,s,p,x) += probLenAge_laspx(l,a,s,p,x) * Wlen_ls(l,s);
+            // Calculate maturity at age from probLenAge if maturity
+            // is length based
+            if( matX == "length")
+              if( (matLen_ls(l,s) > 0) )
+                matAge_asp(a,s,p) += probLenAge_laspx(l,a,s,p,x) * matLen_ls(l,s);
+
+
           }
+
+          // Calculate maturity at age if age based
+          if( matX == "age" )
+            matAge_asp(a,s,p) = 1 / (1 + exp( -1. * log(Type(19.0)) * ( a+1 - xMat50_s(s)) / (xMat95_s(s) - xMat50_s(s)) ) );
+
+          // To compute ssbpr, we need to borrow N_aspt for a moment 
+          Surv_aspx(a,s,p,x) = exp(-a * M_spx(s,p,x));        
+          if( a == A_s(s) - 1 ) 
+            Surv_aspx(a,s,p,x) /= (1. - exp( -M_spx(s,p,x)) );
+          // Compute ssbpr
           
-          // Now the RH tail
-          if( l == L_s(s) - 1 ) 
-            probLenAge_lasp(l,a,s,p) = Type(1.0) - sumProbs;
-
-          // Calculate mean weight at age from probLenAge
-          meanWtAge_asp(a,s,p) += probLenAge_lasp(l,a,s,p) * Wlen_ls(l,s);
-          // Calculate maturity at age from probLenAge if maturity
-          // is length based
-          if( matX == "length")
-            if( (matLen_ls(l,s) > 0) )
-              matAge_asp(a,s,p) += probLenAge_lasp(l,a,s,p) * matLen_ls(l,s);
-
-
         }
-
-        // Calculate maturity at age if age based
-        if( matX == "age" )
-          matAge_asp(a,s,p) = 1 / (1 + exp( -1. * log(Type(19.0)) * ( a+1 - xMat50_s(s)) / (xMat95_s(s) - xMat50_s(s)) ) );
-
-        // To compute ssbpr, we need to borrow N_aspt for a moment 
-        Surv_asp(a,s,p) = exp(-a * M_sp(s,p));        
-        if( a == A_s(s) - 1 ) 
-          Surv_asp(a,s,p) /= (1. - exp( -M_sp(s,p)) );
-        // Compute ssbpr
-        
       }
     }
-  }
 
-  SSBpr_asp = Surv_asp * matAge_asp * meanWtAge_asp;
+  SSBpr_asp = Surv_aspx.col(nX-1) * matAge_asp * meanWtAge_aspx.col(nX-1);
 
   // --------- Selectivity and Fishing Mortality -------- //
   array<Type> sel_lfspt(nL,nF,nS,nP,nT);
-  array<Type> sel_afspt(nA,nF,nS,nP,nT);
+  array<Type> sel_afsptx(nA,nF,nS,nP,nT,nX);
   sel_lfspt.setZero();
   sel_afspt.setZero();
   for( int t = 0; t < nT; t++ )
@@ -724,25 +729,27 @@ Type objective_function<Type>::operator() ()
               sel_lfspt(l,f,s,p,t) /= ( 1 + exp( - log(Type(19.)) * ( l + 1 - xSel50_spft(s,p,f,t) ) / xSelStep_spft(s,p,f,t)  ) );
             }
             // convert selectivity-at-length to selectivity-at-age using probability matrix
-            for( int a = 0; a < A_s(s); a++ )
-            {
-              vector<Type> probLenAgea_l(nL) ;
-              probLenAgea_l.setZero();
-              probLenAgea_l = probLenAge_lasp.col(p).col(s).col(a);
-              sel_afspt(a,f,s,p,t) = (probLenAgea_l*sel_lfspt.col(t).col(p).col(s).col(f)).sum();
+            for( int x = 0; x < nX; x++)
+              for( int a = 0; a < A_s(s); a++ )
+              {
+                vector<Type> probLenAgea_l(nL) ;
+                probLenAgea_l.setZero();
+                probLenAgea_l = probLenAge_laspx.col(x).col(p).col(s).col(a);
+                sel_afsptx(a,f,s,p,t,x) = (probLenAgea_l*sel_lfspt.col(t).col(p).col(s).col(f)).sum();
 
-              if( sel_afspt(a,f,s,p,t) > maxSel )
-                maxSel = sel_afspt(a,f,s,p,t);
-            } 
+                if( sel_afspt(a,f,s,p,t) > maxSel )
+                  maxSel = sel_afspt(a,f,s,p,t);
+              } 
           }
           if( selX == "age" )
           {
-            for( int a = 0; a < A_s(s); a++)
-            {
-              sel_afspt(a,f,s,p,t) = 1/( 1 + exp( - log(Type(19.)) * ( a + 1 - xSel50_spft(s,p,f,t) ) / xSelStep_spft(s,p,f,t)  ) );
-              if( sel_afspt(a,f,s,p,t) > maxSel )
-                maxSel = sel_afspt(a,f,s,p,t);
-            }
+            for( int x = 0; x < nX; x++)
+              for( int a = 0; a < A_s(s); a++)
+              {
+                sel_afsptx(a,f,s,p,t,x) = 1/( 1 + exp( - log(Type(19.)) * ( a + 1 - xSel50_spft(s,p,f,t) ) / xSelStep_spft(s,p,f,t)  ) );
+                if( sel_afsptx(a,f,s,p,t,x) > maxSel )
+                  maxSel = sel_afsptx(a,f,s,p,t,x);
+              }
           }
           // if(maxSel > 0)
           //   sel_afspt.col(t).col(p).col(s).col(f) /= maxSel;
@@ -764,133 +771,137 @@ Type objective_function<Type>::operator() ()
   }
 
   // Set all state arrays to zero
-  B_aspt.setZero();
+  B_asptx.setZero();
   R_spt.setZero();
-  F_aspft.setZero();
-  Z_aspt.setZero();
-  C_aspft.setZero();
-  Cw_aspft.setZero();
+  F_aspftx.setZero();
+  Z_asptx.setZero();
+  C_aspftx.setZero();
+  Cw_aspftx.setZero();
   B_spt.setZero();
   SB_spt.setZero();
   Bv_spft.setZero();
   Nv_spft.setZero();
   Nv_aspft.setZero();
-  N_aspt.setZero();
+  N_asptx.setZero();
 
-  // Loop over species
-  for( int s = 0; s < nS; s++ )
-  {
-    // Loop over stocks
-    for( int p = 0; p < nP; p++ )
+  // Loop over sexes, species
+  for( int x = 0; x < nX; x++)
+    for( int s = 0; s < nS; s++ )
     {
-      // Set plus group age
-      int A    = A_s(s);
-      for( int t = 0; t < nT; t++ )
+      // Loop over stocks
+      for( int p = 0; p < nP; p++ )
       {
-        // Compute total mortality at age (for catch later)
-        Z_aspt.col(t).col(p).col(s).fill(M_sp(s,p));
-
-        for( int f = 0; f < nF; f++ )
+        // Set plus group age
+        int A    = A_s(s);
+        for( int t = 0; t < nT; t++ )
         {
-          // Compute fishing mortality at age by fleet
-          F_aspft.col(t).col(f).col(p).col(s) = sel_afspt.col(t).col(p).col(s).col(f) * F_spft(s,p,f,t);
-          // Add to Z
-          Z_aspt.col(t).col(p).col(s) += F_aspft.col(t).col(f).col(p).col(s);  
-        }
+          // Compute total mortality at age (for catch later)
+          Z_asptx.col(x).col(t).col(p).col(s).fill(M_sp(s,p,x));
 
-        // Initial time-step
-        if( t == 0 )
-        {
-          // Initialise population either at unfished
-          // or using the estimated fished initialisation
-          // Populate first year
-          N_aspt.col(t).col(p).col(s) += R0_sp(s,p) * Surv_asp.col(p).col(s);
-
-          // // Non-eqbm initialisation
-          if(swRinit_s(s) == 1)
-            N_aspt.col(t).col(p).col(s) *= exp( omegaRinit_asp.col(p).col(s));
-
-        }
-
-        // time series history
-        if( t > 0 )
-        {
-          // Generate recruitment
-          Type SBt = SB_spt(s,p,t-1);
-          N_aspt(0,s,p,t) = reca_sp(s,p) * SBt / (1 + recb_sp(s,p) * SBt);
-          N_aspt(0,s,p,t) *= exp( omegaR_spt(s,p,t) );
-
-          // Now loop over ages and apply fishing mortality (no discarding yet)
-          for( int a = 0; a < A; a ++ )
+          for( int f = 0; f < nF; f++ )
           {
-            // Update numbers according to age
-            if( a > 0 )     
-              N_aspt(a,s,p,t) = N_aspt( a-1, s, p, t-1 ) *  exp( - Z_aspt(a,s,p,t-1) );
-            if( a == A - 1) 
-              N_aspt(a,s,p,t) += N_aspt(a,s, p, t-1 ) *  exp( - Z_aspt(a,s,p,t-1) );
+            // Compute fishing mortality at age by fleet
+            F_aspftx.col(x).col(t).col(f).col(p).col(s) = sel_afsptx.col(x).col(t).col(p).col(s).col(f) * F_spft(s,p,f,t);
+            // Add to Z
+            Z_asptx.col(x).col(t).col(p).col(s) += F_aspft.col(x).col(t).col(f).col(p).col(s);  
           }
-        }
 
-        // Save recruits in R_pt
-        R_spt(s,p,t) = N_aspt(0,s,p,t);
-
-        // Loop over fleets and compute catch
-        for( int f =0; f < nF; f++ )
-        {
-          predCw_spft(s,p,f,t) = 0.;
-          predC_spft(s,p,f,t) = 0.;
-
-          // Calculate vulnerable numbers and biomass for this fleet
-          Nv_aspft.col(t).col(f).col(p).col(s) = N_aspt.col(t).col(p).col(s) * sel_afspt.col(t).col(p).col(s).col(f);
-          Nv_spft(s,p,f,t) = Nv_aspft.col(t).col(f).col(p).col(s).sum();
-
-          // Refactoring to remove a loop
-          C_aspft.col(t).col(f).col(p).col(s)   = N_aspt.col(t).col(p).col(s);
-          C_aspft.col(t).col(f).col(p).col(s)  *= (1. -1. * exp( -1. * Z_aspt.col(t).col(p).col(s))); 
-          C_aspft.col(t).col(f).col(p).col(s)  *= F_aspft.col(t).col(f).col(p).col(s); 
-          C_aspft.col(t).col(f).col(p).col(s)  /= Z_aspt.col(t).col(p).col(s);  
-          Cw_aspft.col(t).col(f).col(p).col(s) = C_aspft.col(t).col(f).col(p).col(s) * meanWtAge_asp.col(p).col(s);
-          // Generate predicted total catch in weight and numbers
-          predCw_spft(s,p,f,t) += Cw_aspft.col(t).col(f).col(p).col(s).sum();
-          predC_spft(s,p,f,t) += C_aspft.col(t).col(f).col(p).col(s).sum();
-
-          // Calculate vulnerable biomass
-          Bv_spft(s,p,f,t) += (Nv_aspft.col(t).col(f).col(p).col(s) * meanWtAge_asp.col(p).col(s)).sum();
-
-          // Have to loop over ages here to avoid adding NaNs
-          for(int a = 0; a < A; a++ )
+          // Initial time-step
+          if( t == 0 )
           {
-            // Compute probAgeAtLen for each time step
+            // Initialise population either at unfished
+            // or using the estimated fished initialisation
+            // Populate first year - split into nX groups
+            N_asptx.col(x).col(t).col(p).col(s) += R0_sp(s,p) * Surv_asp.col(p).col(s) / nX;
+
+            // // Non-eqbm initialisation
+            if(swRinit_s(s) == 1)
+              N_asptx.col(x).col(t).col(p).col(s) *= exp( omegaRinit_asp.col(p).col(s));
+
+          }
+
+          // time series history
+          if( t > 0 )
+          {
+            // Generate recruitment
+            Type SBt = SB_spt(s,p,t-1);
+            N_asptx(0,s,p,t,x) = reca_sp(s,p) * SBt / (1 + recb_sp(s,p) * SBt);
+            N_asptx(0,s,p,t,x) *= exp( omegaR_spt(s,p,t) );
+
+            // Now loop over ages and apply fishing mortality (no discarding yet)
+            for( int a = 0; a < A; a ++ )
+            {
+              // Update numbers according to age
+              if( a > 0 )     
+                N_asptx(a,s,p,t,x) = N_asptx( a-1, s, p, t-1 ,x) *  exp( - Z_asptx(a,s,p,t-1,x) );
+              if( a == A - 1) 
+                N_asptx(a,s,p,t,x) += N_asptx(a,s, p, t-1 ,x) *  exp( - Z_asptx(a,s,p,t-1,x) );
+            }
+          }
+
+          // Save recruits in R_pt
+          R_spt(s,p,t) += N_asptx(0,s,p,t,x);
+
+          // Loop over fleets and compute catch
+          for( int f =0; f < nF; f++ )
+          {
+            predCw_spftx(s,p,f,t,x) = 0.;
+            predC_spftx(s,p,f,t,x) = 0.;
+
+            // Calculate vulnerable numbers and biomass for this fleet
+            Nv_aspftx.col(x).col(t).col(f).col(p).col(s) = N_asptx.col(x).col(t).col(p).col(s) * sel_afspt.col(t).col(p).col(s).col(f);
+            Nv_spft(s,p,f,t) += Nv_aspftx.col(x).col(t).col(f).col(p).col(s).sum();
+
+            // Refactoring to remove a loop
+            C_aspftx.col(x).col(t).col(f).col(p).col(s)   = N_asptx.col(x).col(t).col(p).col(s);
+            C_aspftx.col(x).col(t).col(f).col(p).col(s)  *= (1. -1. * exp( -1. * Z_asptx.col(x).col(t).col(p).col(s))); 
+            C_aspftx.col(x).col(t).col(f).col(p).col(s)  *= F_aspftx.col(x).col(t).col(f).col(p).col(s); 
+            C_aspftx.col(x).col(t).col(f).col(p).col(s)  /= Z_asptx.col(x).col(t).col(p).col(s);  
+            Cw_aspftx.col(x).col(t).col(f).col(p).col(s) = C_aspftx.col(x).col(t).col(f).col(p).col(s) * meanWtAge_asp.col(p).col(s);
+            // Generate predicted total catch in weight and numbers
+            predCw_spft(s,p,f,t) += Cw_aspftx.col(x).col(t).col(f).col(p).col(s).sum();
+            predC_spft(s,p,f,t) += C_aspftx.col(x).col(t).col(f).col(p).col(s).sum();
+
+            // Calculate vulnerable biomass
+            Bv_spft(s,p,f,t) += (Nv_aspftx.col(x).col(t).col(f).col(p).col(s) * meanWtAge_aspx.col(x).col(p).col(s)).sum();
+
+            // Have to loop over ages here to avoid adding NaNs
+            for(int a = 0; a < A; a++ )
+            {
+              // Compute probAgeAtLen for each time step
+              for( int l = minL_s(s) - 1; l < L_s(s); l++ )
+                probAgeLen_alspftx(a,l,s,p,f,t,x) += probLenAge_laspx(l,a,s,p,x) * N_asptx(a,s,p,t,x) * sel_lfspt(l,f,s,p,t);
+            }
+            // Renormalise probAgeAtLen
             for( int l = minL_s(s) - 1; l < L_s(s); l++ )
-              probAgeLen_alspft(a,l,s,p,f,t) += probLenAge_lasp(l,a,s,p) * N_aspt(a,s,p,t) * sel_lfspt(l,f,s,p,t);
+            {
+              Type sumProbs = probAgeLen_alspftx.col(x).col(t).col(f).col(p).col(s).col(l).sum();
+              probAgeLen_alspftx.col(x).col(t).col(f).col(p).col(s).col(l) /= sumProbs;
+            }
+            
+
           }
-          // Renormalise probAgeAtLen
-          for( int l = minL_s(s) - 1; l < L_s(s); l++ )
-          {
-            Type sumProbs = probAgeLen_alspft.col(t).col(f).col(p).col(s).col(l).sum();
-            probAgeLen_alspft.col(t).col(f).col(p).col(s).col(l) /= sumProbs;
-          }
-          
+
+          // Compute total and spawning biomass
+          B_asptx.col(x).col(t).col(p).col(s) = N_asptx.col(x).col(t).col(p).col(s) * meanWtAge_aspx.col(x).col(p).col(s);
+          B_spt(s,p,t) += B_asptx.col(x).col(t).col(p).col(s).sum();
+          // The females are the only important
+          // mature individuals
+          if(x == nX - 1)
+            SB_spt(s,p,t) = (B_asptx.col(x).col(t).col(p).col(s) * matAge_asp.col(p).col(s)).sum();
+
 
         }
-
-        // Compute total and spawning biomass
-        B_aspt.col(t).col(p).col(s) = N_aspt.col(t).col(p).col(s) * meanWtAge_asp.col(p).col(s);
-        B_spt(s,p,t) = B_aspt.col(t).col(p).col(s).sum();
-        SB_spt(s,p,t) = (B_aspt.col(t).col(p).col(s) * matAge_asp.col(p).col(s)).sum();
-
 
       }
-
     }
-  }
 
   
   // --------- Observation Model --------- //
   // Age/Length observations and CPUE
   array<Type> I_spft_hat(nS,nP,nF,nT);
-  array<Type> aDist_aspft_hat(nA,nS,nP,nF,nT);
-  array<Type> lDist_lspft_hat(nL,nS,nP,nF,nT);
+  array<Type> aDist_aspftx_hat(nA,nS,nP,nF,nT,nX);
+  array<Type> lDist_lspftx_hat(nL,nS,nP,nF,nT,nX);
   I_spft_hat.fill(-1);
   for(int s = 0; s < nS; s++ )
     for( int p = 0; p < nP; p++ )
@@ -907,46 +918,49 @@ Type objective_function<Type>::operator() ()
             I_spft_hat(s,p,f,t) = q_spft(s,p,f,t) * Bv_spft(s,p,f,t);  
           }
 
-          // Create array of predicted age distributions - this should just be catch-at-age props
-          // Calculate total catch
-          Type totCatch = C_aspft.col(t).col(f).col(p).col(s).sum();
-            
-          // Convert catch-at-age to proportions-at-age
-          if(totCatch > 0)
-            aDist_aspft_hat.col(t).col(f).col(p).col(s) = C_aspft.col(t).col(f).col(p).col(s) / totCatch;
+          for( int x = 0; x < nX; x++)
+            {
+              // Create array of predicted age distributions - this should just be catch-at-age props
+              // Calculate total catch
+              Type totCatch = C_aspft.col(t).col(f).col(p).col(s).sum();
+                
+              // Convert catch-at-age to proportions-at-age
+              if(totCatch > 0)
+                aDist_aspft_hat.col(t).col(f).col(p).col(s) = C_aspft.col(t).col(f).col(p).col(s) / totCatch;
+                  
+
+              // Create array of predicted length distributions
+              // Need to do some thinking here... follow LIME to start with...
+              // Probability of being harvested at age
+              vector<Type> probHarvAge(nA);
+              probHarvAge.setZero();
+              probHarvAge = Nv_aspftx.col(x).col(t).col(f).col(p).col(s) / N_asptx.col(x).col(t).col(p).col(s).sum();
               
+              // Probability of sampling a given length bin
+              vector<Type> probHarvLen(L);
+              probHarvLen.setZero();
+              // loop over length and age, calculate probability of harvest at length
+              for( int l = 0; l < L; l++ )
+              {
+                if( lenComps == "LIME" )
+                {
+                  for( int a = 0; a < A; a++ )
+                    probHarvLen(l) += probHarvAge(a)*probLenAge_laspx(l,a,s,p,x);
+                }
 
-          // Create array of predicted length distributions
-          // Need to do some thinking here... follow LIME to start with...
-          // Probability of being harvested at age
-          vector<Type> probHarvAge(nA);
-          probHarvAge.setZero();
-          probHarvAge = Nv_aspft.col(t).col(f).col(p).col(s) / N_aspt.col(t).col(p).col(s).sum();
-          
-          // Probability of sampling a given length bin
-          vector<Type> probHarvLen(L);
-          probHarvLen.setZero();
-          // loop over length and age, calculate probability of harvest at length
-          for( int l = 0; l < L; l++ )
-          {
-            if( lenComps == "LIME" )
-            {
-              for( int a = 0; a < A; a++ )
-                probHarvLen(l) += probHarvAge(a)*probLenAge_lasp(l,a,s,p);
+                if( lenComps == "Francis" )
+                {
+                  for( int a = 0; a < A; a++ )
+                    probHarvLen(l) += probLenAge_laspx(l,a,s,p,x) * N_asptx(a,s,p,t,x) * sel_lfspt(l,f,s,p,t); 
+                }
+
+                // Save to length dists
+                lDist_lspftx_hat(l,s,p,f,t,x) = probHarvLen(l);
+              }
+              // renormalise
+              if(probHarvLen.sum() > 0)
+                lDist_lspftx_hat.col(x).col(t).col(f).col(p).col(s) /= probHarvLen.sum();
             }
-
-            if( lenComps == "Francis" )
-            {
-              for( int a = 0; a < A; a++ )
-                probHarvLen(l) += probLenAge_lasp(l,a,s,p) * N_aspt(a,s,p,t) * sel_lfspt(l,f,s,p,t); 
-            }
-
-            // Save to length dists
-            lDist_lspft_hat(l,s,p,f,t) = probHarvLen(l);
-          }
-          // renormalise
-          if(probHarvLen.sum() > 0)
-            lDist_lspft_hat.col(t).col(f).col(p).col(s) /= probHarvLen.sum();
         }
       }
     }
@@ -976,7 +990,7 @@ Type objective_function<Type>::operator() ()
   // and uses a random-at-length likelihood to account for differences 
   // in fleet selectivity, and at different times
   array<Type> vonBnll_spf(nS,nP,nF);
-  array<Type> ageAtLenResids_alspft(nA,nL,nS,nP,nF,nT);
+  array<Type> ageAtLenResids_alspftx(nA,nL,nS,nP,nF,nT,nX);
   array<Type> nObsAgeAtLen_spf(nS,nP,nF);
   array<Type> nResidsAgeAtLen_spf(nS,nP,nF);
   array<Type> etaSumSqAgeAtLen_spf(nS,nP,nF);
@@ -989,6 +1003,7 @@ Type objective_function<Type>::operator() ()
   nResidsAgeAtLen_spf.setZero();
   etaSumSqAgeAtLen_spf.setZero();
   vonBnll_spf.setZero();
+  ageAtLenResids_alspftx.setZero();
 
   // Now loop and compute
   for( int s = 0; s < nS; s++ )
@@ -1005,29 +1020,32 @@ Type objective_function<Type>::operator() ()
         {
           for( int l = minL_s(s) - 1; l < L_s(s); l++ )
           {
-            // Zero init containers
-            obs.setZero();
-            pred.setZero();
-            resids.setZero();
+            for( int x = 0;  x < nX; x ++)
+            {
+              // Zero init containers
+              obs.setZero();
+              pred.setZero();
+              resids.setZero();
 
-            // Fill containers
-            for(int a = 0; a < A_s(s); a++)
-            {
-              obs(a) += ALK_spalft(s,p,a,l,f,t);
-              pred(a) += probAgeLen_alspft(a,l,s,p,f,t);
+              // Fill containers
+              for(int a = 0; a < A_s(s); a++)
+              {
+                obs(a) += ALK_spalftx(s,p,a,l,f,t,x);
+                pred(a) += probAgeLen_alspftx(a,l,s,p,f,t,x);
+              }
+              // Compute resids etc. if observations aren't missing
+              if(obs.sum() > 0 &  pred.sum() > 0)
+              {
+                resids = calcLogistNormLikelihood(  obs, 
+                                                    pred,
+                                                    minPAAL,
+                                                    etaSumSqAgeAtLen_spf(s,p,f),
+                                                    nResidsAgeAtLen_spf(s,p,f) );
+                nObsAgeAtLen_spf(s,p,f) += 1;
+              }
+              for(int a = 0; a < A_s(s); a++)
+                ageAtLenResids_alspft(a,l,s,p,f,t) += resids(a);
             }
-            // Compute resids etc. if observations aren't missing
-            if(obs.sum() > 0 &  pred.sum() > 0)
-            {
-              resids = calcLogistNormLikelihood(  obs, 
-                                                  pred,
-                                                  minPAAL,
-                                                  etaSumSqAgeAtLen_spf(s,p,f),
-                                                  nResidsAgeAtLen_spf(s,p,f) );
-              nObsAgeAtLen_spf(s,p,f) += 1;
-            }
-            for(int a = 0; a < A_s(s); a++)
-              ageAtLenResids_alspft(a,l,s,p,f,t) += resids(a);
           } 
         }
         if( nResidsAgeAtLen_spf(s,p,f) > 0)
@@ -1058,8 +1076,8 @@ Type objective_function<Type>::operator() ()
   array<Type> nResidsLen_spf(nS,nP,nF);
   array<Type> nObsAge_spf(nS,nP,nF);
   array<Type> nObsLen_spf(nS,nP,nF);
-  array<Type> ageRes_aspft(nA,nS,nP,nF,nT);
-  array<Type> lenRes_lspft(nL,nS,nP,nF,nT);
+  array<Type> ageRes_aspftx(nA,nS,nP,nF,nT,nX);
+  array<Type> lenRes_lspftx(nL,nS,nP,nF,nT,nX);
   // Zero-init
   CPUEnll_spf.setZero();
   ageCompsnll_spf.setZero();
@@ -1074,8 +1092,8 @@ Type objective_function<Type>::operator() ()
   nResidsLen_spf.setZero();
   nObsAge_spf.setZero();
   nObsLen_spf.setZero();
-  ageRes_aspft.setZero();
-  lenRes_lspft.setZero();
+  ageRes_aspftx.setZero();
+  lenRes_lspftx.setZero();
   residCPUE_spft.setZero();
   validIdxObs_spf.setZero();
   ssrIdx_spf.setZero();
@@ -1088,30 +1106,10 @@ Type objective_function<Type>::operator() ()
       int L      = L_s(s) - minL_s(s) + 1;
       // Loop over fleets
       for( int f = 0; f < nF; f++ )
-      {
-        // tmp vectors to hold age and length observed and
-        // predicted values
-        vector<Type> fleetAgeObs(A);
-        vector<Type> fleetAgePred(A);
-        vector<Type> fleetAgeResids(A);
-
-        vector<Type> fleetLenObs(L);
-        vector<Type> fleetLenPred(L);  
-        vector<Type> fleetLenResids(L);   
-
-
+      {   
         // Now loop over time steps
-
         for( int t = 0; t < nT; t++ )
         {
-
-          // Set tmp vectors to zero 
-          fleetAgeObs.setZero();
-          fleetAgePred.setZero();
-          fleetAgeResids.setZero();
-          fleetLenObs.setZero();
-          fleetLenPred.setZero();
-          fleetLenResids.setZero();
 
           // Only use a year if the data exists and that fleet is used as a survey
           if( (I_spft(s,p,f,t) > 0) & (calcIndex_spf(s,p,f) > 0) )
@@ -1129,57 +1127,80 @@ Type objective_function<Type>::operator() ()
           if( C_spft(s,p,f,t) > 0 & predCw_spft(s,p,f,t) > 0 )
             Ctnll_sp(s,p) += - dnorm( log(C_spft(s,p,f,t)), log(predCw_spft(s,p,f,t)), tauC_f(f),true);
 
-          // Loop and fill age obs and pred matrices
-          for( int a = 0; a < A; a++ )
+
+          for( int x = 0; x < nX, x++)
           {
-            fleetAgeObs(a)  = age_aspft(minA_s(s) + a - 1,s,p,f,t);
-            fleetAgePred(a) = aDist_aspft_hat(minA_s(s) + a - 1,s,p,f,t);
-          }
+            // tmp vectors to hold age and length observed and
+            // predicted values
+            vector<Type> fleetAgeObs(A);
+            vector<Type> fleetAgePred(A);
+            vector<Type> fleetAgeResids(A);
 
-          // Loop and fill length obs and pred matrices
-          for( int l = 0; l < L; l++ )
-          {
-            fleetLenObs(l)  = len_lspft(minL_s(s) - 1 + l,s,p,f,t);
-            fleetLenPred(l) = lDist_lspft_hat(minL_s(s) - 1 + l,s,p,f,t);
-          }
+            vector<Type> fleetLenObs(L);
+            vector<Type> fleetLenPred(L);  
+            vector<Type> fleetLenResids(L);
 
-          // Now for compositional data. First, check if ages are 
-          // being used (or exist), if so
-          // compute logistic normal likelihood
-          if( (fleetAgeObs.sum() > 0) & (fleetAgePred.sum() > 0) & (ageLikeWt > 0) )
-          {
-            fleetAgeResids = calcLogistNormLikelihood(  fleetAgeObs, 
-                                                        fleetAgePred,
-                                                        minAgeProp,
-                                                        etaSumSqAge_spf(s,p,f),
-                                                        nResidsAge_spf(s,p,f) );
+            // Set tmp vectors to zero 
+            fleetAgeObs.setZero();
+            fleetAgePred.setZero();
+            fleetAgeResids.setZero();
+            fleetLenObs.setZero();
+            fleetLenPred.setZero();
+            fleetLenResids.setZero();
 
-            // Now place resids in the ageRes array
-            for( int a = minA_s(s) - 1; a < A_s(s); a++)
-              ageRes_aspft(a,s,p,f,t) = fleetAgeResids(a - minA_s(s) + 1);
+            // Loop and fill age obs and pred matrices
+            for( int a = 0; a < A; a++ )
+            {
+              fleetAgeObs(a)  = age_aspftx(minA_s(s) + a - 1,s,p,f,t,x);
+              fleetAgePred(a) = aDist_aspftx_hat(minA_s(s) + a - 1,s,p,f,t,x);
+            }
 
-            // Increment number of ages
-            nObsAge_spf(s,p,f) += 1;
+            // Loop and fill length obs and pred matrices
+            for( int l = 0; l < L; l++ )
+            {
+              fleetLenObs(l)  = len_lspft(minL_s(s) - 1 + l,s,p,f,t,x);
+              fleetLenPred(l) = lDist_lspft_hat(minL_s(s) - 1 + l,s,p,f,t,x);
+            }
 
-          }     
+            // Now for compositional data. First, check if ages are 
+            // being used (or exist), if so
+            // compute logistic normal likelihood
+            if( (fleetAgeObs.sum() > 0) & (fleetAgePred.sum() > 0) & (ageLikeWt > 0) )
+            {
+              fleetAgeResids = calcLogistNormLikelihood(  fleetAgeObs, 
+                                                          fleetAgePred,
+                                                          minAgeProp,
+                                                          etaSumSqAge_spf(s,p,f),
+                                                          nResidsAge_spf(s,p,f) );
 
-          // If ages aren't being used, but lengths exist, then compute 
-          // logistic normal likelihood
-          if( (fleetLenObs.sum() > 0) & (fleetLenPred.sum() > 0) &  (lenLikeWt > 0) )
-          {
-            fleetLenResids = calcLogistNormLikelihood(  fleetLenObs, 
-                                                        fleetLenPred,
-                                                        minLenProp,
-                                                        etaSumSqLen_spf(s,p,f),
-                                                        nResidsLen_spf(s,p,f) );
-            
-            for( int l = minL_s(s) - 1; l < L_s(s); l++)
-              lenRes_lspft(l,s,p,f,t) = fleetLenResids(l - minL_s(s) + 1);
-            
-            nObsLen_spf(s,p,f) += 1;
+              // Now place resids in the ageRes array
+              for( int a = minA_s(s) - 1; a < A_s(s); a++)
+                ageRes_aspftx(a,s,p,f,t,x) = fleetAgeResids(a - minA_s(s) + 1);
+
+              // Increment number of ages
+              nObsAge_spf(s,p,f) += 1;
+
+            }     
+
+            // If ages aren't being used, but lengths exist, then compute 
+            // logistic normal likelihood
+            if( (fleetLenObs.sum() > 0) & (fleetLenPred.sum() > 0) &  (lenLikeWt > 0) )
+            {
+              fleetLenResids = calcLogistNormLikelihood(  fleetLenObs, 
+                                                          fleetLenPred,
+                                                          minLenProp,
+                                                          etaSumSqLen_spf(s,p,f),
+                                                          nResidsLen_spf(s,p,f) );
+              
+              for( int l = minL_s(s) - 1; l < L_s(s); l++)
+                lenRes_lspftx(l,s,p,f,t,x) = fleetLenResids(l - minL_s(s) + 1);
+              
+              nObsLen_spf(s,p,f) += 1;
+            }
           }     
           
         }
+
         if( nResidsAge_spf(s,p,f) > 0)
         {
           tau2Age_spf(s,p,f)      += etaSumSqAge_spf(s,p,f) / nResidsAge_spf(s,p,f);
@@ -1190,11 +1211,6 @@ Type objective_function<Type>::operator() ()
           tau2Len_spf(s,p,f)      += etaSumSqLen_spf(s,p,f) / nResidsLen_spf(s,p,f);
           lenCompsnll_spf(s,p,f)  += 0.5 * (nResidsLen_spf(s,p,f) - nObsLen_spf(s,p,f))  * log(tau2Len_spf(s,p,f));
         }
-        // Set tmp vectors to zero 
-        fleetAgeObs.setZero();
-        fleetAgePred.setZero();
-        fleetLenObs.setZero();
-        fleetLenPred.setZero();
 
         // Calculate conditional MLE for tau2Idx, and add likelihood contribution
         if( validIdxObs_spf(s,p,f) > 0 &  ssrIdx_spf(s,p,f) > 0 )
@@ -1339,6 +1355,7 @@ Type objective_function<Type>::operator() ()
   steepnessnlp_sp.setZero();
   Mnlp_s.setZero();
   Mnlp_sp.setZero();
+  Mnlp_spx.setZero();
   Type sel_nlp = 0.;
 
 
