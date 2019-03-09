@@ -1363,13 +1363,24 @@ Type objective_function<Type>::operator() ()
   { 
     vector<Type> vonKVec  = deltaVonK_sp.transpose().col(s);
     vector<Type> L2Vec    = deltaL2_sp.transpose().col(s);
-    vonKnlp_s(s)                        -= dnorm( vonKVec, Type(0), sigmavonK_s(s), true).sum();
-    L2nlp_s(s)                          -= dnorm( L2Vec, Type(0), sigmaL2_s(s), true).sum();
+    vonKnlp_s(s)         -= dnorm( vonKVec, Type(0), sigmavonK_s(s), true).sum();
+    L2nlp_s(s)           -= dnorm( L2Vec, Type(0), sigmaL2_s(s), true).sum();
 
     for( int p = 0; p < nP; p ++)
     {
       steepnessnlp_sp(s,p)  -= dnorm( epsSteep_sp(s,p), Type(0), sigmah_s(s), true);
       Mnlp_sp(s,p)          -= dnorm( epsM_sp(s,p), Type(0), sigmaM_s(s), true);
+
+      if( nX > 1 )
+        for( int x = 0; x < nX; x++ )
+        {
+          vonKnlp_s(s)  -= dnorm( deltaVonK_spx(s,p,x), Type(0), sigmavonK_s(s), true).sum();
+          L2nlp_s(s)    -= dnorm( deltaL2_spx(s,p,x), Type(0), sigmaL2_s(s), true).sum();
+
+          steepnessnlp_sp(s,p)  -= dnorm( epsSteep_spx(s,p,x), Type(0), sigmah_s(s), true);
+          Mnlp_sp(s,p)          -= dnorm( epsM_spx(s,p,x), Type(0), sigmaM_s(s), true);
+
+        }
     }
 
   }
@@ -1492,46 +1503,46 @@ Type objective_function<Type>::operator() ()
   REPORT( xSelStep_sf );    // length at 95% sel by species/fleet
   REPORT( F_spft );         // Fishing mortality
   REPORT( sel_lfspt );      // Selectivity at length
-  REPORT( sel_afspt );      // Selectivity at age
+  REPORT( sel_afsptx );      // Selectivity at age
   REPORT( Fbar_spf );       // Average fishing mortality
   REPORT( tauC_f );
   REPORT( tauD_f );
 
   // Model states
-  REPORT( B_aspt );
-  REPORT( N_aspt );
+  REPORT( B_asptx );
+  REPORT( N_asptx );
   REPORT( R_spt );
-  REPORT( F_aspft );
-  REPORT( Z_aspt );
-  REPORT( C_aspft );
-  REPORT( Cw_aspft );
+  REPORT( F_aspftx );
+  REPORT( Z_asptx );
+  REPORT( C_aspftx );
+  REPORT( Cw_aspftx );
   REPORT( predCw_spft );
   REPORT( predC_spft );
   REPORT( Bv_spft );
   REPORT( Nv_spft );
-  REPORT( Nv_aspft );
+  REPORT( Nv_aspftx );
   REPORT( SB_spt );
   REPORT( B_spt );
 
   // Stock recruit parameters
-  REPORT( Surv_asp );
-  REPORT( SSBpr_asp );
+  REPORT( Surv_aspx );
+  REPORT( SSBpr_aspx );
   REPORT( R0_sp );
   REPORT( phi_sp );
   REPORT( reca_sp );
   REPORT( recb_sp );
 
   // Growth and maturity
-  REPORT( probLenAge_lasp );
-  REPORT( probAgeLen_alspft );
-  REPORT( lenAge_asp );
+  REPORT( probLenAge_laspx );
+  REPORT( probAgeLen_alspftx );
+  REPORT( lenAge_aspx );
   REPORT( Wlen_ls );
   REPORT( matLen_ls );
   REPORT( matAge_asp );
   REPORT( xMat50_s );
   REPORT( xMat95_s );
-  REPORT( meanWtAge_asp );
-  REPORT( ageAtLenResids_alspft );
+  REPORT( meanWtAge_aspx );
+  REPORT( ageAtLenResids_alspftx );
   REPORT( nObsAgeAtLen_spf );
   REPORT( etaSumSqAgeAtLen_spf );
   REPORT( nResidsAgeAtLen_spf );
@@ -1542,6 +1553,8 @@ Type objective_function<Type>::operator() ()
   REPORT( A2_s );
   REPORT( deltaVonK_sp );
   REPORT( deltaL2_sp );
+  REPORT( deltaVonK_spx );
+  REPORT( deltaL2_spx );
   REPORT( deltaVonKbar_p );
   REPORT( deltaL2bar_p );
 
@@ -1574,6 +1587,7 @@ Type objective_function<Type>::operator() ()
   REPORT( omegaRinit_asp );
 
   // Species/stock effects
+  REPORT( epsM_spx );
   REPORT( epsM_sp );
   REPORT( epsM_s );
   REPORT( epsSteep_sp );
@@ -1594,13 +1608,13 @@ Type objective_function<Type>::operator() ()
   REPORT( nResidsAge_spf );
   REPORT( nObsAge_spf );
   REPORT( tau2Age_spf );
-  REPORT( ageRes_aspft );
+  REPORT( ageRes_aspftx );
   REPORT( lenCompsnll_spf );
   REPORT( etaSumSqLen_spf );
   REPORT( nResidsLen_spf );
   REPORT( nObsLen_spf );
   REPORT( tau2Len_spf );
-  REPORT( lenRes_lspft );
+  REPORT( lenRes_lspftx );
   REPORT( steepnessnlp_sp );
   REPORT( steepnessnlp_s );
   REPORT( steepnessnlp );
@@ -1625,9 +1639,9 @@ Type objective_function<Type>::operator() ()
   REPORT( I_spft );
   REPORT( C_spft );
   REPORT( D_spft );
-  REPORT( ALK_spalft );
-  REPORT( age_aspft );
-  REPORT( len_lspft );
+  REPORT( ALK_spalftx );
+  REPORT( age_aspftx );
+  REPORT( len_lspftx );
   REPORT( group_f );
   REPORT( A_s );
   REPORT( minA_s );
@@ -1640,8 +1654,8 @@ Type objective_function<Type>::operator() ()
   REPORT( regFfleets );
 
   // Predicted observations
-  REPORT( lDist_lspft_hat );
-  REPORT( aDist_aspft_hat );
+  REPORT( lDist_lspftx_hat );
+  REPORT( aDist_aspftx_hat );
   REPORT( I_spft_hat );
 
   // Echo switches
