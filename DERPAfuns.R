@@ -1750,7 +1750,6 @@ makeCompsArray <- function( compList = ageComps,
                             minX  = minA_s,
                             collapseComm = FALSE,
                             fleetIDs = fleetIDs,
-                            combineSex = TRUE,
                             years = fYear:lYear,
                             xName = "ages",
                             minSampSize = 100 )
@@ -1766,11 +1765,11 @@ makeCompsArray <- function( compList = ageComps,
 
   stockIDs <- dimnames(compList[[1]])[[1]]
   # Create dimension names
-  dimNames <- list( 1:nX, specIDs, stockIDs, fleetIDs, years )
-  names(dimNames) <- c(xName, "species", "stock", "fleet", "years")
+  dimNames <- list( 1:nX, specIDs, stockIDs, fleetIDs, years, c("male","female") )
+  names(dimNames) <- c(xName, "species", "stock", "fleet", "years", "sex")
 
   # Initialise array
-  comps_xspft <- array( 0, dim = c(nX, nS, nP, nF, nT ),
+  comps_xspftX <- array( 0, dim = c(nX, nS, nP, nF, nT, 2 ),
                             dimnames = dimNames )
 
   for( specIdx in 1:nS )
@@ -1784,46 +1783,48 @@ makeCompsArray <- function( compList = ageComps,
     obsX      <- dim(specComps)[4]
 
 
-
-    # Now loop over fleetIDs
-    for( fleetIdx in 1:nF )
-    { 
-      fleetID <- fleetIDs[fleetIdx]
-      # Need to aggregate plus group
-      for( stockIdx in 1:nP )
-      {
-        stockID <- stockIDs[stockIdx]
-        for( tIdx in 1:nT)
+    for( sexIdx in 1:2)
+    {
+      # Now loop over fleetIDs
+      for( fleetIdx in 1:nF )
+      { 
+        fleetID <- fleetIDs[fleetIdx]
+        # Need to aggregate plus group
+        for( stockIdx in 1:nP )
         {
+          stockID <- stockIDs[stockIdx]
+          for( tIdx in 1:nT)
+          {
 
-          yearLab <- as.character(years[tIdx])
-          sumComps <- sum(specComps[stockID,fleetID,yearLab,1:(obsX-1),1],na.rm = T)
-          if(sumComps <= minSampSize )
-            comps_xspft[ , specID, stockID ,fleetID, yearLab ] <- -1
-          else {
-            if( obsX > specX )
-            {
-              comps_xspft[specMin:(specX-1), specID, stockID ,fleetID,yearLab] <- specComps[stockID,fleetID,yearLab,specMin:(specX-1),1]
-              comps_xspft[specX, specID, stockID ,fleetID,yearLab] <- sum(specComps[stockID,fleetID,yearLab,specX:obsX,1],na.rm = T)
-              if( specX < nX )
-                comps_xspft[(specX+1):nX, specID, stockID ,fleetID,yearLab] <- 0
-            }
-            if( obsX <= specX )
-            {
-              minIdx <- min(obsX,specX)
-              comps_xspft[specMin:minIdx, specID, stockID ,fleetID,yearLab] <- specComps[stockID,fleetID,yearLab,specMin:minIdx,1]
-              if( minIdx < nX )
-                comps_xspft[(minIdx+1):nX, specID, stockID ,fleetID,yearLab] <- 0
+            yearLab <- as.character(years[tIdx])
+            sumComps <- sum(specComps[stockID,fleetID,yearLab,1:obsX,sexIdx + 1],na.rm = T)
+            if(sumComps <= minSampSize )
+              comps_xspftX[ , specID, stockID ,fleetID, yearLab, sexIdx ] <- -1
+            else {
+              if( obsX > specX )
+              {
+                comps_xspftX[specMin:(specX-1), specID, stockID ,fleetID,yearLab,sexIdx] <- specComps[stockID,fleetID,yearLab,specMin:(specX-1),sexIdx + 1]
+                comps_xspftX[specX, specID, stockID ,fleetID,yearLab,sexIdx] <- sum(specComps[stockID,fleetID,yearLab,specX:obsX,sexIdx + 1],na.rm = T)
+                if( specX < nX )
+                  comps_xspftX[(specX+1):nX, specID, stockID ,fleetID,yearLab,sexIdx] <- 0
+              }
+              if( obsX <= specX )
+              {
+                minIdx <- min(obsX,specX)
+                comps_xspftX[specMin:minIdx, specID, stockID ,fleetID,yearLab,sexIdx] <- specComps[stockID,fleetID,yearLab,specMin:minIdx,sexIdx+1]
+                if( minIdx < nX )
+                  comps_xspftX[(minIdx+1):nX, specID, stockID ,fleetID,yearLab,sexIdx] <- 0
+              }
+              
             }
             
           }
-          
         }
       }
     }
   }
-  comps_xspft[is.na(comps_xspft)] <- -1
-  return(comps_xspft)
+  comps_xspftX[is.na(comps_xspftX)] <- -1
+  return(comps_xspftX)
 } # END makeCompsArray()
 
 

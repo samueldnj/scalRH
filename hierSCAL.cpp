@@ -339,11 +339,16 @@ Type objective_function<Type>::operator() ()
   // Biological //
   array<Type>  B0_sp(nS,nP);
   array<Type>  h_sp(nS,nP);
-  array<Type>  M_spx(nS,nP,nX);
-  array<Type>  L2_spx(nS,nP);
-  array<Type>  vonK_spx(nS,nP);
+  array<Type>  M_sp(nS,nP);
+  array<Type>  L2_sp(nS,nP);
+  array<Type>  vonK_sp(nS,nP);
   array<Type>  L1_sp(nS,nP);
   array<Type>  sigmaR_sp(nS,nP);
+  // Sex specific
+  array<Type>  M_spx(nS,nP,nX);
+  array<Type>  L2_spx(nS,nP,nX);
+  array<Type>  L1_spx(nS,nP,nX);
+  array<Type>  vonK_spx(nS,nP,nX);
 
   // Growth model vectors
   vector<Type>  L1_s(nS);
@@ -425,9 +430,14 @@ Type objective_function<Type>::operator() ()
     h_sp.col(pIdx)       = .2 + 0.8 / ( Type(1.0) + exp( -1 * (logitSteep + epsSteep_s + epsSteep_sp.col(pIdx) ) ) );
     M_sp.col(pIdx)       = exp(lnM) * exp(epsM_s) * exp(epsM_sp.col(pIdx) );
     L1_sp.col(pIdx)      = L1_s;
+    L2_sp.col(pIdx)      = L2_s * exp(deltaL2_sp.col(pIdx));
+    vonK_sp.col(pIdx)    = vonK_s * exp(deltaVonK_sp.col(pIdx));
     sigmaR_sp.col(pIdx)  = exp(lnsigmaR_sp.col(pIdx));
+
+    // And sex specific
     for( int x = 0; x < nX; x++)
     {
+      L1_spx.col(x).col(pIdx)   = L1_s;                    
       M_spx.col(x).col(pIdx)    = M_sp.col(pIdx) * exp(epsM_spx.col(x).col(pIdx));
       L2_spx.col(x).col(pIdx)   = L2_sp.col(pIdx) * exp(deltaL2_spx.col(x).col(pIdx));
       vonK_spx.col(x).col(pIdx) = vonK_sp.col(pIdx) * exp(deltaVonK_spx.col(x).col(pIdx));
@@ -517,14 +527,20 @@ Type objective_function<Type>::operator() ()
             q_spft(s,p,f,t)         = q_spft(s,p,f,t-1);
           }
           // Update the epsilon array          
+          // Check if ages or lengths are observed this time step
           if( tvSelFleets(f) == 1)
-            if( ((age_aspft(0,s,p,f,t) >= 0) & (ageLikeWt > 0)) |
-                ((len_lspft(0,s,p,f,t) >= 0) & (lenLikeWt > 0)) )
+            for( int x = 0; x < nX; x++)
             {
-              epsxSel50_spft(s,p,f,t)   += epsxSel50_vec(epsSelVecIdx);
-              epsxSelStep_spft(s,p,f,t) += epsxSelStep_vec(epsSelVecIdx);
-              epsSelVecIdx++;
-            }   
+              if( ((age_aspftx(0,s,p,f,t,x) >= 0) & (ageLikeWt > 0)) |
+                  ((len_lspftx(0,s,p,f,t,x) >= 0) & (lenLikeWt > 0)) )
+              {
+                epsxSel50_spft(s,p,f,t)   += epsxSel50_vec(epsSelVecIdx);
+                epsxSelStep_spft(s,p,f,t) += epsxSelStep_vec(epsSelVecIdx);
+                epsSelVecIdx++;
+                break;
+              }
+            }
+   
           // do the same for time varying q
           if( tvqFleets(f) == 1 )
             if( I_spft(s,p,f,t) > 0 & t > minTimeIdx_spf(s,p,f) )
@@ -632,7 +648,7 @@ Type objective_function<Type>::operator() ()
   // (taken from LIME by Rudd and Thorson, 2017)
   // In the same loop, we're going to compute the ssbpr parameter phi
   // for each stock
-  lenAge_asp.setZero();
+  lenAge_aspx.setZero();
   probLenAge_laspx.setZero();
   meanWtAge_aspx.setZero();
   phi_sp.setZero();
@@ -656,7 +672,7 @@ Type objective_function<Type>::operator() ()
           lenAge_aspx(a,s,p,x) *= (exp(-vonK_tmp * A1 ) - exp(-vonK_tmp * (a+1)) );
           lenAge_aspx(a,s,p,x) /= (exp(-vonK_tmp * A1 ) - exp(-vonK_tmp * A2) );
           lenAge_aspx(a,s,p,x) += L1_sp(s,p);
-          Type sigmaL = sigmaLa_s(s) + sigmaLb_s(s) * lenAge_asp(a,s,p);
+          Type sigmaL = sigmaLa_s(s) + sigmaLb_s(s) * lenAge_aspx(a,s,p,x);
           for( int l = 0; l < L_s(s); l++ )
           {
             // Get length bin ranges
@@ -711,7 +727,7 @@ Type objective_function<Type>::operator() ()
   array<Type> sel_lfspt(nL,nF,nS,nP,nT);
   array<Type> sel_afsptx(nA,nF,nS,nP,nT,nX);
   sel_lfspt.setZero();
-  sel_afspt.setZero();
+  sel_afsptx.setZero();
   for( int t = 0; t < nT; t++ )
     for( int s = 0; s < nS; s++ )
       for( int p = 0; p < nP; p++ )
@@ -737,8 +753,8 @@ Type objective_function<Type>::operator() ()
                 probLenAgea_l = probLenAge_laspx.col(x).col(p).col(s).col(a);
                 sel_afsptx(a,f,s,p,t,x) = (probLenAgea_l*sel_lfspt.col(t).col(p).col(s).col(f)).sum();
 
-                if( sel_afspt(a,f,s,p,t) > maxSel )
-                  maxSel = sel_afspt(a,f,s,p,t);
+                // if( sel_afsptx(a,f,s,p,t,x) > maxSel )
+                //   maxSel = sel_afsptx(a,f,s,p,t,x);
               } 
           }
           if( selX == "age" )
@@ -747,8 +763,8 @@ Type objective_function<Type>::operator() ()
               for( int a = 0; a < A_s(s); a++)
               {
                 sel_afsptx(a,f,s,p,t,x) = 1/( 1 + exp( - log(Type(19.)) * ( a + 1 - xSel50_spft(s,p,f,t) ) / xSelStep_spft(s,p,f,t)  ) );
-                if( sel_afsptx(a,f,s,p,t,x) > maxSel )
-                  maxSel = sel_afsptx(a,f,s,p,t,x);
+                // if( sel_afsptx(a,f,s,p,t,x) > maxSel )
+                //   maxSel = sel_afsptx(a,f,s,p,t,x);
               }
           }
           // if(maxSel > 0)
@@ -781,8 +797,10 @@ Type objective_function<Type>::operator() ()
   SB_spt.setZero();
   Bv_spft.setZero();
   Nv_spft.setZero();
-  Nv_aspft.setZero();
+  Nv_aspftx.setZero();
   N_asptx.setZero();
+  predCw_spft.setZero();
+  predC_spft.setZero();
 
   // Loop over sexes, species
   for( int x = 0; x < nX; x++)
@@ -796,14 +814,14 @@ Type objective_function<Type>::operator() ()
         for( int t = 0; t < nT; t++ )
         {
           // Compute total mortality at age (for catch later)
-          Z_asptx.col(x).col(t).col(p).col(s).fill(M_sp(s,p,x));
+          Z_asptx.col(x).col(t).col(p).col(s).fill(M_spx(s,p,x));
 
           for( int f = 0; f < nF; f++ )
           {
             // Compute fishing mortality at age by fleet
             F_aspftx.col(x).col(t).col(f).col(p).col(s) = sel_afsptx.col(x).col(t).col(p).col(s).col(f) * F_spft(s,p,f,t);
             // Add to Z
-            Z_asptx.col(x).col(t).col(p).col(s) += F_aspft.col(x).col(t).col(f).col(p).col(s);  
+            Z_asptx.col(x).col(t).col(p).col(s) += F_aspftx.col(x).col(t).col(f).col(p).col(s);  
           }
 
           // Initial time-step
@@ -812,7 +830,7 @@ Type objective_function<Type>::operator() ()
             // Initialise population either at unfished
             // or using the estimated fished initialisation
             // Populate first year - split into nX groups
-            N_asptx.col(x).col(t).col(p).col(s) += R0_sp(s,p) * Surv_asp.col(p).col(s) / nX;
+            N_asptx.col(x).col(t).col(p).col(s) += R0_sp(s,p) * Surv_aspx.col(x).col(p).col(s) / nX;
 
             // // Non-eqbm initialisation
             if(swRinit_s(s) == 1)
@@ -845,11 +863,8 @@ Type objective_function<Type>::operator() ()
           // Loop over fleets and compute catch
           for( int f =0; f < nF; f++ )
           {
-            predCw_spftx(s,p,f,t,x) = 0.;
-            predC_spftx(s,p,f,t,x) = 0.;
-
             // Calculate vulnerable numbers and biomass for this fleet
-            Nv_aspftx.col(x).col(t).col(f).col(p).col(s) = N_asptx.col(x).col(t).col(p).col(s) * sel_afspt.col(t).col(p).col(s).col(f);
+            Nv_aspftx.col(x).col(t).col(f).col(p).col(s) = N_asptx.col(x).col(t).col(p).col(s) * sel_afsptx.col(x).col(t).col(p).col(s).col(f);
             Nv_spft(s,p,f,t) += Nv_aspftx.col(x).col(t).col(f).col(p).col(s).sum();
 
             // Refactoring to remove a loop
@@ -857,7 +872,7 @@ Type objective_function<Type>::operator() ()
             C_aspftx.col(x).col(t).col(f).col(p).col(s)  *= (1. -1. * exp( -1. * Z_asptx.col(x).col(t).col(p).col(s))); 
             C_aspftx.col(x).col(t).col(f).col(p).col(s)  *= F_aspftx.col(x).col(t).col(f).col(p).col(s); 
             C_aspftx.col(x).col(t).col(f).col(p).col(s)  /= Z_asptx.col(x).col(t).col(p).col(s);  
-            Cw_aspftx.col(x).col(t).col(f).col(p).col(s) = C_aspftx.col(x).col(t).col(f).col(p).col(s) * meanWtAge_asp.col(p).col(s);
+            Cw_aspftx.col(x).col(t).col(f).col(p).col(s) = C_aspftx.col(x).col(t).col(f).col(p).col(s) * meanWtAge_aspx.col(x).col(p).col(s);
             // Generate predicted total catch in weight and numbers
             predCw_spft(s,p,f,t) += Cw_aspftx.col(x).col(t).col(f).col(p).col(s).sum();
             predC_spft(s,p,f,t) += C_aspftx.col(x).col(t).col(f).col(p).col(s).sum();
@@ -922,11 +937,11 @@ Type objective_function<Type>::operator() ()
             {
               // Create array of predicted age distributions - this should just be catch-at-age props
               // Calculate total catch
-              Type totCatch = C_aspft.col(t).col(f).col(p).col(s).sum();
+              Type totCatch = C_aspftx.col(x).col(t).col(f).col(p).col(s).sum();
                 
               // Convert catch-at-age to proportions-at-age
               if(totCatch > 0)
-                aDist_aspft_hat.col(t).col(f).col(p).col(s) = C_aspft.col(t).col(f).col(p).col(s) / totCatch;
+                aDist_aspftx_hat.col(x).col(t).col(f).col(p).col(s) = C_aspftx.col(x).col(t).col(f).col(p).col(s) / totCatch;
                   
 
               // Create array of predicted length distributions
@@ -1044,7 +1059,7 @@ Type objective_function<Type>::operator() ()
                 nObsAgeAtLen_spf(s,p,f) += 1;
               }
               for(int a = 0; a < A_s(s); a++)
-                ageAtLenResids_alspft(a,l,s,p,f,t) += resids(a);
+                ageAtLenResids_alspftx(a,l,s,p,f,t,x) += resids(a);
             }
           } 
         }
@@ -1128,7 +1143,7 @@ Type objective_function<Type>::operator() ()
             Ctnll_sp(s,p) += - dnorm( log(C_spft(s,p,f,t)), log(predCw_spft(s,p,f,t)), tauC_f(f),true);
 
 
-          for( int x = 0; x < nX, x++)
+          for( int x = 0; x < nX; x++)
           {
             // tmp vectors to hold age and length observed and
             // predicted values
@@ -1158,8 +1173,8 @@ Type objective_function<Type>::operator() ()
             // Loop and fill length obs and pred matrices
             for( int l = 0; l < L; l++ )
             {
-              fleetLenObs(l)  = len_lspft(minL_s(s) - 1 + l,s,p,f,t,x);
-              fleetLenPred(l) = lDist_lspft_hat(minL_s(s) - 1 + l,s,p,f,t,x);
+              fleetLenObs(l)  = len_lspftx(minL_s(s) - 1 + l,s,p,f,t,x);
+              fleetLenPred(l) = lDist_lspftx_hat(minL_s(s) - 1 + l,s,p,f,t,x);
             }
 
             // Now for compositional data. First, check if ages are 
@@ -1298,6 +1313,7 @@ Type objective_function<Type>::operator() ()
   // Mortality
   vector<Type>  Mnlp_s(nS);
   array<Type>   Mnlp_sp(nS,nP);
+  array<Type>   Mnlp_spx(nS,nP,nX);
   Type Mnlp = 0.;
 
   // VonB priors
@@ -1374,11 +1390,9 @@ Type objective_function<Type>::operator() ()
       if( nX > 1 )
         for( int x = 0; x < nX; x++ )
         {
-          vonKnlp_s(s)  -= dnorm( deltaVonK_spx(s,p,x), Type(0), sigmavonK_s(s), true).sum();
-          L2nlp_s(s)    -= dnorm( deltaL2_spx(s,p,x), Type(0), sigmaL2_s(s), true).sum();
-
-          steepnessnlp_sp(s,p)  -= dnorm( epsSteep_spx(s,p,x), Type(0), sigmah_s(s), true);
-          Mnlp_sp(s,p)          -= dnorm( epsM_spx(s,p,x), Type(0), sigmaM_s(s), true);
+          vonKnlp_s(s)  -= dnorm( deltaVonK_spx(s,p,x), Type(0), sigmavonK_s(s), true);
+          L2nlp_s(s)    -= dnorm( deltaL2_spx(s,p,x), Type(0), sigmaL2_s(s), true);
+          Mnlp_sp(s,p)  -= dnorm( epsM_spx(s,p,x), Type(0), sigmaM_s(s), true);
 
         }
     }
@@ -1479,9 +1493,9 @@ Type objective_function<Type>::operator() ()
   // Natural scale leading parameters
   REPORT( B0_sp );    
   REPORT( h_sp );     
-  REPORT( M_sp );     
-  REPORT( L2_sp );  
-  REPORT( vonK_sp );  
+  REPORT( M_spx );     
+  REPORT( L2_spx );  
+  REPORT( vonK_spx );  
   REPORT( L1_sp ); 
   REPORT( sigmaLa_s );
   REPORT( sigmaLb_s );
@@ -1526,7 +1540,7 @@ Type objective_function<Type>::operator() ()
 
   // Stock recruit parameters
   REPORT( Surv_aspx );
-  REPORT( SSBpr_aspx );
+  REPORT( SSBpr_asp );
   REPORT( R0_sp );
   REPORT( phi_sp );
   REPORT( reca_sp );

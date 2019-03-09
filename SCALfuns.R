@@ -275,6 +275,7 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   # Make the age-length key - this might be useful,
   # or we can include it so we can integrate a growth
   # model
+  # Aggregate ages into plus groups later.
   ALFreq_spalftx <- makeALFreq( ALFreqList = ALfreq,
                                 years = years,
                                 gears = useFleets,
@@ -288,40 +289,49 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   # Set all observations outside those fleets to 0
   ALFreq_spalftx[,,,,-growthFleetIdx,,] <- 0
 
-  # Combine sexes for now
-  ALFreq_spalft <- ALFreq_spalftx[,,,,,,1] + ALFreq_spalftx[,,,,,,2]
-  ALFreq_spalft <- ALFreq_spalft[useSpecies,useStocks,,,useFleets,yrChar,drop = FALSE]
-
-  # Maybe aggregate ages into plus groups?
-
 
   # Load age and length compositions
   load(file.path("./Data",dataObj$ageData))
   load(file.path("./Data",dataObj$lenData))
 
   # Create compositional arrays
-  age_aspft <- makeCompsArray(  compList = ageComps,
+  age_aspftx <- makeCompsArray(  compList = ageComps,
                                 plusGroups = nA_s,
                                 minX = minA_s,
                                 collapseComm = FALSE,
                                 fleetIDs = useFleets,
-                                combineSex = TRUE,
                                 years = fYear:lYear,
                                 xName = "ages",
                                 minSampSize = dataObj$minAgeSampSize )
-  age_aspft <- age_aspft[,useSpecies,useStocks,useFleets,, drop = FALSE]
+  age_aspftx <- age_aspftx[,useSpecies,useStocks,useFleets,,, drop = FALSE]
 
 
-  len_lspft <- makeCompsArray(  compList = lenComps,
+  len_lspftx <- makeCompsArray( compList = lenComps,
                                 plusGroups = nL_s,
                                 minX = minL_s,
                                 collapseComm = FALSE,
                                 fleetIDs = useFleets,
-                                combineSex = TRUE,
                                 years = fYear:lYear,
                                 xName = "length",
                                 minSampSize = dataObj$minLenSampSize )
-  len_lspft <- len_lspft[,useSpecies,useStocks,useFleets,, drop = FALSE]
+  len_lspftx <- len_lspftx[,useSpecies,useStocks,useFleets,,, drop = FALSE]
+
+  nX <- 2
+
+  # Combine sexes if not sex structured
+  if(!dataObj$sexStructured)
+  {
+    ALFreq_spalftx <- ALFreq_spalftx[,,,,,,1,drop = FALSE] + ALFreq_spalftx[,,,,,,2,drop = FALSE]
+    dimnames(ALFreq_spalftx)[[7]] <- "both"
+    age_aspftx <- age_aspftx[,,,,,1,drop = FALSE] + age_aspftx[,,,,,2,drop = FALSE] 
+    dimnames(age_aspftx)[[6]] <- "both"
+    len_lspftx <- len_lspftx[,,,,,1,drop = FALSE] + len_lspftx[,,,,,2,drop = FALSE] 
+    dimnames(len_lspftx)[[6]] <- "both"
+
+    nX <- 1
+  }
+
+
 
   # Calculate the number of selectivity deviations
   # from length and age distributions
@@ -335,11 +345,11 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
         lenYrs <- c()
         ageYrs <- c()
         # Cut down to those with age observations
-        if( any(age_aspft[1,sIdx,pIdx,fIdx,yrChar] >= 0) &  dataObj$ageLikeWt > 0 )
-          ageYrs <- which(age_aspft[1,sIdx,pIdx,fIdx,yrChar] >= 0)
+        if( any(age_aspftx[1,sIdx,pIdx,fIdx,yrChar,] >= 0) &  dataObj$ageLikeWt > 0 )
+          ageYrs <- which(age_aspftx[1,sIdx,pIdx,fIdx,yrChar,,drop = FALSE] >= 0,arr.ind = TRUE)[,5]
         # And if length observations are included, add them
-        if( any(len_lspft[1,sIdx,pIdx,fIdx,yrChar] >= 0) &  dataObj$lenLikeWt > 0 )
-          lenYrs <- which(len_lspft[1,sIdx,pIdx,fIdx,yrChar] >= 0)
+        if( any(len_lspftx[1,sIdx,pIdx,fIdx,yrChar,] >= 0) &  dataObj$lenLikeWt > 0 )
+          lenYrs <- which(len_lspftx[1,sIdx,pIdx,fIdx,yrChar,,drop = FALSE] >= 0, arr.ind = TRUE)[,5]
 
         # Take union of age/len years, then add number of years to 
         # estimate total number of selectivity deviations
@@ -448,7 +458,7 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   if( hypoObj$selX == "length")
   {
     # length at Sel50_sf initial value
-    xSel50_sf <- matrix(  c(    41, 39, 29, 31, 33, 33, 33,
+    xSel50_sf <- matrix(  c(    36, 36, 29, 31, 33, 33, 33,
                                 35, 35, 23, 25, 25, 25, 25,
                                 33, 30, 18, 18, 20, 20, 20,
                                 38, 38, 30, 30, 30, 30, 30,
@@ -529,11 +539,11 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   survNames <- dataObj$survNames_g
   survNames <- survNames[survNames %in% useFleets]
 
-  calcMeanLenAge <- function( sIdx = 1, ALK = ALFreq_spalft,
+  calcMeanLenAge <- function( sIdx = 1, ALK = ALFreq_spalftx,
                               age = A1_s, fleets = survNames )
   {
     # Pull length at the given age
-    lenAtAge <- ALK[sIdx,,age[sIdx],,fleets,,drop = FALSE]
+    lenAtAge <- ALK[sIdx,,age[sIdx],,fleets,,,drop = FALSE]
     lenAtAge <- apply(X = lenAtAge, FUN = sum, MARGIN = c(4))
     # Calculate number of observations
     nLenAtAge <- sum(lenAtAge,na.rm = T)
@@ -553,12 +563,12 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
 
   initL1_s <- sapply( X = 1:nS, 
                       FUN = calcMeanLenAge, 
-                      ALK = ALFreq_spalft, 
+                      ALK = ALFreq_spalftx, 
                       age = A1_s[useSpecies],
                       fleets = growthFleets[growthFleets %in% useFleets] )
   initL2_s <- sapply( X = 1:nS, 
                       FUN = calcMeanLenAge, 
-                      ALK = ALFreq_spalft, 
+                      ALK = ALFreq_spalftx, 
                       age = A2_s[useSpecies],
                       fleets = growthFleets[growthFleets %in% useFleets]  )
 
@@ -567,9 +577,9 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   data <- list( I_spft          = I_spft,
                 C_spft          = C_spft,
                 D_spft          = D_spft,
-                ALK_spalft      = ALFreq_spalft,
-                age_aspft       = age_aspft,
-                len_lspft       = len_lspft,
+                ALK_spalftx     = ALFreq_spalftx,
+                age_aspftx      = age_aspftx,
+                len_lspftx      = len_lspftx,
                 group_f         = as.integer(group_f),
                 A_s             = as.integer(nA_s[useSpecies]),
                 minA_s          = as.integer(minA_s[useSpecies]),
@@ -611,6 +621,8 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                 # Stock specific growth pars
                 deltaL2_sp        = array(0,dim = c(nS,nP)),
                 deltaVonK_sp      = array(0,dim = c(nS,nP)),
+                deltaL2_spx       = array(0,dim = c(nS,nP,nX)),
+                deltaVonK_spx     = array(0,dim = c(nS,nP,nX)),
                 # process error in growth model
                 sigmaLa_s         = sigmaLa_s,
                 sigmaLb_s         = sigmaLb_s,
@@ -665,6 +677,7 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                 epsSteep_sp       = array(0, dim = c(nS,nP)),
                 # Species/stock effect on M
                 epsM_sp           = array(0, dim = c(nS,nP)),
+                epsM_spx           = array(0, dim = c(nS,nP,nX)),
                 # Recruitment resids
                 omegaR_vec        = rep( 0, nRecDevs),
                 omegaRinit_vec    = rep( 0, nInitDevs ),
@@ -708,7 +721,7 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
     for( f in 1:nF)
     {
       for(p in 1:nP)  
-        if( any(age_aspft[,s,p,f,] > 0) | any(len_lspft[,s,p,f,] > 0) )
+        if( any(age_aspftx[,s,p,f,,] > 0) | any(len_lspftx[,s,p,f,,] > 0) )
           selMap_spf[s,p,f] <- 200 + s * (nF - 1) * (nP - 1) + f * (nP - 1) + p
     }
 
@@ -932,9 +945,7 @@ TMBphase <- function( data,
 
     # Run benchmark for parallel accumulation
     if(parBen &  phase_cur == 1)
-    {
-      phase1Benchmark <- benchmark(obj, cores = 1:detectCores())
-    }  
+      outList$phase1Benchmark <- benchmark(obj, cores = 1:detectCores())
 
     # Create a control list for the assessment model
     tmbCtrl <- list(  eval.max = maxEval, 
@@ -1027,14 +1038,9 @@ TMBphase <- function( data,
     tol10 <- 0.01
     
     TMB::newtonOption(obj, tol10 = tol10)
-
-    browser()
     
     if( parBen )
-    {
-      randEffBenchmark <- benchmark( obj, cores = 1:detectCores() )
-
-    }
+      outList$randEffBenchmark <- benchmark( obj, cores = 1:detectCores() )
 
     # Try the optimisation
     opt <- try( nlminb (  start     = obj$par,
@@ -1084,8 +1090,6 @@ TMBphase <- function( data,
   outList$maxGrad           <- max(obj$gr())
   outList$fitReport         <- fitReport
   outList$totTime           <- sum(fitReport$time)
-  outList$phase1Benchmark   <- phase1Benchmark
-  outList$randEffBenchmark  <- randEffBenchmark
   
   return( outList )  
 
@@ -1113,93 +1117,101 @@ renameReportArrays <- function( repObj = repInit, datObj = data )
   stockNames  <- dimnames(datObj$I_spft)[[2]]
   gearNames   <- dimnames(datObj$I_spft)[[3]]
   yearNames   <- dimnames(datObj$I_spft)[[4]]
-  lenNames    <- dimnames(datObj$len_lspft)[[1]]
-  ageNames    <- dimnames(datObj$age_aspft)[[1]]
+  lenNames    <- dimnames(datObj$len_lspftx)[[1]]
+  ageNames    <- dimnames(datObj$age_aspftx)[[1]]
+  sexNames    <- dimnames(datObj$age_aspftx)[[6]]
 
 
   # Ok, that's the data taken care of. There are still all the
   # new arrays that we created
   # Predicted data
   dimnames(repObj$I_spft_hat) <- dimnames(datObj$I_spft)
-  dimnames(repObj$aDist_aspft_hat) <- dimnames(datObj$age_aspft)
-  dimnames(repObj$lDist_lspft_hat) <- dimnames(datObj$len_lspft)
+  dimnames(repObj$aDist_aspftx_hat) <- dimnames(datObj$age_aspftx)
+  dimnames(repObj$lDist_lspftx_hat) <- dimnames(datObj$len_lspft)
   # State arrays
-  dimnames(repObj$B_aspt) <- dimnames(datObj$age_aspft)[c(1:3,5)]
-  dimnames(repObj$N_aspt) <- dimnames(datObj$age_aspft)[c(1:3,5)]
-  dimnames(repObj$B_spt) <- dimnames(datObj$age_aspft)[c(2:3,5)]
-  dimnames(repObj$R_spt) <- dimnames(datObj$age_aspft)[c(2:3,5)]
-  dimnames(repObj$SB_spt) <- dimnames(datObj$age_aspft)[c(2:3,5)]
-  dimnames(repObj$Bv_spft) <- dimnames(datObj$age_aspft)[c(2:5)]
-  dimnames(repObj$predC_spft) <- dimnames(datObj$age_aspft)[c(2:5)]
-  dimnames(repObj$predCw_spft) <- dimnames(datObj$age_aspft)[c(2:5)]
-  dimnames(repObj$C_aspft) <- dimnames(datObj$age_aspft)[c(1:5)]
-  dimnames(repObj$Cw_aspft) <- dimnames(datObj$age_aspft)[c(1:5)]
-  dimnames(repObj$F_aspft) <- dimnames(datObj$age_aspft)[c(1:5)]
-  dimnames(repObj$F_spft) <- dimnames(datObj$age_aspft)[c(2:5)]
-  dimnames(repObj$Z_aspt) <- dimnames(datObj$age_aspft)[c(1:3,5)]
+  dimnames(repObj$B_asptx) <- dimnames(datObj$age_aspftx)[c(1:3,5)]
+  dimnames(repObj$N_asptx) <- dimnames(datObj$age_aspftx)[c(1:3,5)]
+  dimnames(repObj$B_spt) <- dimnames(datObj$age_aspftx)[c(2:3,5)]
+  dimnames(repObj$R_spt) <- dimnames(datObj$age_aspftx)[c(2:3,5)]
+  dimnames(repObj$SB_spt) <- dimnames(datObj$age_aspftx)[c(2:3,5)]
+  dimnames(repObj$Bv_spft) <- dimnames(datObj$age_aspftx)[c(2:5)]
+  dimnames(repObj$predC_spft) <- dimnames(datObj$age_aspftx)[c(2:5)]
+  dimnames(repObj$predCw_spft) <- dimnames(datObj$age_aspftx)[c(2:5)]
+  dimnames(repObj$C_aspftx) <- dimnames(datObj$age_aspftx)[c(1:5)]
+  dimnames(repObj$Cw_aspftx) <- dimnames(datObj$age_aspftx)[c(1:5)]
+  dimnames(repObj$F_aspftx) <- dimnames(datObj$age_aspftx)[c(1:5)]
+  dimnames(repObj$F_spft) <- dimnames(datObj$age_aspftx)[c(2:5)]
+  dimnames(repObj$Z_aspt) <- dimnames(datObj$age_aspftx)[c(1:3,5)]
   # Biological parameters
-  dimnames(repObj$R0_sp) <- dimnames(datObj$age_aspft)[c(2:3)]
-  dimnames(repObj$B0_sp) <- dimnames(datObj$age_aspft)[c(2:3)]
-  dimnames(repObj$h_sp) <- dimnames(datObj$age_aspft)[c(2:3)]
-  dimnames(repObj$M_sp) <- dimnames(datObj$age_aspft)[c(2:3)]
-  dimnames(repObj$phi_sp) <- dimnames(datObj$age_aspft)[c(2:3)]
-  dimnames(repObj$reca_sp) <- dimnames(datObj$age_aspft)[c(2:3)]
-  dimnames(repObj$recb_sp) <- dimnames(datObj$age_aspft)[c(2:3)]
+  dimnames(repObj$R0_sp) <- dimnames(datObj$age_aspftx)[c(2:3)]
+  dimnames(repObj$B0_sp) <- dimnames(datObj$age_aspftx)[c(2:3)]
+  dimnames(repObj$h_sp) <- dimnames(datObj$age_aspftx)[c(2:3)]
+  dimnames(repObj$M_sp) <- dimnames(datObj$age_aspftx)[c(2:3)]
+  dimnames(repObj$phi_sp) <- dimnames(datObj$age_aspftx)[c(2:3)]
+  dimnames(repObj$reca_sp) <- dimnames(datObj$age_aspftx)[c(2:3)]
+  dimnames(repObj$recb_sp) <- dimnames(datObj$age_aspftx)[c(2:3)]
 
 
   # Observation models
-  dimnames(repObj$q_spf)        <- dimnames(datObj$age_aspft)[c(2:4)]  
-  dimnames(repObj$tau2Idx_spf)  <- dimnames(datObj$age_aspft)[c(2:4)]  
+  dimnames(repObj$q_spf)        <- dimnames(datObj$age_aspftx)[c(2:4)]  
+  dimnames(repObj$tau2Idx_spf)  <- dimnames(datObj$age_aspftx)[c(2:4)]  
   dimnames(repObj$sel_lfsp)     <- list(  len = lenNames, 
                                         fleet = gearNames,
                                         species = specNames,
                                         stock = stockNames )
-  dimnames(repObj$sel_afsp)     <- list(  age = ageNames, 
+  dimnames(repObj$sel_afspx)     <- list(  age = ageNames, 
                                         fleet = gearNames,
                                         species = specNames,
-                                        stock = stockNames )
+                                        stock = stockNames,
+                                        sex = sexNames )
 
 
-  dimnames(repObj$ageRes_aspft)   <- list(  age = ageNames, 
+  dimnames(repObj$ageRes_aspftx)   <- list(  age = ageNames, 
                                             species = specNames,
                                             stock = stockNames,
                                             fleet = gearNames,
-                                            year = yearNames )  
+                                            year = yearNames,
+                                            sex = sexNames )  
   dimnames(repObj$tau2Age_spf)   <- list( species = specNames,
                                           stock = stockNames,
                                           fleet = gearNames )  
-  dimnames(repObj$lenRes_lspft)   <- list(  length = lenNames, 
+  dimnames(repObj$lenRes_lspftx)   <- list( length = lenNames, 
                                             species = specNames,
                                             stock = stockNames,
                                             fleet = gearNames,
-                                            year = yearNames ) 
+                                            year = yearNames,
+                                            sex = sexNames ) 
   dimnames(repObj$tau2Len_spf)   <- list( species = specNames,
                                           stock = stockNames,
                                           fleet = gearNames )  
 
   # Growth model quants
-  dimnames(repObj$probLenAge_lasp) <- list( len = lenNames, 
-                                            age = ageNames,
-                                            species = specNames,
-                                            stock = stockNames )
-
-  dimnames(repObj$lenAge_asp) <- list(      age = ageNames,
-                                            species = specNames,
-                                            stock = stockNames )
-
-  dimnames(repObj$probAgeLen_alspft) <- list( age = ageNames,
-                                              len = lenNames,
+  dimnames(repObj$probLenAge_laspx) <- list( len = lenNames, 
+                                              age = ageNames,
                                               species = specNames,
                                               stock = stockNames,
-                                              fleet = gearNames,
-                                              year = yearNames )
+                                              sex = sexNames )
 
-  dimnames(repObj$ageAtLenResids_alspft) <- list( age = ageNames,
-                                                  len = lenNames,
-                                                  species = specNames,
-                                                  stock = stockNames,
-                                                  fleet = gearNames,
-                                                  year = yearNames )
+  dimnames(repObj$lenAge_aspx) <- list(     age = ageNames,
+                                            species = specNames,
+                                            stock = stockNames,
+                                            sex = sexNames  )
+
+  dimnames(repObj$probAgeLen_alspftx) <- list(  age = ageNames,
+                                                len = lenNames,
+                                                species = specNames,
+                                                stock = stockNames,
+                                                fleet = gearNames,
+                                                year = yearNames,
+                                                sex = sexNames  ) 
+
+  dimnames(repObj$ageAtLenResids_alspftx) <- list(  age = ageNames,
+                                                    len = lenNames,
+                                                    species = specNames,
+                                                    stock = stockNames,
+                                                    fleet = gearNames,
+                                                    year = yearNames,
+                                                    sex = sexNames  )
   # Growth model parameters
   # vectors
   names(repObj$A1_s)      <- specNames
@@ -1216,7 +1228,15 @@ renameReportArrays <- function( repObj = repInit, datObj = data )
   dimnames(repObj$vonK_sp)  <- list(  species = specNames,
                                       stock = stockNames )
 
-
+  dimnames(repObj$L1_spx)    <- list( species = specNames,
+                                      stock = stockNames,
+                                      sex = sexNames )
+  dimnames(repObj$L2_spx)    <- list( species = specNames,
+                                      stock = stockNames,
+                                      sex = sexNames )
+  dimnames(repObj$vonK_spx)  <- list( species = specNames,
+                                      stock = stockNames,
+                                      sex = sexNames )
 
 
 
