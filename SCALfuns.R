@@ -803,13 +803,16 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                           parBen = ctrlObj$parBen,
                           intMethod = ctrlObj$intMethod ) 
 
+  repOpt <- phaseList$repOpt
+
 
   maxSuccPhz <- phaseList$maxPhaseComplete
   if( maxSuccPhz > 0)
     plotRep <- "opt"
 
   # Calculate refPts for repOpt
-  repOpt <- calcRefPts( phaseList$phaseReports[[maxSuccPhz]]$report )
+  if( ctrlObj$calcRefPts )
+    repOpt <- calcRefPts( phaseList$phaseReports[[maxSuccPhz]]$report )
   
 
   # Update names on report objects
@@ -1000,13 +1003,14 @@ TMBphase <- function( data,
     phaseReports[[phase_cur]]$opt     <- opt
     phaseReports[[phase_cur]]$success <- TRUE
     phaseReports[[phase_cur]]$map     <- map_use
+    phaseReports[[phase_cur]]$hess    <- obj$he()
     outList$maxPhaseComplete          <- phase_cur
 
     # Update fitReport
     if(class(opt) != "try-error")
     {
       fitReport[phase_cur,]$objFun      <- obj$fn()
-      fitReport[phase_cur,]$maxGrad     <- max(obj$gr())
+      fitReport[phase_cur,]$maxGrad     <- max(abs(obj$gr()))
       fitReport[phase_cur,]$nPar        <- length(opt$par)
       fitReport[phase_cur,]$convCode    <- opt$convergence
       fitReport[phase_cur,]$convMsg     <- opt$message
@@ -1025,6 +1029,8 @@ TMBphase <- function( data,
   # Fit the model
   if( intMethod == "RE" & !is.null(random) &  class(opt) != "try-error" )
   { 
+    randEffList <- list()
+
     tBegin      <- proc.time()[3]
     params_use  <- obj$env$parList( opt$par )
 
@@ -1040,7 +1046,7 @@ TMBphase <- function( data,
     TMB::newtonOption(obj, tol10 = tol10)
     
     if( parBen )
-      outList$randEffBenchmark <- benchmark( obj, cores = 1:detectCores() )
+      randEffList$randEffBenchmark <- benchmark( obj, cores = 1:detectCores() )
 
     # Try the optimisation
     opt <- try( nlminb (  start     = obj$par,
@@ -1048,13 +1054,14 @@ TMBphase <- function( data,
                           gradient  = obj$gr,
                           control   = tmbCtrl ) )
 
-
+    randEffList$spHess  <- obj$env$spHess(random = TRUE)
+    randEffList$opt     <- opt
 
     # Update fitReports
     if(class(opt) != "try-error")
     {
       fitReport[maxPhase + 1,]$objFun      <- obj$fn()
-      fitReport[maxPhase + 1,]$maxGrad     <- max(obj$gr())
+      fitReport[maxPhase + 1,]$maxGrad     <- max(abs(obj$gr()))
       fitReport[maxPhase + 1,]$nPar        <- length(opt$par)
       fitReport[maxPhase + 1,]$convCode    <- opt$convergence
       fitReport[maxPhase + 1,]$convMsg     <- opt$message
@@ -1062,9 +1069,10 @@ TMBphase <- function( data,
 
     fitReport[maxPhase + 1,]$time          <- (proc.time()[3] - tBegin)/60
 
+    outList$randEffList <- randEffList
   }
 
-  if( intMethod == "MCMC" )
+  if( intMethod == "MCMC" & class(opt) != "try-error" )
   {
     tBegin      <- proc.time()[3]
     params_use  <- obj$env$parList( opt$par )
@@ -1078,7 +1086,6 @@ TMBphase <- function( data,
                             silent = silent )  
     mcmc <- tmbstan( obj, init = "last.par.best" )
 
-    browser()
   }
   
   if(outList$success & calcSD )
@@ -1151,19 +1158,20 @@ renameReportArrays <- function( repObj = repInit, datObj = data )
   dimnames(repObj$reca_sp) <- dimnames(datObj$age_aspftx)[c(2:3)]
   dimnames(repObj$recb_sp) <- dimnames(datObj$age_aspftx)[c(2:3)]
 
-
   # Observation models
   dimnames(repObj$q_spf)        <- dimnames(datObj$age_aspftx)[c(2:4)]  
   dimnames(repObj$tau2Idx_spf)  <- dimnames(datObj$age_aspftx)[c(2:4)]  
-  dimnames(repObj$sel_lfsp)     <- list(  len = lenNames, 
-                                        fleet = gearNames,
-                                        species = specNames,
-                                        stock = stockNames )
-  dimnames(repObj$sel_afspx)     <- list(  age = ageNames, 
-                                        fleet = gearNames,
-                                        species = specNames,
-                                        stock = stockNames,
-                                        sex = sexNames )
+  dimnames(repObj$sel_lfspt)     <- list( len = lenNames, 
+                                          fleet = gearNames,
+                                          species = specNames,
+                                          stock = stockNames,
+                                          year = yearNames )
+  dimnames(repObj$sel_afsptx)     <- list( age = ageNames, 
+                                          fleet = gearNames,
+                                          species = specNames,
+                                          stock = stockNames,
+                                          year = yearNames,
+                                          sex = sexNames )
 
 
   dimnames(repObj$ageRes_aspftx)   <- list(  age = ageNames, 

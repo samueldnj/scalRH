@@ -19,7 +19,7 @@
 calcRefPts <- function( obj )
 {
   # Calculate selectivity
-  obj <- .calcSel_sp(obj, fleetIdx = 2)
+  obj <- .calcSel_spx(obj, fleetIdx = 2)
 
   # Calculate reference curves
   refCurves <- .calcRefCurves( obj )
@@ -48,14 +48,15 @@ calcRefPts <- function( obj )
   # so labeling and dimensions are needed
   nS          <- obj$nS
   nP          <- obj$nP
-  specNames   <- dimnames(obj$M_sp)[[1]]
-  stockNames  <- dimnames(obj$M_sp)[[2]]
+  specNames   <- dimnames(obj$M_spx)[[1]]
+  stockNames  <- dimnames(obj$M_spx)[[2]]
+  sexNames    <- dimnames(obj$M_spx)[[3]]
 
 
   f <- seq( from = 0.0, to = maxF, length = nFs )
 
   # Create matrices to hold Recruitment reference curve, name rows and copy
-  # for each of wbar, Beq, Neq and Yeq
+  # for each of Beq, Neq and Yeq
   Req_spf      <- array( NA,  dim = c(nS, nP, nFs),
                               dimnames = list(  species = specNames,
                                                 stock = stockNames,
@@ -130,17 +131,18 @@ calcRefPts <- function( obj )
 }
 
 
-.calcSel_sp <- function( obj, fleetIdx = 2)
+.calcSel_spx <- function( obj, fleetIdx = 2)
 {
   # Model dimensions
   nS    <- obj$nS
   nP    <- obj$nP
+  nX    <- obj$nX
   A_s   <- obj$A_s
   nA    <- obj$nA
   nL    <- obj$nL
 
   # Probability of being a given length-at-age
-  probLenAge_lasp <- obj$probLenAge_lasp
+  probLenAge_laspx <- obj$probLenAge_laspx
 
   # Selectivity - this is mean over each fleet's 
   # time period, not time-varying
@@ -151,8 +153,8 @@ calcRefPts <- function( obj )
 
   # Harcode for comm.mod for now,
   # and length based selectivity
-  selLen_lsp <- array(NA, dim = c(nL,nS,nP) )
-  selAge_asp <- array(NA, dim = c(nA,nS,nP) )
+  selLen_lsp  <- array(NA, dim = c(nL,nS,nP) )
+  selAge_aspx <- array(NA, dim = c(nA,nS,nP,nX) )
 
   # Loop over species and stocks, calculate
   # selLen so we can get selAge
@@ -160,15 +162,18 @@ calcRefPts <- function( obj )
     for(p in 1:nP )
     {
       selLen_lsp[,s,p] <- (1 + exp(-(1:nL - xSel50_sp[s,p,])/xSelStep_sp[s,p,]/log(19)))^(-1)
-      for( a in 1:nA )
+      for( x in 1:nX)
       {
-        selAge_asp[a,s,p] <- sum(probLenAge_lasp[,a,s,p] * selLen_lsp[,s,p])
+        for( a in 1:nA )
+        {
+          selAge_aspx[a,s,p,x] <- sum(probLenAge_laspx[,a,s,p,x] * selLen_lsp[,s,p])
+        }
+        selAge_aspx[,s,p,x] <- selAge_aspx[,s,p,x] / max(selAge_aspx[,s,p,x],na.rm = T)
       }
-      selAge_asp[,s,p] <- selAge_asp[,s,p] / max(selAge_asp[,s,p])
     }
 
   obj$selLen_lsp <- selLen_lsp
-  obj$selAge_asp <- selAge_asp
+  obj$selAge_aspx <- selAge_aspx
 
   obj
 }
@@ -191,46 +196,48 @@ calcRefPts <- function( obj )
   A_s   <- obj$A_s
   nA    <- obj$nA
   nL    <- obj$nL
-  M_sp  <- obj$M_sp
+  nX    <- obj$nX
+  M_spx <- obj$M_spx
 
   # Life history schedules
-  matAge_asp      <- obj$matAge_asp
-  lenAge_asp      <- obj$lenAge_asp
-  wtAge_asp       <- obj$meanWtAge_asp
-  probLenAge_lasp <- obj$probLenAge_lasp
-  selAge_asp      <- obj$selAge_asp
+  matAge_asp        <- obj$matAge_asp
+  lenAge_aspx       <- obj$lenAge_aspx
+  wtAge_aspx        <- obj$meanWtAge_aspx
+  probLenAge_laspx  <- obj$probLenAge_laspx
+  selAge_aspx       <- obj$selAge_aspx
 
 
   # Compute Z_asp
-  Z_asp <- array( NA, dim = c(nA,nS,nP))
-  Surv_asp <- array( NA, dim = c(nA,nS,nP))
-  Surv_asp[1,,] <- 1
-  for( s in 1:nS )
-    for( p in 1:nP )
-    {
-      Z_asp[1:A_s[s],s,p] <- M_sp[s,p]
-      for( a in 1:A_s[s])
+  Z_aspx    <- array( NA, dim = c(nA,nS,nP,nX))
+  Surv_aspx <- array( NA, dim = c(nA,nS,nP,nX))
+  Surv_aspx[1,,,] <- 1/nX
+  for( x in 1:nX )
+    for( s in 1:nS )
+      for( p in 1:nP )
       {
-        Z_asp[a,s,p] <- Z_asp[a,s,p] + selAge_asp[a,s,p] * f
-        if( a > 1 )
-          Surv_asp[a,s,p] <- Surv_asp[a-1,s,p] * exp( -Z_asp[a-1,s,p])
-        if( a == A_s[s])
-          Surv_asp[a,s,p] <- Surv_asp[a,s,p] / (1 - exp(-Z_asp[a,s,p]))
+        Z_aspx[1:A_s[s],s,p,x] <- M_spx[s,p,x]
+        for( a in 1:A_s[s])
+        {
+          Z_aspx[a,s,p,x] <- Z_aspx[a,s,p,x] + selAge_aspx[a,s,p,x] * f
+          if( a > 1 )
+            Surv_aspx[a,s,p,x] <- Surv_aspx[a-1,s,p,x] * exp( -Z_aspx[a-1,s,p,x])
+          if( a == A_s[s])
+            Surv_aspx[a,s,p,x] <- Surv_aspx[a,s,p,x] / (1 - exp(-Z_aspx[a,s,p,x]))
+        }
       }
-    }
 
   # Calculate yield-per-recruit
-  C_asp     <- Surv_asp * wtAge_asp * selAge_asp * f * (1 - exp(-Z_asp))/Z_asp
+  C_aspx    <- Surv_aspx * wtAge_aspx * selAge_aspx * f * (1 - exp(-Z_aspx))/Z_aspx
   # Replace NAs with 0 (unmodeled ages)
-  Z_asp[is.na(Z_asp)] <- 0
-  Surv_asp[is.na(Surv_asp)] <- 0
-  C_asp[is.na(C_asp)] <- 0
+  Z_aspx[is.na(Z_aspx)] <- 0
+  Surv_aspx[is.na(Surv_aspx)] <- 0
+  C_aspx[is.na(C_aspx)] <- 0
   
   # Compute YPR
-  ypr_sp    <- apply( X = C_asp, FUN = sum, MARGIN = c(2,3),na.rm = T)
+  ypr_sp    <- apply( X = C_aspx, FUN = sum, MARGIN = c(2,3),na.rm = T)
 
   # spawning biomass per recruit
-  ssbpr_asp  <- Surv_asp * wtAge_asp * matAge_asp
+  ssbpr_asp  <- Surv_aspx[,,,nX] * wtAge_aspx[,,,nX] * matAge_asp
   ssbpr_sp   <- apply( X = ssbpr_asp, FUN = sum, MARGIN = c(2,3), na.rm = T )
 
   # compile output list
@@ -242,28 +249,28 @@ calcRefPts <- function( obj )
   return(obj)
 }
 
-# Calculates recruitment parameters, and equilibrium unfished
-# numbers and recruitment.
-.calcRecPars <- function( obj )
-{
-  # Calculate eqbm parameters
-  # Survival
+# # Calculates recruitment parameters, and equilibrium unfished
+# # numbers and recruitment.
+# .calcRecPars <- function( obj )
+# {
+#   # Calculate eqbm parameters
+#   # Survival
 
     
-  # Beverton-Holt a parameters
-  rec.a <- 4.*obj$rSteepness*R0/(obj$B0*(1.-obj$rSteepness))
-  rec.b <- (5.*obj$rSteepness-1.)/(obj$B0*(1.-obj$rSteepness))
+#   # Beverton-Holt a parameters
+#   rec.a <- 4.*obj$rSteepness*R0/(obj$B0*(1.-obj$rSteepness))
+#   rec.b <- (5.*obj$rSteepness-1.)/(obj$B0*(1.-obj$rSteepness))
 
-  # Now return everything in a list
-  recList <- list(  S0 = S0,
-                    wbar0 = wbar0,
-                    N0 = N0,
-                    R0 = R0,
-                    rec.a = rec.a,
-                    rec.b = rec.b  )
+#   # Now return everything in a list
+#   recList <- list(  S0 = S0,
+#                     wbar0 = wbar0,
+#                     N0 = N0,
+#                     R0 = R0,
+#                     rec.a = rec.a,
+#                     rec.b = rec.b  )
 
-  return(recList)
-}
+#   return(recList)
+# }
 
 # .getFmsy     ()
 # Purpose:     fit a spline function to f vs yield, then use a root finder to get Fmsy. 

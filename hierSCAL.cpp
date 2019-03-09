@@ -1489,6 +1489,7 @@ Type objective_function<Type>::operator() ()
   REPORT( nT );
   REPORT( nL );
   REPORT( nA );
+  REPORT( nX );
 
   // Natural scale leading parameters
   REPORT( B0_sp );    
@@ -1496,7 +1497,7 @@ Type objective_function<Type>::operator() ()
   REPORT( M_spx );     
   REPORT( L2_spx );  
   REPORT( vonK_spx );  
-  REPORT( L1_sp ); 
+  REPORT( L1_spx ); 
   REPORT( sigmaLa_s );
   REPORT( sigmaLb_s );
   REPORT( sigmaR_sp );

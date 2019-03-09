@@ -337,6 +337,7 @@ plotCatchFit_ft <- function(  repObj = repInit,
 plotCompFitYrs <- function( repObj = repInit,
                             initYear = fYear,
                             sIdx = 1, pIdx = 1,
+                            sex = "female",
                             comps = "age",
                             save = FALSE,
                             savePath = "plotFitYrs" )
@@ -345,16 +346,16 @@ plotCompFitYrs <- function( repObj = repInit,
   if( comps == "age" )
   {
     max       <- repObj$A_s[sIdx]
-    pred_xft  <- repObj$aDist_aspft_hat[1:max,sIdx,pIdx,,]
-    obs_xft   <- repObj$age_aspft[1:max,sIdx,pIdx,,]  
+    pred_xft <- repObj$aDist_aspftx_hat[1:max,sIdx,pIdx,,,sex]
+    obs_xft  <- repObj$age_aspftx[1:max,sIdx,pIdx,,,sex]  
     xLab      <- "Age"
     minProp   <- repObj$minAgeProp
   }
   if( comps == "length" )
   {
     max       <- repObj$L_s[sIdx]  
-    pred_xft  <- repObj$lDist_lspft_hat[1:max,sIdx,pIdx,,]
-    obs_xft   <- repObj$len_lspft[1:max,sIdx,pIdx,,] 
+    pred_xft  <- repObj$lDist_lspftx_hat[1:max,sIdx,pIdx,,,sex]
+    obs_xft   <- repObj$len_lspftx[1:max,sIdx,pIdx,,,sex] 
     xLab      <- "Length"
     minProp   <- repObj$minLenProp
   }
@@ -450,22 +451,23 @@ plotCompFitYrs <- function( repObj = repInit,
 plotCompFitAvg <- function( repObj = repInit,
                             initYear = fYear,
                             sIdx = 1, pIdx = 1,
+                            sex = "female",
                             comps = "age" )
 {
   # Pull predicted and observed ages
   if( comps == "age" )
   {
     max       <- repObj$A_s[sIdx]
-    pred_xft  <- repObj$aDist_aspft_hat[1:max,sIdx,pIdx,,]
-    obs_xft   <- repObj$age_aspft[1:max,sIdx,pIdx,,]  
+    pred_xft  <- repObj$aDist_aspftx_hat[1:max,sIdx,pIdx,,,sex]
+    obs_xft   <- repObj$age_aspftx[1:max,sIdx,pIdx,,,sex]  
     xLab      <- "Age"
     minProp   <- repObj$minAgeProp
   }
   if( comps == "length" )
   {
     max       <- repObj$L_s[sIdx]  
-    pred_xft   <- repObj$lDist_lspft_hat[1:max,sIdx,pIdx,,]
-    obs_xft    <- repObj$len_lspft[1:max,sIdx,pIdx,,] 
+    pred_xft  <- repObj$lDist_lspftx_hat[1:max,sIdx,pIdx,,,sex]
+    obs_xft   <- repObj$len_lspftx[1:max,sIdx,pIdx,,,sex] 
     xLab      <- "Length"
     minProp   <- repObj$minLenProp
   }
@@ -781,7 +783,7 @@ plotSBt <- function(  repObj = repInit,
   # Pull spawning biomass
   SB_t  <- repObj$SB_spt[sIdx, pIdx, ]
   B0    <- round(repObj$B0_sp[sIdx,pIdx],2)
-  M     <- round(repObj$M_sp[sIdx,pIdx],2)
+  M_x   <- round(repObj$M_spx[sIdx,pIdx,],2)
   C_ft  <- repObj$C_spft[sIdx, pIdx, , ]
   Bv_ft <- repObj$Bv_spft[sIdx,pIdx,,]
   q_ft  <- repObj$q_spft[sIdx,pIdx,,]
@@ -838,8 +840,8 @@ plotSBt <- function(  repObj = repInit,
     # Plot recruitment
     abline( v = vertLines, lwd = .8, lty = 2, col = "grey80")
     abline( h = B0, lty = 2, lwd = .8, col = "red")
-    panLab( x = 0.8, y = 0.9, txt = paste("M = ", M, sep = "") )
-    panLab( x = 0.8, y = 0.85, txt = paste("B0 = ", B0, sep = "") )
+    panLab( x = 0.8, y = c(0.9,0.85), txt = paste("M = ", M_x, sep = "") )
+    panLab( x = 0.8, y = 0.95, txt = paste("B0 = ", B0, sep = "") )
     lines( x = years[1:nT], y = SB_t[1:nT], lwd = 2, col = "red" )
     rect( xleft = years[1:nT] - .3,
           xright = years[1:nT] + .3,
@@ -955,16 +957,22 @@ plotProbLenAge <- function( repObj = repInit,
                             nopar = FALSE )
 {
   # Get probability matrix
-  probLenAge_la <- repObj$probLenAge_lasp[,,sIdx,pIdx]
+  probLenAge_lax <- repObj$probLenAge_laspx[,,sIdx,pIdx,]
 
   # Get max length and ages classes
-  L <- repObj$L_s[sIdx]
-  A <- repObj$A_s[sIdx]
+  L   <- repObj$L_s[sIdx]
+  A   <- repObj$A_s[sIdx]
+  nX  <- repObj$nX
 
-  cols <- grey.colors(n = A, start = 0, end = .6)
+  cols <- matrix(NA, nrow = nX, ncol = A)
+  if( nX > 1)
+    sexCols <- c("steelblue","salmon")
+  else sexCols <- "grey30"
+  for( x in 1:nX )
+    cols[x,] <- alpha(sexCols[x], alpha = seq(from = .2, to = .8, length = A) )
 
   # Open plotting window
-  plot( x = c(0,L), y = range(probLenAge_la), type = "n", xlab = "",
+  plot( x = c(0,L), y = range(probLenAge_lax), type = "n", xlab = "",
         ylab = "", axes = FALSE )
     if( !nopar )
     {
@@ -975,9 +983,10 @@ plotProbLenAge <- function( repObj = repInit,
       axis( side = 2, las = 1)
       box()
     }
-    for( aIdx in 1:A )
-      lines(  x = 1:L, y = probLenAge_la[1:L,aIdx],
-              col = cols[aIdx], lwd = 1 )
+    for(x in 1:nX)
+      for( aIdx in 1:A )
+        lines(  x = 1:L, y = probLenAge_lax[1:L,aIdx,x],
+                col = cols[x,aIdx], lwd = 1 )
 } # END plotProbLenAge()
 
 # plotYeq
@@ -1028,7 +1037,7 @@ plotHeatmapProbLenAge <- function(  repObj = repInit,
                                     facets = c("stock","species") )
 {
   # Get probability matrix
-  probLenAge_la <- repObj$probLenAge_lasp[,,sIdx,pIdx, drop = FALSE]
+  probLenAge_lax <- repObj$probLenAge_laspx[,,sIdx,pIdx, , drop = FALSE]
 
   # dimnames(probLenAge_la) <- list(  length = 1:nrow(probLenAge_la),
   #                                   age = 1:ncol(probLenAge_la) )
@@ -1042,11 +1051,11 @@ plotHeatmapProbLenAge <- function(  repObj = repInit,
   nP <- length(pIdx)
 
   # Get vonB parameters
-  A1_s    <- repObj$A1_s[sIdx,drop = FALSE]
-  A2_s    <- repObj$A2_s[sIdx,drop = FALSE]
-  vonK_sp <- repObj$vonK_sp[sIdx,pIdx, drop = FALSE]
-  L1_sp   <- repObj$L1_sp[sIdx,pIdx, drop = FALSE]
-  L2_sp   <- repObj$L2_sp[sIdx,pIdx, drop = FALSE]
+  A1_s      <- repObj$A1_s[sIdx,drop = FALSE]
+  A2_s      <- repObj$A2_s[sIdx,drop = FALSE]
+  vonK_spx  <- repObj$vonK_spx[sIdx,pIdx,, drop = FALSE]
+  L1_spx    <- repObj$L1_spx[sIdx,pIdx,, drop = FALSE]
+  L2_spx    <- repObj$L2_spx[sIdx,pIdx,, drop = FALSE]
 
   assignAgePar <- function( spec, ageVec )
   {
@@ -1056,15 +1065,15 @@ plotHeatmapProbLenAge <- function(  repObj = repInit,
   }
 
   # Combine vonB parameters into a data.frame
-  vonK.df <- melt(vonK_sp) %>%
+  vonK.df <- melt(vonK_spx) %>%
               mutate( par = "vonK")
-  L1.df   <- melt(L1_sp) %>%
+  L1.df   <- melt(L1_spx) %>%
               mutate( par = "L1",
                       zero = 0 ) %>%
               group_by( species ) %>%
               mutate( age = assignAgePar( species, A1_s ) ) %>%
               ungroup()
-  L2.df   <- melt(L2_sp) %>%
+  L2.df   <- melt(L2_spx) %>%
               mutate( par = "L2",
                       zero = 0 ) %>%
               group_by( species ) %>%
@@ -1076,21 +1085,21 @@ plotHeatmapProbLenAge <- function(  repObj = repInit,
   cols <- wes_palette("Zissou1", 50, type = "continuous")
 
 
-  melted_probMat <- melt(probLenAge_la)
+  melted_probMat <- melt(probLenAge_lax)
   melted_probMat <- melted_probMat %>% filter( value > 1e-4 )
 
-  predLenAtAge <- repObj$lenAge_asp[,sIdx,pIdx, drop = FALSE]
-  predLenAtAge <- melt(predLenAtAge) 
+  predLenAtAge_ax <- repObj$lenAge_aspx[,sIdx,pIdx,, drop = FALSE]
+  predLenAtAge_ax <- melt(predLenAtAge_ax) 
 
 
 
 
   tmp <-  ggplot(data = melted_probMat, aes(x=age, y=len, fill=value)) + 
           geom_tile() +
-          facet_grid( stock ~ species,
+          facet_grid( stock ~ species + sex,
                       scale = "fixed" ) +
           scale_fill_gradientn(colours = cols) +
-          geom_line(  data = predLenAtAge, 
+          geom_line(  data = predLenAtAge_ax, 
                       mapping = aes(x = age, y = value),
                       inherit.aes = FALSE, size = 1) +
           geom_segment( data = L1.df, inherit.aes = FALSE,
@@ -1125,8 +1134,8 @@ plotHeatmapAgeLenResids <- function(  repObj = repInit,
                                       fIdx = 1 )
 {
   # Get resids matrix
-  resids <- repObj$ageAtLenResids_alspft[,,sIdx,pIdx,fIdx,,drop = FALSE]
-  resids <- apply( X = resids, FUN = mean, MARGIN = c(1,2,3,4,5))
+  resids <- repObj$ageAtLenResids_alspftx[,,sIdx,pIdx,fIdx,,,drop = FALSE]
+  resids <- apply( X = resids, FUN = mean, MARGIN = c(1,2,3,4,5,7))
 
   resids[resids == 0] <- NA
   
@@ -1147,13 +1156,13 @@ plotHeatmapAgeLenResids <- function(  repObj = repInit,
   nL <- repObj$nL
   nA <- repObj$nA
 
-  predLenAtAge <- repObj$lenAge_asp[,sIdx,pIdx, drop = FALSE]
+  predLenAtAge <- repObj$lenAge_aspx[,sIdx,pIdx,, drop = FALSE]
   predLenAtAge <- melt(predLenAtAge) 
 
 
   tmp <- ggplot(data = melted_residsMat, aes(x=age, y=len, fill=value)) + 
           geom_tile() +
-          facet_grid( stock ~ species + fleet, scale = "fixed" ) +
+          facet_grid( stock ~ species + fleet + sex, scale = "fixed" ) +
           scale_fill_gradientn(colours = cols, na.value = NA) +
           geom_line(  data = predLenAtAge, 
                       mapping = aes(x = age, y = value),
@@ -1170,20 +1179,21 @@ plotHeatmapAgeLenResids <- function(  repObj = repInit,
 # from age or length compositions
 plotCompResids <- function( repObj = repInit,
                             sIdx = 1, pIdx = 1,
-                            fIdx = 1, comps = "age" )
+                            fIdx = 1, sex = "male",
+                            comps = "age" )
 {
   # First, get residuals
   if( comps == "age" )
   {
     # Pull resids array
-    resids_xspft <- repObj$ageRes_aspft[,sIdx,pIdx,fIdx,,drop = FALSE]
+    resids_xspft <- repObj$ageRes_aspftx[,sIdx,pIdx,fIdx,,sex,drop = FALSE]
     tauRes_spf   <- sqrt(repObj$tau2Age_spf[sIdx,pIdx,fIdx,drop = FALSE])
   }
 
   if( comps == "length")
   {
     # Pull resids array
-    resids_xspft <- repObj$lenRes_lspft[,sIdx,pIdx,fIdx,,drop = FALSE]
+    resids_xspft <- repObj$lenRes_lspftx[,sIdx,pIdx,fIdx,,sex,drop = FALSE]
     tauRes_spf   <- sqrt(repObj$tau2Len_spf[sIdx,pIdx,fIdx,drop = FALSE])
   }
   # Get dimension
@@ -1231,10 +1241,11 @@ plotCompResids <- function( repObj = repInit,
 
 # plotMatAge()
 plotMatAge <- function( repObj = repInit,
-                        sIdx = 1, pIdx = 1 )
+                        sIdx = 1, pIdx = 1,
+                        sex = "male" )
 {
   # Get probability matrix
-  probLenAge_la <- repObj$probLenAge_lasp[,,sIdx,pIdx]
+  probLenAge_la <- repObj$probLenAge_laspx[,,sIdx,pIdx,sex]
   matLen_l      <- repObj$matLen_ls[,sIdx]
   matAge_a      <- repObj$matAge_asp[,sIdx,pIdx]
 
@@ -1255,10 +1266,11 @@ plotMatAge <- function( repObj = repInit,
 
 # plotMatLength()
 plotMatLength <- function( repObj = repInit,
-                           sIdx = 1, pIdx = 1 )
+                           sIdx = 1, pIdx = 1,
+                           sex = "male" )
 {
   # Get probability matrix
-  probLenAge_la <- repObj$probLenAge_lasp[,,sIdx,pIdx]
+  probLenAge_la <- repObj$probLenAge_laspx[,,sIdx,pIdx,sex]
   matLen_l      <- repObj$matLen_ls[,sIdx]
   matAge_a      <- repObj$matAge_asp[,sIdx,pIdx]
 
@@ -1281,17 +1293,22 @@ plotWtAge <- function(  repObj = repInit,
                         sIdx = 1, pIdx = 1 )
 {
   # Get probability matrix
-  meanWtAge_a <- repObj$meanWtAge_asp[,sIdx,pIdx]
+  meanWtAge_ax <- repObj$meanWtAge_aspx[,sIdx,pIdx,]
 
   # Get max age classes
   A <- repObj$A_s[sIdx]
 
+  nX <- repObj$nX
+
+  sexCols <- c("steelblue","salmon")
+
   # Open plotting window
-  plot( x = c(0,A), y = c(0,max(meanWtAge_a,na.rm =T)), type = "n", 
+  plot( x = c(0,A), y = c(0,max(meanWtAge_ax,na.rm =T)), type = "n", 
         xlab = "Age",
         ylab = "Weight (kg)", las = 1 )
-    lines(  x = 1:A, y = meanWtAge_a[1:A],
-            col = "steelblue", lwd = 2 )
+    for( x in 1:nX)
+      lines(  x = 1:A, y = meanWtAge_ax[1:A,x],
+              col = sexCols[x], lwd = 2 )
 } # END plotWtAge()
 
 # plotLenAge()
@@ -1299,17 +1316,21 @@ plotLenAge <- function( repObj = repInit,
                         sIdx = 1, pIdx = 1 )
 {
   # Get probability matrix
-  lenAge_a <- repObj$lenAge_asp[,sIdx,pIdx]
+  lenAge_ax <- repObj$lenAge_aspx[,sIdx,pIdx,]
 
   # Get max age classes
   A <- repObj$A_s[sIdx]
 
+  nX <- repObj$nX
+  sexCols <- c("steelblue","salmon")
+
   # Open plotting window
-  plot( x = c(0,A), y = c(0,max(lenAge_a,na.rm =T)), type = "n", 
+  plot( x = c(0,A), y = c(0,max(lenAge_ax,na.rm =T)), type = "n", 
         xlab = "Age",
         ylab = "Length (cm)", las = 1 )
-    lines(  x = 1:A, y = lenAge_a[1:A],
-            col = "steelblue", lwd = 2 )
+    for( x in 1:nX)
+      lines(  x = 1:A, y = lenAge_ax[1:A,x],
+              col = sexCols[x], lwd = 2 )
 } # END plotLenAge()
 
 # plotIdxFits()
@@ -1524,15 +1545,19 @@ plotSelAge <- function( repObj = repInit,
                         sIdx = 1, pIdx = 1 )
 {
   # Get selectivity functions
-  sel_aft <- repObj$sel_afspt[ , , sIdx, pIdx, ]
+  sel_aftx <- repObj$sel_afsptx[ , , sIdx, pIdx, ,  ]
 
   # Get gear labels
-  gearNames <- dimnames(sel_aft)[[2]]
+  gearNames <- dimnames(sel_aftx)[[2]]
 
   # Dimensions
   nF <- repObj$nF
   A  <- repObj$A_s[sIdx]
   nT <- repObj$nT
+  nX <- repObj$nX
+
+  sexCols <- c("steelblue","salmon")
+  sexCols <- alpha( sexCols, alpha = .5 )
 
   par(  mfrow =c(nF,1), 
         oma = c(3,4,1,3),
@@ -1547,9 +1572,10 @@ plotSelAge <- function( repObj = repInit,
         axis( side = 1)
       axis( side = 2, las = 1)
       box()
-      for( t in 1:nT)
-        lines( x = 1:A, y = sel_aft[1:A,fIdx,t], col = "grey75",
-                lwd = 2 )
+      for( x in 1:nX )
+        for( t in 1:nT)
+          lines( x = 1:A, y = sel_aftx[1:A,fIdx,t,x], col = sexCols[x],
+                  lwd = 2 )
       mtext( side = 4, text = gearNames[fIdx], line = 2, font = 2)
   }
   mtext( side = 1, text= "Age", outer = T, line = 2)
