@@ -171,7 +171,6 @@ vector<Type> calcLogistNormLikelihood(  vector<Type>& yObs,
 } // end calcLogistNormLikelihood()
 
 
-
 // objective function
 template<class Type>
 Type objective_function<Type>::operator() ()
@@ -201,7 +200,7 @@ Type objective_function<Type>::operator() ()
   int nT = I_spft.dim(3);               // No of time steps
   int nL = len_lspftx.dim(0);           // max no of length bins (for creating state arrays)
   int nA = age_aspftx.dim(0);           // max no of age bins (for creating state arrays)
-  int nX = age_aspftx.dim(5);           // number of sex classes (may also be used for growth classes later)
+  int nX = age_aspftx.dim(5);           // No of sex classes (0 == male, 1 == female)
 
   // Model switches - fill these in when we know what we want
   DATA_IVECTOR(swRinit_s);              // species fished initialisation switch (0 == unfished, 1 == fished)
@@ -241,6 +240,8 @@ Type objective_function<Type>::operator() ()
   PARAMETER_VECTOR(lnL1_s);             // species-specific vonB Length-at-age 1
   PARAMETER_ARRAY(deltaL2_sp);          // species-pop specific deviation in L2
   PARAMETER_ARRAY(deltaVonK_sp);        // species-pop specific deviation in VonK parameter
+  PARAMETER_ARRAY(deltaL2_spx);         // sex-species-pop specific deviation in L2
+  PARAMETER_ARRAY(deltaVonK_spx);       // sex-species-pop specific deviation in VonK parameter
   PARAMETER_VECTOR(sigmaLa_s);          // species-specific individual growth SD intercept
   PARAMETER_VECTOR(sigmaLb_s);          // species-specific individual growth SD slope
   PARAMETER_VECTOR(LWa_s);              // species L-W conversion a par (units conv: cm -> kt)
@@ -298,6 +299,7 @@ Type objective_function<Type>::operator() ()
   PARAMETER_VECTOR(epsM_s);             // Species level natural mortality effect
   PARAMETER_ARRAY(epsSteep_sp);         // stock level steepness effect
   PARAMETER_ARRAY(epsM_sp);             // stock level natural mortality effect
+  PARAMETER_ARRAY(epsM_spx);            // sex specific natural mortality effect
   PARAMETER_VECTOR(omegaR_vec);         // species-stock specific recruitment errors 2:nT
   PARAMETER_VECTOR(omegaRinit_vec);     // stock-age specific recruitment initialisation errors
   PARAMETER_ARRAY(lnsigmaR_sp);         // stock recruitment errors sd (sqrt cov matrix diag)
@@ -337,9 +339,9 @@ Type objective_function<Type>::operator() ()
   // Biological //
   array<Type>  B0_sp(nS,nP);
   array<Type>  h_sp(nS,nP);
-  array<Type>  M_sp(nS,nP);
-  array<Type>  L2_sp(nS,nP);
-  array<Type>  vonK_sp(nS,nP);
+  array<Type>  M_spx(nS,nP,nX);
+  array<Type>  L2_spx(nS,nP);
+  array<Type>  vonK_spx(nS,nP);
   array<Type>  L1_sp(nS,nP);
   array<Type>  sigmaR_sp(nS,nP);
 
@@ -361,11 +363,11 @@ Type objective_function<Type>::operator() ()
   array<Type>  recb_sp(nS,nP);          // BH b parameter for pops
 
   // Growth //
-  array<Type>   Wlen_ls(nL,nS);         // weight-at-length by species
-  array<Type>   lenAge_asp(nA,nS,nP);   // Mean length-at-age by population
-  array<Type>   probLenAge_lasp(nL,nA,nS,nP);
-  array<Type>   meanWtAge_asp(nA,nS,nP);
-  array<Type>   probAgeLen_alspft(nA,nL,nS,nP,nF,nT);
+  array<Type>   Wlen_ls(nL,nS);                 // weight-at-length by species
+  array<Type>   lenAge_aspx(nA,nS,nP,nX);           // Mean length-at-age by population
+  array<Type>   probLenAge_laspx(nL,nA,nS,nP,nX);
+  array<Type>   meanWtAge_aspx(nA,nS,nP,nX);
+  array<Type>   probAgeLen_alspftx(nA,nL,nS,nP,nF,nT,nX);
 
   // Maturity //
   array<Type>   matAge_as(nA,nS);       // Proportion mature at age by species
@@ -392,9 +394,9 @@ Type objective_function<Type>::operator() ()
 
   // Prior Hyperparameters //
   // Steepness
-  vector<Type>  h_s           = .2 + Type(0.8) / ( Type(1.0) + exp( -1 * (logitSteep + epsSteep_s ) ) );
+  vector<Type>  h_s           = .2 + Type(0.78) / ( Type(1.0) + exp( -1 * (logitSteep + epsSteep_s ) ) );
   vector<Type>  sigmah_s      = exp(lnsigmah_s);
-  Type          mh            = .2 + Type(0.8) / ( Type(1.0) + exp( -1 * logit_muSteep) );
+  Type          mh            = .2 + Type(0.78) / ( Type(1.0) + exp( -1 * logit_muSteep) );
   Type          sigmah        = exp(lnsigmah);
 
   // Natural mortality
@@ -539,7 +541,7 @@ Type objective_function<Type>::operator() ()
           // Estimate F?
           if( C_spft(s,p,f,t) > 0)
           {
-            F_spft(s,p,f,t) = exp( lnF_spft(vecIdx) );
+            F_spft(s,p,f,t) = 4 / (1 + exp( - lnF_spft(vecIdx) ) );
             vecIdx++;
             
             Fbar_spf(s,p,f) += F_spft(s,p,f,t);
@@ -568,15 +570,15 @@ Type objective_function<Type>::operator() ()
   for( int s = 0; s < nS; s++ )
     for( int p = 0; p < nP; p++ )
     {
-      for( int t = tFirstRecDev_s(s); t < tLastRecDev_s(s); t++ )
+      for( int t = tFirstRecDev_s(s); t <= tLastRecDev_s(s); t++ )
       {
-        omegaR_spt(s,p,t) = omegaR_vec(devVecIdx);
+        omegaR_spt(s,p,t) = -5. + 10. / (1. + exp(-omegaR_vec(devVecIdx)));
         devVecIdx++;
       }
       if(swRinit_s(s) == 1)
         for( int a = 0; a < A_s(s); a++ )
         {
-          omegaRinit_asp(a,s,p) = omegaRinit_vec(initVecIdx);
+          omegaRinit_asp(a,s,p) = -5. + 10./( 1 + exp(-omegaRinit_vec(initVecIdx) ));
           initVecIdx++;
         }
     }
@@ -960,12 +962,13 @@ Type objective_function<Type>::operator() ()
     for( int p = 0; p < nP; p++ )
     {
       // First initialisation deviations  
-      for( int a = 0; a < nA; a++)
-        recnll_sp(s,p) -= dnorm( omegaRinit_asp(a,s,p),Type(0), sigmaR_sp(s,p),true);
+      vector<Type> initRecDevVec = omegaRinit_asp.col(p).col(s);
+      recnll_sp(s,p) -= dnorm( initRecDevVec,Type(0), sigmaR_sp(s,p),true).sum();
 
-      // then yearly recruitment deviations
-      for( int t = tFirstRecDev_s(s); t <=  nT; t++ )
-        recnll_sp(s,p) -= dnorm( omegaR_spt(s,p,t-1), Type(0.), sigmaR_sp(s,p),true);
+       // then yearly recruitment deviations
+      for( int t = 0; t < nT; t++)
+        recnll_sp(s,p) -= dnorm( omegaR_spt(s,p,t), Type(0.), sigmaR_sp(s,p),true);
+        
     }
 
   // vonB growth model likelihood //
@@ -978,8 +981,6 @@ Type objective_function<Type>::operator() ()
   array<Type> nResidsAgeAtLen_spf(nS,nP,nF);
   array<Type> etaSumSqAgeAtLen_spf(nS,nP,nF);
   array<Type> tau2AgeAtLenObs_spf(nS,nP,nF);
-  // containers for a given year/fleet/length/species/pop - function
-  // expects vector<Type>
   
 
   // Zero-init all arrays
@@ -992,6 +993,8 @@ Type objective_function<Type>::operator() ()
   // Now loop and compute
   for( int s = 0; s < nS; s++ )
   {
+    // containers for a given year/fleet/length/species/pop - function
+    // expects vector<Type>
     vector<Type> obs(A_s(s));
     vector<Type> pred(A_s(s));
     vector<Type> resids(A_s(s));
@@ -1298,32 +1301,33 @@ Type objective_function<Type>::operator() ()
   L2nlp_p.setZero();
 
   // Fix sigmaVonK and sigmaL2 for now
-  Type sigmavonK  = 0.1;
-  Type sigmaL2    = 0.1;
+  Type sigmavonK  = 0.01;
+  Type sigmaL2    = 0.01;
 
   vector<Type>    sigmavonK_s(nS);
-                  sigmavonK_s.fill(.1);
+                  sigmavonK_s.fill(.01);
   vector<Type>    sigmaL2_s(nS);
-                  sigmaL2_s.fill(0.1);
+                  sigmaL2_s.fill(0.01);
 
 
   // Calculate stock mean delta values for
   // growth model, to extend growth pars to 
   // species/stock combinations without data
-  for( int p = 0; p < nP; p++ )
-  {
-    deltaVonKbar_p(p) = deltaVonK_sp.col(p).sum()/nP;
-    deltaL2bar_p(p) = deltaL2_sp.col(p).sum()/nP;
+  if(nS > 1)
+    for( int p = 0; p < nP; p++ )
+    {
+      deltaVonKbar_p(p) = deltaVonK_sp.col(p).sum()/nP;
+      deltaL2bar_p(p) = deltaL2_sp.col(p).sum()/nP;
 
-    vector<Type> vonKVec  = deltaVonK_sp.col(p);
-    vector<Type> L2Vec    = deltaL2_sp.col(p);
+      vector<Type> vonKVec  = deltaVonK_sp.col(p);
+      vector<Type> L2Vec    = deltaL2_sp.col(p);
 
-    // Within stock growth par deviation priors - essentially
-    // a regularisation to stop the unobserved stocks from overfitting  
-    vonKnlp_p(p)          -= dnorm( vonKVec, deltaVonKbar_p(p), sigmavonK, true).sum();
-    L2nlp_p(p)            -= dnorm( L2Vec, deltaL2bar_p(p), sigmaL2, true).sum();
+      // Within stock growth par deviation priors - essentially
+      // a regularisation to stop the unobserved stocks from overfitting  
+      vonKnlp_p(p)          -= dnorm( vonKVec, deltaVonKbar_p(p), sigmavonK, true).sum();
+      L2nlp_p(p)            -= dnorm( L2Vec, deltaL2bar_p(p), sigmaL2, true).sum();
 
-  }
+    }
 
 
   // Mortality prior
@@ -1340,15 +1344,16 @@ Type objective_function<Type>::operator() ()
 
   for( int s = 0; s < nS; s++ )
   { 
-    vector<Type> steepVec = epsSteep_sp.transpose().col(s);
-    vector<Type> mortVec  = epsM_sp.transpose().col(s);
     vector<Type> vonKVec  = deltaVonK_sp.transpose().col(s);
     vector<Type> L2Vec    = deltaL2_sp.transpose().col(s);
-    
-    steepnessnlp_sp.transpose().col(s)  -= dnorm( steepVec, Type(0.), sigmah_s(s), true);
-    Mnlp_sp.transpose().col(s)          -= dnorm( mortVec, Type(0.), sigmaM_s(s), true);
     vonKnlp_s(s)                        -= dnorm( vonKVec, Type(0), sigmavonK_s(s), true).sum();
     L2nlp_s(s)                          -= dnorm( L2Vec, Type(0), sigmaL2_s(s), true).sum();
+
+    for( int p = 0; p < nP; p ++)
+    {
+      steepnessnlp_sp(s,p)  -= dnorm( epsSteep_sp(s,p), Type(0), sigmah_s(s), true);
+      Mnlp_sp(s,p)          -= dnorm( epsM_sp(s,p), Type(0), sigmaM_s(s), true);
+    }
 
   }
   
@@ -1443,7 +1448,7 @@ Type objective_function<Type>::operator() ()
   REPORT( nL );
   REPORT( nA );
 
-  // Leading parameters
+  // Natural scale leading parameters
   REPORT( B0_sp );    
   REPORT( h_sp );     
   REPORT( M_sp );     
@@ -1453,8 +1458,9 @@ Type objective_function<Type>::operator() ()
   REPORT( sigmaLa_s );
   REPORT( sigmaLb_s );
   REPORT( sigmaR_sp );
-  REPORT( tauC_f );
-  REPORT( tauD_f );
+
+
+
   // Fishery/Survey model pars
   REPORT( q_spf );          // Catchability
   REPORT( q_spft );         // Time-varying catchability
@@ -1471,6 +1477,9 @@ Type objective_function<Type>::operator() ()
   REPORT( sel_lfspt );      // Selectivity at length
   REPORT( sel_afspt );      // Selectivity at age
   REPORT( Fbar_spf );       // Average fishing mortality
+  REPORT( tauC_f );
+  REPORT( tauD_f );
+
   // Model states
   REPORT( B_aspt );
   REPORT( N_aspt );
@@ -1486,6 +1495,7 @@ Type objective_function<Type>::operator() ()
   REPORT( Nv_aspft );
   REPORT( SB_spt );
   REPORT( B_spt );
+
   // Stock recruit parameters
   REPORT( Surv_asp );
   REPORT( SSBpr_asp );
@@ -1515,6 +1525,8 @@ Type objective_function<Type>::operator() ()
   REPORT( A2_s );
   REPORT( deltaVonK_sp );
   REPORT( deltaL2_sp );
+  REPORT( deltaVonKbar_p );
+  REPORT( deltaL2bar_p );
 
   // Species and complex level hyperparameters
   REPORT( h_s );
@@ -1574,6 +1586,10 @@ Type objective_function<Type>::operator() ()
   REPORT( lenRes_lspft );
   REPORT( steepnessnlp_sp );
   REPORT( steepnessnlp_s );
+  REPORT( steepnessnlp );
+  REPORT( Mnlp_sp );
+  REPORT( Mnlp_s );
+  REPORT( Mnlp );
   REPORT( Ctnll_sp );
   REPORT( qnlpSurv );
   REPORT( qnlpSyn );
