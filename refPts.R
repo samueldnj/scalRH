@@ -206,6 +206,10 @@ calcRefPts <- function( obj )
   probLenAge_laspx  <- obj$probLenAge_laspx
   selAge_aspx       <- obj$selAge_aspx
 
+  # Double matAge for easy copying later
+  matAge_aspx       <- array(NA, dim = c(nA,nS,nP,nX))
+  for( x in 1:nX)
+    matAge_aspx[,,,x] <- matAge_asp
 
   # Compute Z_asp
   Z_aspx    <- array( NA, dim = c(nA,nS,nP,nX))
@@ -237,7 +241,7 @@ calcRefPts <- function( obj )
   ypr_sp    <- apply( X = C_aspx, FUN = sum, MARGIN = c(2,3),na.rm = T)
 
   # spawning biomass per recruit
-  ssbpr_asp  <- Surv_aspx[,,,nX] * wtAge_aspx[,,,nX] * matAge_asp
+  ssbpr_asp  <- Surv_aspx[,,,nX,drop = FALSE] * wtAge_aspx[,,,nX,drop = FALSE] * matAge_aspx[,,,nX,drop = FALSE]
   ssbpr_sp   <- apply( X = ssbpr_asp, FUN = sum, MARGIN = c(2,3), na.rm = T )
 
   # compile output list
