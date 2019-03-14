@@ -242,7 +242,7 @@ Type objective_function<Type>::operator() ()
   PARAMETER_ARRAY(deltaVonK_sp);        // species-pop specific deviation in VonK parameter
   PARAMETER_ARRAY(deltaL2_spx);         // sex-species-pop specific deviation in L2
   PARAMETER_ARRAY(deltaVonK_spx);       // sex-species-pop specific deviation in VonK parameter
-  PARAMETER_VECTOR(sigmaLa_s);          // species-specific individual growth SD intercept
+  PARAMETER_VECTOR(lnsigmaLa_s);        // species-specific individual growth SD intercept
   PARAMETER_VECTOR(sigmaLb_s);          // species-specific individual growth SD slope
   PARAMETER_VECTOR(LWa_s);              // species L-W conversion a par (units conv: cm -> kt)
   PARAMETER_VECTOR(LWb_s);              // species L-W conversion b par (length to volume)
@@ -351,6 +351,7 @@ Type objective_function<Type>::operator() ()
   array<Type>  vonK_spx(nS,nP,nX);
 
   // Growth model vectors
+  vector<Type>  sigmaLa_s(nS);
   vector<Type>  L1_s(nS);
   vector<Type>  L2_s(nS);
   vector<Type>  vonK_s(nS);
@@ -418,10 +419,10 @@ Type objective_function<Type>::operator() ()
   Type          qbarSyn       = exp(lnqbarSyn);
   Type          tauqSyn       = exp(lntauqSyn);
 
-  L1_s    = exp(lnL1_s); 
-  vonK_s  = exp(lnvonK_s);
-  L2_s    = exp(lnL1_s) + exp(lnL2step_s);
-  
+  L1_s      = exp(lnL1_s); 
+  vonK_s    = exp(lnvonK_s);
+  L2_s      = exp(lnL1_s) + exp(lnL2step_s);
+  sigmaLa_s = exp(lnsigmaLa_s);
 
   // Fill arrays that hold stock-specific parameters
   for( int pIdx = 0; pIdx < nP; pIdx++ )

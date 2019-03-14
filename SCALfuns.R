@@ -624,7 +624,7 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                 deltaL2_spx       = array(0,dim = c(nS,nP,nX)),
                 deltaVonK_spx     = array(0,dim = c(nS,nP,nX)),
                 # process error in growth model
-                sigmaLa_s         = sigmaLa_s,
+                lnsigmaLa_s       = log(sigmaLa_s),
                 sigmaLb_s         = sigmaLb_s,
                 # L-W conversion
                 LWa_s             = LWa_s,
@@ -801,7 +801,9 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                           maxIter = ctrlObj$maxIterations,
                           calcSD = ctrlObj$calcSD,
                           parBen = ctrlObj$parBen,
-                          intMethod = ctrlObj$intMethod ) 
+                          intMethod = ctrlObj$intMethod,
+                          mcChainLength = ctrlObj$mcChainLength,
+                          mcChains = ctrlObj$mcChains ) 
 
   repOpt <- phaseList$repOpt
 
@@ -860,7 +862,9 @@ TMBphase <- function( data,
                       maxIter = 1000,
                       regFMaxPhase = 3,
                       parBen = FALSE,
-                      intMethod = "RE" ) 
+                      intMethod = "RE",
+                      mcChainLength = 100,
+                      mcChains = 1 ) 
 {
   # function to fill list component with a factor
   # of NAs
@@ -1077,14 +1081,18 @@ TMBphase <- function( data,
     tBegin      <- proc.time()[3]
     params_use  <- obj$env$parList( opt$par )
 
-
     obj <- TMB::MakeADFun(  data = data,
                             parameters = params_use,
                             random = NULL,
                             DLL= DLL_use,
                             map= map_use,
                             silent = silent )  
-    mcmc <- tmbstan( obj, init = "last.par.best" )
+    mcmc <- tmbstan(  obj, 
+                      init = "last.par.best", 
+                      iter = mcChainLength,
+                      chains = mcChains )
+
+    outList$mcmc <- mcmc
 
   }
   
