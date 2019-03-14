@@ -170,64 +170,126 @@ vector<Type> calcLogistNormLikelihood(  vector<Type>& yObs,
   return(resids);
 } // end calcLogistNormLikelihood()
 
-// solveBaranovDD()
-// Newton-Rhapson solver for Baranov catch equation for a population
-// modeled with no age classes (e.g. Delay Difference formulation) at
-// a given time step
+// solveBaranov_spfx()
+// Newton-Rhapson solver for Baranov catch equation for a multi-stock
+// multi-species, age and sex structured population fished by multiple
+// fleets
 // inputs:    nIter = number of NR iterations
 //            Bstep = fraction of NR step (Jacobian) to take at each iteration
-//            C = Catch
-//            M = natural mortality
-//            B = Biomass
+//            C_spf = Catch
+//            M_spx = natural mortality
+//            B_aspx = Biomass at age/sex
+//            B_spx = biomass for each sex
+//            sel_aspfx = selectivity for each age/sex in each fleet
 //            & Z = total mortality (external variable)
 //            & F = Fishing mortality (external variable)
 // returns:   NA, void function
 // Side-effs: variables passed as Z, F overwritten with total, fishing mortality
 // Author:    Modified by S. D. N. Johnson from S. Rossi and S. P. Cox
 template<class Type>
-void solveBaranovDD(  int   nIter,
-                      Type  Bstep,
-                      Type  C,
-                      Type  M,
-                      Type  B,
-                      Type& Z,
-                      Type& F)
+void solveBaranov_spfx(   int   nIter,
+                          Type  Bstep,
+                          array<Type>  C_spf,       // Total observed catch
+                          array<Type>  M_spx,       // Mortality rate
+                          array<Type>  B_aspx,      // Biomass at age/sex
+                          array<Type>  vB_aspfx,    // vuln biomass at age
+                          array<Type>  vB_spfx,     // vuln biomass for each sex
+                          array<Type>  vB_spf,      // vuln biomass in each fleet
+                          array<Type>  sel_aspfx,   // selectivity at age/sex
+                          array<Type>& Z_aspx,      // total mortality at age/se
+                          array<Type>& F_spf)       // fleet F
 {
-  Type f    = 0.;   // Function value
-  Type J    = 0.;   // Jacobian
-  Type newZ = 0.;   // Updated Z
-  Type tmp  = 0.;   // predicted catch given F
+  int nS = C_spf.dim(0);
+  int nP = C_spf.dim(1);
+  int nF = C_spf.dim(2);
+  int nA = B_aspx.dim(0);
+  int nX = B_aspx.dim(3);
 
-  // Initial approximation of F
-  F = C / (C+B);
+  array<Type> f_spf(nS,nP,nF);              // Function value
+  array<Type> J_spf(nS,nP,nF);              // Jacobian
+  array<Type> newZ_aspx(nA,nS,nP,nX);       // Updated Z
+  array<Type> tmp_spf(nS,nP,nF);            // predicted catch given F
+  array<Type> F_aspfx(nA,nS,nP,nF,nX);      // Fishing mortality at age/sex
+
+  F_aspfx.setZero();
+  newZ_aspx.setZero();
+  f_spf.setZero();
+  J_spf.setZero();
+  tmp_spf.setZero();
+
+
   
-  newZ = M + F;
-  Z    = M + F;
+  // Initial approximation of F
+  for( int f = 0; f < nF; f++ )
+  {
+    // Use catch plus bio for years where bio is dangerously small
+    F_spf.col(f) = C_spf.col(f) / (vB_spf.col(f));
+    for( int x = 0; x < nX; x++)
+      for( int a = 0; a < nA; a++ )
+      {
+        newZ_aspx.col(x).transpose().col(a).transpose() += M_spx.col(x) + F_spf.col(f) * sel_aspfx.col(x).col(f).transpose().col(a).transpose();
+      }
+  }
+  
 
   // Refine F
   for( int i=0; i<nIter; i++ )
   {
-    // Total mortality
-    Z     = newZ;
-    newZ  = M;
-    // Predicted catch given F
-    tmp   = B*(1.-exp(-Z))*F/Z;
+    // Update total mortality
+    Z_aspx       = newZ_aspx;
 
-    // Function value: difference of pred - obs catch
-    f   = C - tmp;
-    // Jacobian
-    J   = -B * ((1. - exp(-Z)) * M / pow(Z,2) + exp( -Z ) * F / Z);
+    // Now reset newZ
+    newZ_aspx.setZero();
+    tmp_spf.setZero();
 
-   
+    f_spf = C_spf;
+
+    // Calculate predicted catch and Jacobian
+    for( int s = 0; s < nS; s++ )
+      for( int p = 0; p < nP; p++ )
+        for( int x = 0; x < nX; x++ )
+        {
+          newZ_aspx.col(x).col(p).col(s).fill(M_spx(s,p,x));  
+          for(int f = 0; f < nF; f++ )
+          {
+            for( int a = 0; a < nA; a++ )
+            {
+              F_aspfx(a,s,p,f,x) = F_spf(s,p,f) * sel_aspfx(a,s,p,f,x); 
+              if(Z_aspx(a,s,p,x) > 0 )
+              {   
+                tmp_spf(s,p,f)    += B_aspx(a,s,p,x) * (1 - Z_aspx(a,s,p,x)) * F_aspfx(a,s,p,f,x) / Z_aspx(a,s,p,x);
+
+                Type tmpJ = 0.;
+
+                tmpJ   = sel_aspfx(a,s,p,f,x) * F_aspfx(a,s,p,f,x);
+                tmpJ  *= exp( - Z_aspx(a,s,p,x) );
+                tmpJ  += (1 - exp( -Z_aspx(a,s,p,x))) * (Z_aspx(a,s,p,x) - sel_aspfx(a,s,p,f,x) * F_aspfx(a,s,p,f,x))/Z_aspx(a,s,p,x);
+                tmpJ  *= B_aspx(a,s,p,x);
+
+                J_spf(s,p,f) -= tmpJ;
+              }
+
+            }
+          }
+        }
+
+    // Subtract predicted catch
+    f_spf -= tmp_spf;
+
     // Updated fishing mortality
-    F -= Bstep * f / J;
+    F_spf -= Bstep * f_spf / J_spf;
 
     // Updated total mortality
-    newZ += F;
+    for( int s = 0; s < nS; s++ )
+      for( int p = 0; p < nP; p++ )
+        for( int x = 0; x < nX; x++ )
+          for( int a = 0; a < nA; a++ )
+            for( int f= 0 ; f < nF; f ++)
+              newZ_aspx(a,s,p,x) += sel_aspfx(a,s,p,f,x) * F_spf(s,p,f) ;
 
   }  // end i
 
-}  // end solveBaranovDD()
+}  // end solveBaranov_spfx()
 
 
 // objective function
@@ -282,6 +344,8 @@ Type objective_function<Type>::operator() ()
   DATA_STRING(lenComps);                // Switch for computation of expected length comps
   DATA_SCALAR(lambdaB0);                // lambda scalar for exponential prior on B0
   DATA_ARRAY(minTimeIdx_spf);           // array of earliest times for each index
+  DATA_INTEGER(nBaranovIter);           // number of baranov steps
+  DATA_SCALAR(lambdaBaranovStep);       // fractional step size for Newton-Rhapson Baranov iteration
 
   // Fixed values
   DATA_IVECTOR(A1_s);                   // Age at which L1_s is estimated
@@ -862,6 +926,26 @@ Type objective_function<Type>::operator() ()
   predCw_spft.setZero();
   predC_spft.setZero();
 
+  array<Type> baraZ_aspxt(nA,nS,nP,nX,nT);
+  array<Type> baraF_spft(nS,nP,nF,nT);
+
+  array<Type> B_aspxt(nA,nS,nP,nX,nT);
+  array<Type> B_spxt(nS,nP,nX,nT);
+  array<Type> vB_aspfxt(nA,nS,nP,nF,nX,nT);
+  array<Type> vB_spfxt(nS,nP,nF,nX,nT);
+  array<Type> vB_spft(nS,nP,nF,nT);
+  array<Type> sel_aspfxt(nA,nS,nP,nF,nX,nT);
+
+  B_aspxt.setZero();
+  B_spxt.setZero();
+  vB_aspfxt.setZero();
+  vB_spfxt.setZero();
+  vB_spft.setZero();
+  sel_aspfxt.setZero();
+
+  baraZ_aspxt.setZero();
+  baraF_spft.setZero();
+
   // Loop over sexes, species
   for( int x = 0; x < nX; x++)
     for( int s = 0; s < nS; s++ )
@@ -898,6 +982,12 @@ Type objective_function<Type>::operator() ()
 
           }
 
+          // Compute B_aspx for checking baranov
+          for( int a = 0; a < nA; a++ )
+            B_aspxt(a,s,p,x,t) = N_asptx(a,s,p,t,x) * meanWtAge_aspx(a,s,p,x);
+
+          B_spxt(s,p,x,t) = B_aspxt.col(t).col(x).col(p).col(s).sum();
+
           // time series history
           if( t > 0 )
           {
@@ -919,6 +1009,9 @@ Type objective_function<Type>::operator() ()
 
           // Save recruits in R_pt
           R_spt(s,p,t) += N_asptx(0,s,p,t,x);
+
+
+
 
           // Loop over fleets and compute catch
           for( int f =0; f < nF; f++ )
@@ -943,10 +1036,16 @@ Type objective_function<Type>::operator() ()
             // Have to loop over ages here to avoid adding NaNs
             for(int a = 0; a < A; a++ )
             {
+              vB_aspfxt(a,s,p,f,x,t) = sel_afsptx(a,f,s,p,t,x) * B_aspxt(a,s,p,x,t);
+              sel_aspfxt(a,s,p,f,x,t) = sel_afsptx(a,f,s,p,t,x);
               // Compute probAgeAtLen for each time step
               for( int l = minL_s(s) - 1; l < L_s(s); l++ )
                 probAgeLen_alspftx(a,l,s,p,f,t,x) += probLenAge_laspx(l,a,s,p,x) * N_asptx(a,s,p,t,x) * sel_lfspt(l,f,s,p,t);
             }
+
+            vB_spfxt(s,p,f,x,t) = vB_aspfxt.col(t).col(x).col(f).col(p).col(s).sum();
+            vB_spft(s,p,f,t) = Bv_spft(s,p,f,t);
+
             // Renormalise probAgeAtLen
             for( int l = minL_s(s) - 1; l < L_s(s); l++ )
             {
@@ -956,6 +1055,19 @@ Type objective_function<Type>::operator() ()
             
 
           }
+
+          // Arguments for Baranov solver::
+          // int   nIter,
+          // Type  Bstep,
+          // array<Type>  C_spf,       // Total observed catch
+          // array<Type>  M_spx,       // Mortality rate
+          // array<Type>  B_aspx,      // Biomass at age/sex
+          // array<Type>  vB_aspfx,    // vuln biomass at age
+          // array<Type>  vB_spfx,     // vuln biomass for each sex
+          // array<Type>  vB_spf,      // vuln biomass in each fleet
+          // array<Type>  sel_aspfx,   // selectivity at age/sex
+          // array<Type>& Z_aspx,      // total mortality at age/se
+          // array<Type>& F_spf       // fleet F
 
           // Compute total and spawning biomass
           B_asptx.col(x).col(t).col(p).col(s) = N_asptx.col(x).col(t).col(p).col(s) * meanWtAge_aspx.col(x).col(p).col(s);
@@ -970,6 +1082,28 @@ Type objective_function<Type>::operator() ()
 
       }
     }
+
+  for( int t = 0; t < nT; t++)
+  {
+    array<Type> tmpZ_aspx(nA,nS,nP,nX);
+    array<Type> tmpF_spf(nS,nP,nF);
+    // Apply Baranov solver
+    solveBaranov_spfx(  nBaranovIter,
+                        lambdaBaranovStep,
+                        C_spft.col(t),
+                        M_spx,
+                        B_aspxt.col(t),
+                        vB_aspfxt.col(t),
+                        vB_spfxt.col(t),
+                        vB_spft.col(t),
+                        sel_aspfxt.col(t),
+                        tmpZ_aspx,
+                        tmpF_spf );
+
+    baraZ_aspxt.col(t) = tmpZ_aspx;
+    baraF_spft.col(t) = tmpF_spf;
+  }
+    
 
   
   // --------- Observation Model --------- //
@@ -1598,6 +1732,8 @@ Type objective_function<Type>::operator() ()
   REPORT( Nv_aspftx );
   REPORT( SB_spt );
   REPORT( B_spt );
+  REPORT( baraZ_aspxt );
+  REPORT( baraF_spft );
 
   // Stock recruit parameters
   REPORT( Surv_aspx );
