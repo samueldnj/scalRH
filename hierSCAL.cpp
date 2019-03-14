@@ -189,6 +189,7 @@ vector<Type> calcLogistNormLikelihood(  vector<Type>& yObs,
 template<class Type>
 void solveBaranov_spfx(   int   nIter,
                           Type  Bstep,
+                          vector<int>  A_s,         // number of age classes by species
                           array<Type>  C_spf,       // Total observed catch
                           array<Type>  M_spx,       // Mortality rate
                           array<Type>  B_aspx,      // Biomass at age/sex
@@ -220,16 +221,18 @@ void solveBaranov_spfx(   int   nIter,
 
   
   // Initial approximation of F
-  for( int f = 0; f < nF; f++ )
-  {
-    // Use catch plus bio for years where bio is dangerously small
-    F_spf.col(f) = C_spf.col(f) / (vB_spf.col(f));
-    for( int x = 0; x < nX; x++)
-      for( int a = 0; a < nA; a++ )
+  for( int s = 0; s < nS; s++ )
+    for( int p = 0; p < nP; p++)
+      for( int f = 0; f < nF; f++ )
       {
-        newZ_aspx.col(x).transpose().col(a).transpose() += M_spx.col(x) + F_spf.col(f) * sel_aspfx.col(x).col(f).transpose().col(a).transpose();
+        // Use catch plus bio for years where bio is dangerously small
+        F_spf(s,p,f) = C_spf(s,p,f) / (vB_spf(s,p,f));
+        for( int x = 0; x < nX; x++)
+          for( int a = 0; a < A_s(s); a++ )
+          {
+            newZ_aspx(a,s,p,x) = M_spx(s,p,x) + F_spf(s,p,f) * sel_aspfx(a,s,p,f,x);
+          }
       }
-  }
   
 
   // Refine F
@@ -252,7 +255,7 @@ void solveBaranov_spfx(   int   nIter,
           newZ_aspx.col(x).col(p).col(s).fill(M_spx(s,p,x));  
           for(int f = 0; f < nF; f++ )
           {
-            for( int a = 0; a < nA; a++ )
+            for( int a = 0; a < A_s(s); a++ )
             {
               F_aspfx(a,s,p,f,x) = F_spf(s,p,f) * sel_aspfx(a,s,p,f,x); 
               if(Z_aspx(a,s,p,x) > 0 )
@@ -1090,6 +1093,7 @@ Type objective_function<Type>::operator() ()
     // Apply Baranov solver
     solveBaranov_spfx(  nBaranovIter,
                         lambdaBaranovStep,
+                        A_s,
                         C_spft.col(t),
                         M_spx,
                         B_aspxt.col(t),
