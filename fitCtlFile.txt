@@ -14,8 +14,8 @@ ctrl$parBen FALSE
 ctrl$intMethod "None"
 ctrl$mcChainLength 2000
 ctrl$mcChains 1
-ctrl$nBaranovIter 1
-ctrl$lambdaBaranovStep 0.1
+ctrl$nBaranovIter 5
+ctrl$lambdaBaranovStep 0.5
 data$commNames_g c("comm.hist","comm.mod")
 data$survNames_g c("HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
 #data$survNames_g c("HSAss","HSSyn","QCSSyn","WCVISyn")

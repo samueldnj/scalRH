@@ -187,18 +187,18 @@ vector<Type> calcLogistNormLikelihood(  vector<Type>& yObs,
 // Side-effs: variables passed as Z, F overwritten with total, fishing mortality
 // Author:    Modified by S. D. N. Johnson from S. Rossi and S. P. Cox
 template<class Type>
-void solveBaranov_spfx(   int   nIter,
-                          Type  Bstep,
-                          vector<int>  A_s,         // number of age classes by species
-                          array<Type>  C_spf,       // Total observed catch
-                          array<Type>  M_spx,       // Mortality rate
-                          array<Type>  B_aspx,      // Biomass at age/sex
-                          array<Type>  vB_aspfx,    // vuln biomass at age
-                          array<Type>  vB_spfx,     // vuln biomass for each sex
-                          array<Type>  vB_spf,      // vuln biomass in each fleet
-                          array<Type>  sel_aspfx,   // selectivity at age/sex
-                          array<Type>& Z_aspx,      // total mortality at age/se
-                          array<Type>& F_spf)       // fleet F
+array<Type> solveBaranov_spf( int   nIter,
+                              Type  Bstep,
+                              vector<int>  A_s,         // number of age classes by species
+                              array<Type>  C_spf,       // Total observed catch
+                              array<Type>  M_spx,       // Mortality rate
+                              array<Type>  B_aspx,      // Biomass at age/sex
+                              array<Type>  vB_aspfx,    // vuln biomass at age
+                              array<Type>  vB_spfx,     // vuln biomass for each sex
+                              array<Type>  vB_spf,      // vuln biomass in each fleet
+                              array<Type>  sel_aspfx,   // selectivity at age/sex
+                              array<Type>& Z_aspx,      // total mortality at age/se
+                              array<Type>& F_spf )       // fleet F
 {
   int nS = C_spf.dim(0);
   int nP = C_spf.dim(1);
@@ -291,6 +291,8 @@ void solveBaranov_spfx(   int   nIter,
               newZ_aspx(a,s,p,x) += sel_aspfx(a,s,p,f,x) * F_spf(s,p,f) ;
 
   }  // end i
+
+  return( J_spf );
 
 }  // end solveBaranov_spfx()
 
@@ -938,6 +940,7 @@ Type objective_function<Type>::operator() ()
   array<Type> vB_spfxt(nS,nP,nF,nX,nT);
   array<Type> vB_spft(nS,nP,nF,nT);
   array<Type> sel_aspfxt(nA,nS,nP,nF,nX,nT);
+  array<Type> J_spft(nS,nP,nF,nT);
 
   B_aspxt.setZero();
   B_spxt.setZero();
@@ -985,11 +988,6 @@ Type objective_function<Type>::operator() ()
 
           }
 
-          // Compute B_aspx for checking baranov
-          for( int a = 0; a < nA; a++ )
-            B_aspxt(a,s,p,x,t) = N_asptx(a,s,p,t,x) * meanWtAge_aspx(a,s,p,x);
-
-          B_spxt(s,p,x,t) = B_aspxt.col(t).col(x).col(p).col(s).sum();
 
           // time series history
           if( t > 0 )
@@ -1013,12 +1011,16 @@ Type objective_function<Type>::operator() ()
           // Save recruits in R_pt
           R_spt(s,p,t) += N_asptx(0,s,p,t,x);
 
+          // Compute biomass at age and total biomass
+          B_aspxt.col(t).col(x).col(p).col(s) += N_asptx.col(x).col(t).col(p).col(s) * meanWtAge_aspx.col(x).col(p).col(s);
 
+          B_spxt(s,p,x,t) += B_aspxt.col(t).col(x).col(p).col(s).sum();
 
 
           // Loop over fleets and compute catch
           for( int f =0; f < nF; f++ )
           {
+            vB_aspfxt.col(t).col(x).col(f).col(p).col(s) += B_aspxt.col(t).col(x).col(p).col(s) * sel_afsptx.col(x).col(t).col(p).col(s).col(f);
             // Calculate vulnerable numbers and biomass for this fleet
             Nv_aspftx.col(x).col(t).col(f).col(p).col(s) = N_asptx.col(x).col(t).col(p).col(s) * sel_afsptx.col(x).col(t).col(p).col(s).col(f);
             Nv_spft(s,p,f,t) += Nv_aspftx.col(x).col(t).col(f).col(p).col(s).sum();
@@ -1091,18 +1093,18 @@ Type objective_function<Type>::operator() ()
     array<Type> tmpZ_aspx(nA,nS,nP,nX);
     array<Type> tmpF_spf(nS,nP,nF);
     // Apply Baranov solver
-    solveBaranov_spfx(  nBaranovIter,
-                        lambdaBaranovStep,
-                        A_s,
-                        C_spft.col(t),
-                        M_spx,
-                        B_aspxt.col(t),
-                        vB_aspfxt.col(t),
-                        vB_spfxt.col(t),
-                        vB_spft.col(t),
-                        sel_aspfxt.col(t),
-                        tmpZ_aspx,
-                        tmpF_spf );
+    J_spft.col(t) = solveBaranov_spf( nBaranovIter,
+                                      lambdaBaranovStep,
+                                      A_s,
+                                      C_spft.col(t),
+                                      M_spx,
+                                      B_aspxt.col(t),
+                                      vB_aspfxt.col(t),
+                                      vB_spfxt.col(t),
+                                      vB_spft.col(t),
+                                      sel_aspfxt.col(t),
+                                      tmpZ_aspx,
+                                      tmpF_spf );
 
     baraZ_aspxt.col(t) = tmpZ_aspx;
     baraF_spft.col(t) = tmpF_spf;
@@ -1872,6 +1874,14 @@ Type objective_function<Type>::operator() ()
   REPORT( lDist_lspftx_hat );
   REPORT( aDist_aspftx_hat );
   REPORT( I_spft_hat );
+
+  // Reordered arrays
+  REPORT( B_aspxt );
+  REPORT( vB_aspfxt );
+  REPORT( vB_spfxt );
+  REPORT( vB_spft );
+  REPORT( sel_aspfxt );
+  REPORT( J_spft );
 
   // Echo switches
   REPORT( swRinit_s );
