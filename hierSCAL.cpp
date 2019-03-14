@@ -170,6 +170,65 @@ vector<Type> calcLogistNormLikelihood(  vector<Type>& yObs,
   return(resids);
 } // end calcLogistNormLikelihood()
 
+// solveBaranovDD()
+// Newton-Rhapson solver for Baranov catch equation for a population
+// modeled with no age classes (e.g. Delay Difference formulation) at
+// a given time step
+// inputs:    nIter = number of NR iterations
+//            Bstep = fraction of NR step (Jacobian) to take at each iteration
+//            C = Catch
+//            M = natural mortality
+//            B = Biomass
+//            & Z = total mortality (external variable)
+//            & F = Fishing mortality (external variable)
+// returns:   NA, void function
+// Side-effs: variables passed as Z, F overwritten with total, fishing mortality
+// Author:    Modified by S. D. N. Johnson from S. Rossi and S. P. Cox
+template<class Type>
+void solveBaranovDD(  int   nIter,
+                      Type  Bstep,
+                      Type  C,
+                      Type  M,
+                      Type  B,
+                      Type& Z,
+                      Type& F)
+{
+  Type f    = 0.;   // Function value
+  Type J    = 0.;   // Jacobian
+  Type newZ = 0.;   // Updated Z
+  Type tmp  = 0.;   // predicted catch given F
+
+  // Initial approximation of F
+  F = C / (C+B);
+  
+  newZ = M + F;
+  Z    = M + F;
+
+  // Refine F
+  for( int i=0; i<nIter; i++ )
+  {
+    // Total mortality
+    Z     = newZ;
+    newZ  = M;
+    // Predicted catch given F
+    tmp   = B*(1.-exp(-Z))*F/Z;
+
+    // Function value: difference of pred - obs catch
+    f   = C - tmp;
+    // Jacobian
+    J   = -B * ((1. - exp(-Z)) * M / pow(Z,2) + exp( -Z ) * F / Z);
+
+   
+    // Updated fishing mortality
+    F -= Bstep * f / J;
+
+    // Updated total mortality
+    newZ += F;
+
+  }  // end i
+
+}  // end solveBaranovDD()
+
 
 // objective function
 template<class Type>
