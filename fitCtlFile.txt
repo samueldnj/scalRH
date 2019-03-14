@@ -2,7 +2,7 @@
 # written Friday, Nov 23, 2018 
 parameter value
 ctrl$dataScenarioName 'DoverOnly'
-ctrl$modelHypName 'base_MCMC'
+ctrl$modelHypName 'base'
 ctrl$maxFunEval 100000
 ctrl$maxIterations 100000
 ctrl$quiet FALSE
@@ -36,12 +36,7 @@ data$catchData c(survey="surveyCatch.RData",comm="catch_by_maj.csv")
 data$modelDisc FALSE
 data$ageData c("ageComps.RData")
 data$lenData c("lenComps.RData")
-<<<<<<< HEAD
 data$growthFleets c("HSAss","HSSyn","QCSSyn","WCVISyn","WCHGSyn")
-=======
-#data$growthFleets c("comm.hist","comm.mod","HSSyn","QCSSyn","WCVISyn","WCHGSyn")
-data$growthFleets c("HSSyn","QCSSyn","WCVISyn","WCHGSyn")
->>>>>>> master
 data$posPenFactor 1e4
 data$matFiles c("matOgives.RData")
 data$growthFiles c(len="lenAge.RData",wt="wtLen.RData",vB="vBFits.RData",alFreq="ALfreq.RData")
