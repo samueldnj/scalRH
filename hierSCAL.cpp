@@ -209,14 +209,18 @@ array<Type> solveBaranov_spf( int   nIter,
   array<Type> f_spf(nS,nP,nF);              // Function value
   array<Type> J_spf(nS,nP,nF);              // Jacobian
   array<Type> newZ_aspx(nA,nS,nP,nX);       // Updated Z
+  array<Type> tmpZ_aspx(nA,nS,nP,nX);       // Updated Z
   array<Type> tmp_spf(nS,nP,nF);            // predicted catch given F
+  array<Type> tmp_axspf(nA,nX,nS,nP,nF);    // predicted catch given F
   array<Type> F_aspfx(nA,nS,nP,nF,nX);      // Fishing mortality at age/sex
 
   F_aspfx.setZero();
   newZ_aspx.setZero();
+  tmpZ_aspx.setZero();
   f_spf.setZero();
   J_spf.setZero();
   tmp_spf.setZero();
+  tmp_axspf.setZero();
 
 
   
@@ -238,59 +242,78 @@ array<Type> solveBaranov_spf( int   nIter,
   // Refine F
   for( int i=0; i<nIter; i++ )
   {
-    // Update total mortality
-    Z_aspx       = newZ_aspx;
-
     // Now reset newZ
-    newZ_aspx.setZero();
     tmp_spf.setZero();
+    J_spf.setZero();
+    f_spf.setZero();
+    tmpZ_aspx.setZero();
 
-    f_spf = C_spf;
+
+    // Reset objective function and Z
+    f_spf += C_spf;
+
 
     // Calculate predicted catch and Jacobian
     for( int s = 0; s < nS; s++ )
       for( int p = 0; p < nP; p++ )
+      {
         for( int x = 0; x < nX; x++ )
         {
-          newZ_aspx.col(x).col(p).col(s).fill(M_spx(s,p,x));  
-          for(int f = 0; f < nF; f++ )
+          // Fill newZ up with M
+          for( int a = 0; a < A_s(s); a++ )
           {
-            for( int a = 0; a < A_s(s); a++ )
-            {
-              F_aspfx(a,s,p,f,x) = F_spf(s,p,f) * sel_aspfx(a,s,p,f,x); 
-              if(Z_aspx(a,s,p,x) > 0 )
-              {   
-                tmp_spf(s,p,f)    += B_aspx(a,s,p,x) * (1 - Z_aspx(a,s,p,x)) * F_aspfx(a,s,p,f,x) / Z_aspx(a,s,p,x);
+            // Overwrite newZ into Z array
+            tmpZ_aspx(a,s,p,x)     += newZ_aspx(a,s,p,x);
 
-                Type tmpJ = 0.;
+            for(int f = 0; f < nF; f++ )  
+            {             
+              tmp_spf += vB_aspfx(a,s,p,f,x) * (1 - exp(-tmpZ_aspx(a,s,p,x)) ) * F_spf(s,p,f) / tmpZ_aspx(a,s,p,x);
 
-                tmpJ   = sel_aspfx(a,s,p,f,x) * F_aspfx(a,s,p,f,x);
-                tmpJ  *= exp( - Z_aspx(a,s,p,x) );
-                tmpJ  += (1 - exp( -Z_aspx(a,s,p,x))) * (Z_aspx(a,s,p,x) - sel_aspfx(a,s,p,f,x) * F_aspfx(a,s,p,f,x))/Z_aspx(a,s,p,x);
-                tmpJ  *= B_aspx(a,s,p,x);
+              Type tmpJ1  = vB_aspfx(a,s,p,f,x) / tmpZ_aspx(a,s,p,x);
+              Type tmpJ2  = F_spf(s,p,f) * sel_aspfx(a,s,p,f,x) * exp( - tmpZ_aspx(a,s,p,x));
+              Type tmpJ3  = (1 - exp( -tmpZ_aspx(a,s,p,x)));
+              Type tmpJ4  = (tmpZ_aspx(a,s,p,x) - F_spf(s,p,f) * sel_aspfx(a,s,p,f,x))/tmpZ_aspx(a,s,p,x);
 
-                J_spf(s,p,f) -= tmpJ;
-              }
+              J_spf(s,p,f) -= tmpJ1 * ( tmpJ2 + tmpJ3 * tmpJ4);
 
             }
           }
         }
+      }
 
-    // Subtract predicted catch
-    f_spf -= tmp_spf;
+    newZ_aspx.setZero();
 
-    // Updated fishing mortality
-    F_spf -= Bstep * f_spf / J_spf;
+    for( int s = 0; s < nS; s++ )
+      for( int p = 0; p < nP; p++ )
+        for( int f = 0; f < nF; f++ )
+        {
+          // Subtract predicted catch
+          f_spf(s,p,f) -= tmp_spf(s,p,f);
+
+          // Updated fishing mortality
+          F_spf(s,p,f) -= Bstep * f_spf(s,p,f) / J_spf(s,p,f);
+        }
+
+    
 
     // Updated total mortality
     for( int s = 0; s < nS; s++ )
       for( int p = 0; p < nP; p++ )
         for( int x = 0; x < nX; x++ )
-          for( int a = 0; a < nA; a++ )
+          for( int a = 0; a < A_s(s); a++ )
+          {
+            newZ_aspx(a,s,p,x) += M_spx(s,p,x);
             for( int f= 0 ; f < nF; f ++)
               newZ_aspx(a,s,p,x) += sel_aspfx(a,s,p,f,x) * F_spf(s,p,f) ;
+          }
 
   }  // end i
+
+  // Now save the tmpZ_aspx array out to the Z_aspx input
+  for( int s = 0; s < nS; s++ )
+      for( int p = 0; p < nP; p++ )
+        for( int x = 0; x < nX; x++ )
+          Z_aspx.col(x).col(p).col(s) += tmpZ_aspx.col(x).col(p).col(s);
 
   return( J_spf );
 
@@ -1020,11 +1043,14 @@ Type objective_function<Type>::operator() ()
           // Loop over fleets and compute catch
           for( int f =0; f < nF; f++ )
           {
-            vB_aspfxt.col(t).col(x).col(f).col(p).col(s) += B_aspxt.col(t).col(x).col(p).col(s) * sel_afsptx.col(x).col(t).col(p).col(s).col(f);
             // Calculate vulnerable numbers and biomass for this fleet
             Nv_aspftx.col(x).col(t).col(f).col(p).col(s) = N_asptx.col(x).col(t).col(p).col(s) * sel_afsptx.col(x).col(t).col(p).col(s).col(f);
             Nv_spft(s,p,f,t) += Nv_aspftx.col(x).col(t).col(f).col(p).col(s).sum();
 
+            vB_aspfxt.col(t).col(x).col(f).col(p).col(s) += B_aspxt.col(t).col(x).col(p).col(s) * sel_afsptx.col(x).col(t).col(p).col(s).col(f);
+            vB_spfxt(s,p,f,x,t) = vB_aspfxt.col(t).col(x).col(f).col(p).col(s).sum();
+            vB_spft(s,p,f,t) = Bv_spft(s,p,f,t);
+            
             // Refactoring to remove a loop
             C_aspftx.col(x).col(t).col(f).col(p).col(s)   = N_asptx.col(x).col(t).col(p).col(s);
             C_aspftx.col(x).col(t).col(f).col(p).col(s)  *= (1. -1. * exp( -1. * Z_asptx.col(x).col(t).col(p).col(s))); 
@@ -1048,8 +1074,7 @@ Type objective_function<Type>::operator() ()
                 probAgeLen_alspftx(a,l,s,p,f,t,x) += probLenAge_laspx(l,a,s,p,x) * N_asptx(a,s,p,t,x) * sel_lfspt(l,f,s,p,t);
             }
 
-            vB_spfxt(s,p,f,x,t) = vB_aspfxt.col(t).col(x).col(f).col(p).col(s).sum();
-            vB_spft(s,p,f,t) = Bv_spft(s,p,f,t);
+            
 
             // Renormalise probAgeAtLen
             for( int l = minL_s(s) - 1; l < L_s(s); l++ )
@@ -1092,17 +1117,25 @@ Type objective_function<Type>::operator() ()
   {
     array<Type> tmpZ_aspx(nA,nS,nP,nX);
     array<Type> tmpF_spf(nS,nP,nF);
+
+    array<Type> tmpC_spf = C_spft.col(t);
+    array<Type> tmpB_aspx = B_aspxt.col(t);
+    array<Type> tmpvB_aspfx = vB_aspfxt.col(t);
+    array<Type> tmpvB_spfx = vB_spfxt.col(t);
+    array<Type> tmpvB_spf = vB_spft.col(t);
+    array<Type> tmpsel_aspfx = sel_aspfxt.col(t);
+
     // Apply Baranov solver
     J_spft.col(t) = solveBaranov_spf( nBaranovIter,
                                       lambdaBaranovStep,
                                       A_s,
-                                      C_spft.col(t),
+                                      tmpC_spf,
                                       M_spx,
-                                      B_aspxt.col(t),
-                                      vB_aspfxt.col(t),
-                                      vB_spfxt.col(t),
-                                      vB_spft.col(t),
-                                      sel_aspfxt.col(t),
+                                      tmpB_aspx,
+                                      tmpvB_aspfx,
+                                      tmpvB_spfx,
+                                      tmpvB_spf,
+                                      tmpsel_aspfx,
                                       tmpZ_aspx,
                                       tmpF_spf );
 
@@ -1576,7 +1609,7 @@ Type objective_function<Type>::operator() ()
 
 
   for( int s = 0; s < nS; s++ )
-  { 
+  {
     vector<Type> vonKVec  = deltaVonK_sp.transpose().col(s);
     vector<Type> L2Vec    = deltaL2_sp.transpose().col(s);
     vonKnlp_s(s)         -= dnorm( vonKVec, Type(0), sigmavonK_s(s), true).sum();
