@@ -990,6 +990,8 @@ TMBphase <- function( data,
                           gradient  = obj$gr,
                           control   = tmbCtrl ) )
 
+    browser()
+
     # break if there is an issue
     if( class(opt) == "try-error" )
     {

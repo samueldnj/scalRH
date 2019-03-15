@@ -263,16 +263,16 @@ array<Type> solveBaranov_spf( int   nIter,
           for( int a = 0; a < A_s(s); a++ )
           {
             // Overwrite newZ into Z array
-            tmpZ_aspx(a,s,p,x)     += newZ_aspx(a,s,p,x);
+            // tmpZ_aspx(a,s,p,x)     += newZ_aspx(a,s,p,x);
 
             for(int f = 0; f < nF; f++ )  
             {             
-              tmp_spf += vB_aspfx(a,s,p,f,x) * (1 - exp(-tmpZ_aspx(a,s,p,x)) ) * F_spf(s,p,f) / tmpZ_aspx(a,s,p,x);
+              tmp_spf(s,p,f) += B_aspx(a,s,p,x) * (1 - exp(-newZ_aspx(a,s,p,x)) ) * sel_aspfx(a,s,p,f,x) *  F_spf(s,p,f) / newZ_aspx(a,s,p,x);
 
-              Type tmpJ1  = vB_aspfx(a,s,p,f,x) / tmpZ_aspx(a,s,p,x);
-              Type tmpJ2  = F_spf(s,p,f) * sel_aspfx(a,s,p,f,x) * exp( - tmpZ_aspx(a,s,p,x));
-              Type tmpJ3  = (1 - exp( -tmpZ_aspx(a,s,p,x)));
-              Type tmpJ4  = (tmpZ_aspx(a,s,p,x) - F_spf(s,p,f) * sel_aspfx(a,s,p,f,x))/tmpZ_aspx(a,s,p,x);
+              Type tmpJ1  = vB_aspfx(a,s,p,f,x) / newZ_aspx(a,s,p,x);
+              Type tmpJ2  = F_spf(s,p,f) * sel_aspfx(a,s,p,f,x) * exp( - newZ_aspx(a,s,p,x));
+              Type tmpJ3  = (1 - exp( -newZ_aspx(a,s,p,x)));
+              Type tmpJ4  = (newZ_aspx(a,s,p,x) - F_spf(s,p,f) * sel_aspfx(a,s,p,f,x))/newZ_aspx(a,s,p,x);
 
               J_spf(s,p,f) -= tmpJ1 * ( tmpJ2 + tmpJ3 * tmpJ4);
 
@@ -281,7 +281,6 @@ array<Type> solveBaranov_spf( int   nIter,
         }
       }
 
-    newZ_aspx.setZero();
 
     for( int s = 0; s < nS; s++ )
       for( int p = 0; p < nP; p++ )
@@ -294,7 +293,7 @@ array<Type> solveBaranov_spf( int   nIter,
           F_spf(s,p,f) -= Bstep * f_spf(s,p,f) / J_spf(s,p,f);
         }
 
-    
+    newZ_aspx.setZero();
 
     // Updated total mortality
     for( int s = 0; s < nS; s++ )
@@ -313,7 +312,7 @@ array<Type> solveBaranov_spf( int   nIter,
   for( int s = 0; s < nS; s++ )
       for( int p = 0; p < nP; p++ )
         for( int x = 0; x < nX; x++ )
-          Z_aspx.col(x).col(p).col(s) += tmpZ_aspx.col(x).col(p).col(s);
+          Z_aspx.col(x).col(p).col(s) += newZ_aspx.col(x).col(p).col(s);
 
   return( J_spf );
 
@@ -940,6 +939,7 @@ Type objective_function<Type>::operator() ()
 
   // Set all state arrays to zero
   B_asptx.setZero();
+  N_asptx.setZero();
   R_spt.setZero();
   F_aspftx.setZero();
   Z_asptx.setZero();
@@ -976,7 +976,7 @@ Type objective_function<Type>::operator() ()
   baraF_spft.setZero();
 
   // Loop over sexes, species
-  for( int x = 0; x < nX; x++)
+  for( int t = 0; t < nT; t++ ) 
     for( int s = 0; s < nS; s++ )
     {
       // Loop over stocks
@@ -984,7 +984,7 @@ Type objective_function<Type>::operator() ()
       {
         // Set plus group age
         int A    = A_s(s);
-        for( int t = 0; t < nT; t++ )
+        for( int x = 0; x < nX; x++)
         {
           // Compute total mortality at age (for catch later)
           Z_asptx.col(x).col(t).col(p).col(s).fill(M_spx(s,p,x));
@@ -1017,11 +1017,11 @@ Type objective_function<Type>::operator() ()
           {
             // Generate recruitment
             Type SBt = SB_spt(s,p,t-1);
-            N_asptx(0,s,p,t,x) = reca_sp(s,p) * SBt / (1 + recb_sp(s,p) * SBt);
+            N_asptx(0,s,p,t,x) = reca_sp(s,p) * SBt / (1 + recb_sp(s,p) * SBt)/nX;
             N_asptx(0,s,p,t,x) *= exp( omegaR_spt(s,p,t) );
 
             // Now loop over ages and apply fishing mortality (no discarding yet)
-            for( int a = 0; a < A; a ++ )
+            for( int a = 1; a < A; a ++ )
             {
               // Update numbers according to age
               if( a > 0 )     
@@ -1104,8 +1104,8 @@ Type objective_function<Type>::operator() ()
           B_spt(s,p,t) += B_asptx.col(x).col(t).col(p).col(s).sum();
           // The females are the only important
           // mature individuals
-          if(x == nX - 1)
-            SB_spt(s,p,t) = (B_asptx.col(x).col(t).col(p).col(s) * matAge_asp.col(p).col(s)).sum();
+          if( SB_spt(s,p,t) == 0)        
+            SB_spt(s,p,t) = (B_asptx.col(nX - 1).col(t).col(p).col(s) * matAge_asp.col(p).col(s)).sum();
 
 
         }
@@ -1118,12 +1118,20 @@ Type objective_function<Type>::operator() ()
     array<Type> tmpZ_aspx(nA,nS,nP,nX);
     array<Type> tmpF_spf(nS,nP,nF);
 
-    array<Type> tmpC_spf = C_spft.col(t);
-    array<Type> tmpB_aspx = B_aspxt.col(t);
-    array<Type> tmpvB_aspfx = vB_aspfxt.col(t);
-    array<Type> tmpvB_spfx = vB_spfxt.col(t);
-    array<Type> tmpvB_spf = vB_spft.col(t);
-    array<Type> tmpsel_aspfx = sel_aspfxt.col(t);
+    array<Type> tmpC_spf(nS,nP,nF);
+    array<Type> tmpB_aspx(nA,nS,nP,nX);
+    array<Type> tmpvB_aspfx(nA,nS,nP,nF,nX);
+    array<Type> tmpvB_spfx(nS,nP,nF,nX);
+    array<Type> tmpvB_spf(nS,nP,nF);
+    array<Type> tmpsel_aspfx(nA,nS,nP,nF,nX);
+
+    // fill those arrays
+    tmpC_spf = C_spft.col(t);
+    tmpB_aspx = B_aspxt.col(t);
+    tmpvB_aspfx = vB_aspfxt.col(t);
+    tmpvB_spfx = vB_spfxt.col(t);
+    tmpvB_spf = vB_spft.col(t);
+    tmpsel_aspfx = sel_aspfxt.col(t);
 
     // Apply Baranov solver
     J_spft.col(t) = solveBaranov_spf( nBaranovIter,
@@ -1139,8 +1147,8 @@ Type objective_function<Type>::operator() ()
                                       tmpZ_aspx,
                                       tmpF_spf );
 
-    baraZ_aspxt.col(t) = tmpZ_aspx;
-    baraF_spft.col(t) = tmpF_spf;
+    baraZ_aspxt.col(t) += tmpZ_aspx;
+    baraF_spft.col(t) += tmpF_spf;
   }
     
 
