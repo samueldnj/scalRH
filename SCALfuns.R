@@ -643,7 +643,7 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                 epsxSel50_spf     = array(0,dim = c(nS,nP,nF)),
                 epsxSelStep_spf   = array(0,dim = c(nS,nP,nF)),
                 # Fishing mortality
-                lnF_spft          = rep(-1,length = nPosCatch),
+                # lnF_spft          = rep(-1,length = nPosCatch),
                 # Catch and discards obs SD
                 lntauC_f          = rep(log(0.01),nF),
                 lntauD_f          = rep(log(0.01),nF),
@@ -989,8 +989,6 @@ TMBphase <- function( data,
                           objective = obj$fn,
                           gradient  = obj$gr,
                           control   = tmbCtrl ) )
-
-    browser()
 
     # break if there is an issue
     if( class(opt) == "try-error" )
