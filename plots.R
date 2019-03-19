@@ -170,7 +170,7 @@ plotFspft <- function( repObj = repInit,
           pch = c(16),
           col = gearCols,
           lty = c(1), lwd = c(2) )
-} # END plotCatchFit_spt
+} # END plotF_spt
 
 
 # plotIspft()

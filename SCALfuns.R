@@ -1158,7 +1158,7 @@ renameReportArrays <- function( repObj = repInit, datObj = data )
   dimnames(repObj$Cw_aspftx) <- dimnames(datObj$age_aspftx)[c(1:5)]
   dimnames(repObj$F_aspftx) <- dimnames(datObj$age_aspftx)[c(1:5)]
   dimnames(repObj$F_spft) <- dimnames(datObj$age_aspftx)[c(2:5)]
-  dimnames(repObj$Z_aspt) <- dimnames(datObj$age_aspftx)[c(1:3,5)]
+  dimnames(repObj$Z_aspxt) <- dimnames(datObj$age_aspftx)[c(1:3,6,5)]
   # Biological parameters
   dimnames(repObj$R0_sp) <- dimnames(datObj$age_aspftx)[c(2:3)]
   dimnames(repObj$B0_sp) <- dimnames(datObj$age_aspftx)[c(2:3)]

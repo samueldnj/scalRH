@@ -996,17 +996,6 @@ Type objective_function<Type>::operator() ()
         int A    = A_s(s);
         for( int x = 0; x < nX; x++)
         {
-          // Compute total mortality at age (for catch later)
-          // Z_aspxt.col(t).col(x).col(p).col(s).fill(M_spx(s,p,x));
-
-          // for( int f = 0; f < nF; f++ )
-          // {
-          //   // Compute fishing mortality at age by fleet
-          //   F_aspftx.col(x).col(t).col(f).col(p).col(s) = sel_afsptx.col(x).col(t).col(p).col(s).col(f) * F_spft(s,p,f,t);
-          //   // Add to Z
-          //   // Z_aspxt.col(t).col(x).col(p).col(s) += F_aspftx.col(x).col(t).col(f).col(p).col(s);  
-          // }
-
           // Initial time-step
           if( t == 0 )
           {
@@ -1152,10 +1141,11 @@ Type objective_function<Type>::operator() ()
     for( int s = 0; s < nS; s++)
       for( int p = 0; p < nP; p++ )
         for( int f = 0; f < nF; f++ )
-          for( int x = 0; x < nX; x++ ){
-            // Refactoring to remove a loop
+          for( int x = 0; x < nX; x++ )
+          {
+            F_aspftx.col(x).col(t).col(f).col(p).col(s)   = sel_afsptx.col(x).col(t).col(p).col(s).col(f) * F_spft(s,p,f,t);
             C_aspftx.col(x).col(t).col(f).col(p).col(s)   = N_asptx.col(x).col(t).col(p).col(s);
-            C_aspftx.col(x).col(t).col(f).col(p).col(s)  *= (1. -1. * exp( -1. * Z_aspxt.col(t).col(x).col(p).col(s))); 
+            C_aspftx.col(x).col(t).col(f).col(p).col(s)  *= (1.  - exp( -1. * Z_aspxt.col(t).col(x).col(p).col(s))); 
             C_aspftx.col(x).col(t).col(f).col(p).col(s)  *= F_aspftx.col(x).col(t).col(f).col(p).col(s); 
             C_aspftx.col(x).col(t).col(f).col(p).col(s)  /= Z_aspxt.col(t).col(x).col(p).col(s);  
             Cw_aspftx.col(x).col(t).col(f).col(p).col(s) = C_aspftx.col(x).col(t).col(f).col(p).col(s) * meanWtAge_aspx.col(x).col(p).col(s);

@@ -6,7 +6,7 @@ ctrl$modelHypName 'base'
 ctrl$maxFunEval 100000
 ctrl$maxIterations 100000
 ctrl$quiet FALSE
-ctrl$maxPhase 2
+ctrl$maxPhase 12
 ctrl$calcSD FALSE
 ctrl$calcRefPts TRUE
 ctrl$plots TRUE
@@ -14,7 +14,7 @@ ctrl$parBen FALSE
 ctrl$intMethod "None"
 ctrl$mcChainLength 2000
 ctrl$mcChains 1
-ctrl$nBaranovIter 1
+ctrl$nBaranovIter 5
 ctrl$lambdaBaranovStep 0.5
 data$commNames_g c("comm.hist","comm.mod")
 data$survNames_g c("HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
@@ -62,13 +62,13 @@ hypo$tvSel FALSE
 hypo$identSel FALSE
 hypo$tvSelFleets c("comm.hist","comm.mod")
 hypo$sigmaSelDevs 0.1
-hypo$cvxSel 0.2
+hypo$cvxSel 0.05
 hypo$initFished c(Dover=1,English=1,Rock=1,Petrale=1,Arrowtooth=1)
 hypo$tvqFleets c("comm.hist","comm.mod","HSAss")
 hypo$tvq FALSE
 hypo$sigmaqdevs .2
 hypo$mq .5
-hypo$sdq .2
+hypo$sdq 1
 hypo$tauqSyn .1
 hypo$regFfleets c("comm.hist","comm.mod")
 hypo$regFMaxPhase 12
@@ -84,7 +84,7 @@ hypo$sigmaL .1
 hypo$tau2ObsIGa rep(.1,7)
 hypo$tau2ObsPriorMode c(.1,.1,.1,.04,.04,.04,.04)
 hypo$hPriorMean 0.78
-hypo$hPriorSD 0.01
+hypo$hPriorSD 0.02
 hypo$fleetGroups list(comm=c("comm.hist","comm.mod"),Ass=c("HSAss"),Syn=c("WCHGSyn","QCSSyn","WCVISyn","HSSyn"))
 hypo$RE c("omegaR_vec","lnF_spft","omegaRinit_vec")
 phases$lnB0_sp 2
@@ -95,8 +95,8 @@ phases$lnvonK_s 4
 phases$lnL1_s -4
 phases$deltaL2_sp 9
 phases$deltaVonK_sp 9
-phases$deltaL2_spx 2
-phases$deltaVonK_spx 2
+phases$deltaL2_spx 5
+phases$deltaVonK_spx 5
 phases$sigmaLa_s 5
 phases$sigmaLb_s -1
 phases$lnq_spf 1
