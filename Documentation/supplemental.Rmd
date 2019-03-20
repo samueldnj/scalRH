@@ -83,83 +83,265 @@ Optimisation is performed using the Template Model Builder package in R
 
 
 
-## Population dynamics
+## Population dynamics process model
 
 For stock $p$ of species $s$ the general population dynamics
-use the age structured formulation
+are governed by the following age $a$ and sex $x$ structured formulation:
+
+
 \begin{align}
 N_{a,s,p,t} &= \left\{ 
-\begin{array}{lc} R_{s,p,t} & a = 1 \\
-                  N_{a-1,s,p,t-1}e^{-Z_{a-1,s,p,t-1}} & 2 \leq a < A_s \\  
-                  (N_{a-1,s,p,t-1}) + N_{a,s,p,t-1}) e^{-Z_{a-1,s,p,t-1}} & a = A_s, 
-\end{array} \right. \\
-\phi_{s,p}  &= \sum_{a=1}^{A_s} e^{-(a-1)M_{s,p}} m_a w_a, \\
-R_{0,s,p}   &= B_{0,s,p} / \phi_{s,p}, \\
-B_{s,p,t}   &= \sum_{a} N_{a,s,p,t} m_a w_a, \\
-R_{s,p,t}   &= \frac{a_{s,p} B_{s,p,t-1}}{1 + b_{s,p} B_{s,p,t-1}}, \\
-Z_{a,s,p,t} &= M_{s,p} + \sum_{f} s_{a,s,p,f,t} F_{s,p,f,t}.
+\begin{array}{lc} R_{x,s,p,t} & a = 1 \\
+                  N_{a-1,x,s,p,t-1}e^{-Z_{a-1,x,s,p,t-1}} & 2 \leq a < A_s \\  
+                  (N_{a-1,x,s,p,t-1}) + N_{a,x,s,p,t-1}) e^{-Z_{a-1,x,s,p,t-1}} & a = A_s ,
+\end{array} \right.
 \end{align}
 
+Recruitment is generated from a Beverton-Holt stock-recruit function, 
+formulatd based on steepnes $h_{s,p}$ and unfished biomass $B_{0,s,p}$.
+Spawning biomass is based on female individuals only.
 
+\begin{align}
+\phi_{s,p}    &= \sum_{a=1}^{A_s} e^{-(a-1)M_{x=fem,s,p}} m_a w_{a,x=fem} \\
+R_{0,s,p}     &= B_{0,s,p} / \phi_{s,p} \\
+SB_{s,p,t}    &= \sum_{a} N_{a,x=fem,s,p,t} m_a w_{a,x=fem} \\
+R_{s,x,p,t}   &= 0.5 * \frac{a_{s,p} SB_{s,p,t-1}}{1 + b_{s,p} SB_{s,p,t-1}} \cdot e^{\omega_t}.
+\end{align}
 
-
+Mortality is calculated from sex specific natural mortality rates $M_{x,s,p}$ and age-specific fishing mortality rates, described below in the observation models.
 
 ## Growth model
 
-We integrated a random-at-length growth model into the stock assessment model.
+We integrated a random-at-length growth model into the assessment model. Doing 
+so has the benefit of accounting for biased sampling from different fleet 
+selectivities when predicting the conditional age-at-length distributions 
+[@francis2016growth]. Conditional age-at-length data provides a very 
+informative snapshot of the age/length structure of the population 
+[@piner2018bias], so fitting to many fleets over many years can 
+in fact bias the model if there are small scale changes that are 
+not accounted for in the model formulation, such as time-varying growth
+of changes in fleet selectivity (Lee et al, in press). To counter this, 
+we chose to use only survey data since 1984 to inform our growth model.
 
-- Helps predict changes in observed length comps due to changes in selectivity
-- Accounts for fleet effects on the observed length comps
-
-Warning: CAAL data provides a very informative snapshot of the age/length structure of the population, so fitting to many fleets over many years can in fact bias the model (see Piner et al) - so we just chose to use survey data since 1984
-
-Equations:
+The random-at-length growth model is based on estimating the conditional 
+probability of observing a fish at a certain age, given its length 
+[@piner2016evaluation]. We formulate our sex structured growth model based 
+on the Schnute formulation of the von Bertalanffy growth model 
+[@schnute1981versatile].
 
 \begin{align}
-L_{a,s,p} &= L_{1,s} + (L_{2,s,p} - L_{1,s}) \cdot \frac{e^{-K_{s,p} A_{1,s}} - e^{-K_{s,p} a}}{e^{-K_{s,p} A_{1,s}} - e^{-K_{s,p} A_{2,s}}} \\
-\log L(\hat\theta ~|~ P^{obs}( a ~|~ l) ) &\sim MVL likelihood\\
-\hat{P}(a) &= S_{a,s,p,f,t} N_{a,s,p,t} / Nv_{s,p,f,t} \\
-\hat{P}_{s,p} (l~|~a) &= \phi(\log (l + 0.5) ~|~ \log L_{a,s,p}, \sigma_{a,s,p} ) - \phi(\log (l - 0.5) ~|~ \log L_{a,s,p}, \sigma_{a,s,p} ).
+L_{a,x,s,p} 
+    &= L_{1,s} + (L_{2,x,s,p} - L_{1,s}) \cdot \frac{e^{-K_{x,s,p} A_{1,s}} - e^{-K_{x,s,p} a}}{e^{-K_{x,s,p} A_{1,s}} - e^{-K_{x,s,p} A_{x,2,s}}} \\
+
+\hat{P}_{x,s,p} (l~|~a) 
+    &= \phi(\log (l + 0.5) ~|~ \log L_{a,x,s,p}, \sigma^{L}_{s,p} ) - \phi(\log (l - 0.5) ~|~ \log L_{a,s,p}, \sigma^{(L)}_{s,p} ). \\
+
+\hat{P}_{x,f,s,p} (a) 
+    &= \sum_{l} \hat{P}_{x,s,p} (l~|~a) S_{l,s,p,f,t} N_{a,x,s,p,t} / N_{x,s,p,f,t} \\
+
+\hat{P}_{x,s,p} (a ~|~ l)
+    &= \frac{ \hat{P}_{x,s,p} (l~|~a) \cdot \hat{P}(a) }{ \sum_{a} \hat{P}_{x,s,p} (l~|~a) \cdot \hat{P}(a) } \\
+
+\log L(\hat\theta ~|~ \hat{P}( a ~|~ l) ) &\sim MVL likelihood \\
+
 \end{align}
 
-Note that the probability $\hat{P}(a)$ of observing an individual in age class $a$ is dependent on fleet selectivity, making samples biased from the mean length-at-age [@francis2016estimating]. Given the information contained in CAAL data, we chose to restrict the growth model to survey data only (ask Lee and Piner if I can cite their paper here).
+The probability of an individual fish of sex $x$ being observed by fleet $f$ 
+in a given age group $a$ is the proportion of vulnerable biomass within that 
+age group, here calculated as the average across length groups $l$. We 
+describe the selectivity models in the observation model section below.
 
-We assume that $L_{1,s}$ is the same for all stocks of species $s$. We estimate stock specific parameters $L_{2,s,p}$ and $K_{s,p}$. The early and late stage ages $A_1$ and $A_2$ were chosen by inspecting the length-at-age data, with $A_1$ chosen to capture the youngest age with more than 10 length samples, and $A_2$ as an age representative of the length asymptote, but at an age where data exists for every stock.
+We assumed that $L_{1,s}$ is the same for both sexes in all stocks $p$ of 
+species $s$. We estimated sex and stock specific parameters $L_{2,x,s,p}$ 
+and $K_{x,s,p}$. The early and late stage ages $A_{1,s}$ and $A_{2,s}$ were 
+chosen by inspecting the length-at-age data, with $A_1$ chosen to capture the 
+youngest age with more than 10 length samples, and $A_{2,s}$ as an age 
+representative of the length asymptote, but at an age where data exists for 
+every stock.
+
+We used a logistic-normal likelihood for the predicted age-at-length 
+distributions, to reduce the effect of large sample sizes on the objective 
+function value [@francis2014replacing].
 
 ### Modeling notes:
 - We used a log-normal distribution for the probability of length conditioned on age - this may introduce a slight skew but I'm not convinced it's major, and I think it's more realistic as this removes any density below 0
 
 
+
 ## Observation models
 
-Observation model likelihoods were defined for biomass indices, compositional data and catch.
+Observation model likelihoods were defined for biomass indices and compositional data.
+
+## Selectivity
+
+Selectivity-at-length was modeled as stock specific for each fleet. 
+Fleet selectivity-at-length was then translated through the growth model
+to convert it to sex-specific selectivity-at-age. All selectivity models 
+were logistic models of length, reflecting the assumption that selectivity 
+was asymptotic.
+
+\begin{align}
+S_{s,p,f}(l) &= \frac{1}{1 + e^{-\frac{\log 19 \cdot (l - l_{50,s,p,f})}{l_{95,s,p,f} - l_{50,s,p,f}}}} \\
+S_{x,s,p,f}(a) &= \sum_{l = 1}^{L_s} P_{x,s,p}(l ~|~ a) \cdot S_{s,p,f}(l)
+\end{align}
+
+
 
 ### Biomass indices
+
+Biomass indices were available in every fleet. We used a log-normal likelihood
+to penalise deviations between the observed indices $I_{s,p,f,t}$ and the 
+modeled vulnerable biomass $B_{s,p,f,t}$
+\begin{align}
+B_{s,p,f,t} &= \sum_{a=1}^{A_s} S_{s,p,f}(a) \cdot B_{a,s,p,t} \\
+I_{s,p,f,t} &\sim \log N ( q_{s,p,f} \cdot B_{s,p,f,t}, \tau_f ).
+\end{align}
 
 
 
 ### Compositional data
 
+Age and length composition data was available in every fleet, but not all 
+types of data were available for every stock. As in the integrated growth 
+model, we used the logistic-normal compositional likelihood to reduce the 
+swamping effect of large sample sizes on the objective function.
+
+For length and age bins with 
+
 #### Age compositions
+
+
 
 #### Length compositions
 
 ### Catch
 
-Fishing mortality rates $\hat{F}_{s,p,f,t}$ were estimated when $C_{s,p,f,t} > 0$. Deviations between predicted and observed catch were penalised with a log-normal likelihood, with a standard deviation of 0.01
-\begin{equation}
-\log\hat{C}_{s,p,f,t} \sim N(\log C_{s,p,f,t},0.01)
-\end{equation}
+The assessment model was conditioned on catch. To do so, we used a 
+iteratively solved the catch equation for fishing mortality rates
+using the Newton-Rhapson method. 
 
 ## Hierarchical priors
 
-### Catchability
+We used a set of hierarchical shrinkage priors to share information from
+data-moderate to data-poor stocks [@johnson2018evaluating].
 
-### Steepness
+In general: 
 
-### Process errors
+- only survey time series from 2003 in QCS/WCVI
+- HSHG goes further back (1984), but grid design means that biomass index 
+is super variable
+- Very few ages available
+- Lots of lengths for some species/area combos, but very spotty in others
+
+Data-poor stocks:
+    - QCS/WCVI English Sole:
+        * No ages
+        * Short length time series
+    - WCVI Rock Sole:
+        * No ages
+        * Short survey time series
+
+Given the lack
+of age data in some stock areas, and short time series of observations
+in others, we used shrinkage priors on observation model parameters,
+reflecting similarities in fishing gear, and
+biological parameters, reflecting similarities in biology within
+species and between species but within the family *Pleuronectidae*
+
+induced by the priors stabilised estimates of survey catchability,
+stock-recruit steepness, natural mortality, and fleet selectivity
+
+### Observation model priors
+
+For observation model priors, we collected fleets into groups:
+
+1. Commercial (Historical and Modern)
+2. HS Assemblage Survey
+3. Synoptic survey legs: WCHGSyn, HSSyn, QCSSyn, and WCVISyn
+
+These 3 groups were then used to define shrinkage priors for 
+selectivity-at-length parameters, and a shrinkage prior for catchability
+in survey groups. We excluded the commercial fleet group from 
+the catchability shrinkage priors as commercial CPUE is subject to targeting 
+effects (discussed in the section on time-varying quantities), and the CPUE 
+standardisation differed between time periods due to a difference in available 
+standardisation factors. 
+
+
+#### Catchability
+
+For the survey biomass indices, catchability can be interpreted as trawl efficiency,
+or the proportion of biomass within a swept area that is available to the trawl
+gear [@dickson1993estimation; @dickson1993estimationb; @somerton1999incorporating].
+So, for fleets that use a similar survey design, fishing behaviour, and trawl net
+configuration (mesh size and cod end), we  may expect the trawl efficiency to
+be similar between fleets within a species, and somewhat similar between species
+for a given group.
+
+Given that the Hecate Strait Assemblage survey only surveyed a single stock,
+we used different prior structures for groups 2 and 3. For the Hecate
+Strait Assemblage survey, the priors were
+
+\begin{align}
+\log\hat{q}_{Ass,s,HSHG} &\sim N( \log \hat{q}_{Ass}, \hat{\tau}_{q,Ass} ), \\
+\hat{\tau}_{q,Ass} \sim IG( \alpha_{q,Ass}, \beta_{q,Ass} ), \\
+\hat{q}_{Ass} \sim N( m_{q,Ass}, sd_{q,Ass}).
+\end{align}
+
+For the Synoptic survey, for a fleet $f \in \{ WCHGSyn, HSSyn, QCSSyn, WCVISyn \}$,
+we applied the prior structure was
+
+\begin{align}
+\log\hat{q}_{f,s,p} &\sim N( \log \hat{q}_{Syn,s}, \hat{\tau}_{q,Syn,s} ), \\
+\hat{\tau}_{q,Syn,s} \sim IG( \alpha_{q,Syn,Species}, \beta_{q,Syn,Species} ), \\
+\log\hat{q}_{Syn,s} \sim N( \log\hat{q}_{Syn}, \hat{\tau}_{q,Syn}), \\
+\hat{\tau}_{q,Syn} \sim IG( \alpha_{q,Syn}, \beta_{q,Syn} ),\\
+\hat{q}_{Syn} \sim N(m_{q,Syn}, sd_{q,Syn}).
+\end{align}
+
+In scenarios where the assessment complex only had 1 species, we used the
+hyperpriors instead of estimated complex priors (i.e. $m_{q,Ass}$ instead 
+of $\hat{q}_{Ass}$). The hyperparameters of the inverse gamma hypervariance
+priors were fixed for each assessment, and were varied as part of a
+sensitivity analysis/
+
+#### Selectivity
+
+Similar to the catchability priors, the selectivity-at-length model parameters 
+were subjected to shrinkage priors between stocks, fleets, and species, within
+each fleet group.
+
+### Process model priors
+
+#### Steepness
+
+#### Process errors
+
+
+
+#### Growth
+
 
 ## Time-varying quantities
 Under some model hypotheses, we fit to time-varying catchability and selectivity in the commercial fleets. Both time-varying quantities we modeled as random walks in the log-scale parameters
 
+We allowed the catchability $q_{s,p,f}$ to be time varying for the commercial 
+CPUE indices and the Hecate Strait Assemblage survey biomass under some model 
+hypotheses. This was due to the commercial CPUE being dependent on harvester 
+targeting ability, while the Hecate Strait assemblage survey was based on a 
+grid design. Both of these factors can affect the relationship between 
+vulnerable biomass and the observed index. We attempted to account for this
+effect by modeling catchability using a simple random walk 
+over the time period of the observations.
 
+\begin{align}
+q_{s,p,f,t} = q_{s,p,f,t-1} \cdot e^{\delta_{q,s,p,f,t}}.
+\end{align}
+
+Time-varying selectivity was also implemented and used in some model hypotheses.
+- Commercial fleet selectivity, reflecting changing mesh size/targeting etc.
+
+
+## Optimisation and Integration
+
+The global assessment model was formulated 

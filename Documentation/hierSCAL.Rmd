@@ -69,11 +69,9 @@ library(bookdown)
 
 Fisheries stock assessment is concerned with determining the status of exploited fish stocks under uncertainty [@hilborn1992quantitative]. Stock assessment models are fit to multiple sources of data, including abundance or biomass indices, age compositions, length composition data, and age-at-length data. 
 
-Fisheries management typically focuses on a single stock of a single species at a time. This narrow focus often implictly assumes that fish are uniformly distributed across the management area, ignoring any spatial structure, and ignores interactions between species, except implicitly through recruitment or mortality [@albertsen2017connecting; @siple2017contributions]. 
+Fisheries management typically focuses on a single stock of a single species at a time. This narrow focus often implictly assumes that fish are uniformly distributed across the management area, ignoring any spatial structure, and ignores interactions between species, except implicitly through recruitment or mortality [@albertsen2017connecting; @siple2017contributions].
 
-Spatial considerations? SAM style M residuals
-
-Data limitations - modern fisheries management usually requires age structured models, age data is often missing as it is costly to collect.
+Data limitations - modern fisheries management is based on fitting age structured models, age data is often missing as it is costly to collect. Length compositions are 
 
 Hierarchical multi-stock and multi-species stock assessment models offer an alternative to increasing costly age readings for low-abundance or importance stocks.
     - Sharing information [@johnson2018evaluating; punt2011among; @jiao2011poor]
@@ -86,11 +84,6 @@ In this paper, we apply a hierarchical multi-stock age-structured assessment mod
     - estimating correlations in fishing/total mortality and recruitment (emmig/immig and technical interactions) - Read Siple paper again
     - Integrated growth model - look at integrated assessment model literature
     - shared priors on catchability [@johnson2018evaluating], steepness [@myers1999maximum], mortality [@albertsen2017connecting]
-
-Not all stocks are surveyed equally: different stocks have large samples age structures, others have no samples at all. 
-    - Length composition data supplement the age observations [@rudd2017accounting]
-    - Integrated hierarchical growth model shares growth data between stocks and species [@cadigan2017hierarchical], allows for unbiased estimation of age/length observations - e.g. Random-at-length obs, conditioned on fleet selectivity and modeled age structure [@piner2016evaluation]
-    - Can use hierarchical RAL growth model to extend growth hypotheses to stocks with missing data in a data-driven way (e.g. estimating a growth model for the stocks with missing age data), allowing for an age structured model for stocks with missing age data
 
 
 # Methods
@@ -105,6 +98,11 @@ DERPA complex:
     - History of DERPA??
     - DERPA is encountered mainly by the groundfish trawl fishery, with negligible removals from the other sectors/gear types
     - List assessments?
+
+Not all stocks are surveyed equally: different stocks have large samples age structures, others have no samples at all. 
+    - Length composition data supplement the age observations [@rudd2017accounting]
+    - Integrated hierarchical growth model shares growth data between stocks and species [@cadigan2017hierarchical], allows for unbiased estimation of age/length observations - e.g. Random-at-length obs, conditioned on fleet selectivity and modeled age structure [@piner2016evaluation]
+    - Can use hierarchical RAL growth model to extend growth hypotheses to stocks with missing data in a data-driven way (e.g. estimating a growth model for the stocks with missing age data), allowing for an age structured model for stocks with missing age data
 
 
 ## Data
@@ -125,10 +123,10 @@ The stock assessment model has an age structured process model that explicitly i
 For stocks without age observations, length comps with separate length-at-age distributions for each stock are used in the observation model. To avoid using the same data twice, we only use length compositions from individual fish where age was not observed. For fish where age was observed, accompanying length observations are available, and this data was used to fit the integrated Von Bertalanffy growth model
 
 Hierarchical priors:
-- Growth model
-    - vonB K parameter between species
-    - K, Linf and cvL within species
-    - Random-at-length, using either eqbm age structure outside the model, or the modeled age structure and selectivity inside the model
+- integrated Schnute formulation of vonB growth model [@schnute1981versatile; @francis2016growth]
+    - vonB K parameter between stocks
+    - K, L2 and sigmaL within species
+    - Random-at-length, using modeled age structure and selectivity inside the model
 - Steepness between stocks and species (multilevel)
 - Catchability for surveys
 - M between stocks and species (multilevel)
@@ -136,9 +134,9 @@ Hierarchical priors:
 - Correlations in Ft deviations (auto-correlated Ft?)?
 - Selectivity-at-length parameters - this will probably play well with the compositional data issues below
 
-Multifleet model: one fleet for each survey leg in Synoptic, one for trawl. Given the Synoptic survey is using the same vessel/gear across years and legs, we fix the selectivity across fleets for this set.
+Multifleet model: one fleet for each survey leg in Synoptic (WCHG, HS, QCS, and WCVI), one for the HS Assemblage survey, and two commercial trawl fleets (historic and modern). Given the Synoptic survey is using the same vessel/gear across years and legs. These fleets naturally fall into three groups (Commercial Trawl, Assemblage survey, and Syboptic surveys), so a hierarchical prior
 
-- There is sexual dimorphism, but I don't think we'll include it right now
+
 
 
 
@@ -165,10 +163,9 @@ Here I need to include the data scenarios and model hypotheses I'm going to test
     a. Coastwide vs stock specific growth
     b. Different correlation matrix structures for (i) Recruitment process errors and (ii) Ft values - post-hoc analysis of correlations?
     c. Smaller or larger hyperprior variance on shared mortality/steepness priors
-2. Coastwide vs multistock?? Keep surveys split into multiple pieces, but lump pop dynamics
 3. Multi-species vs single species/multi-stock
 4. Data scenarios:
-    a. Starting in 1956, 1969, 1984, 1996, 2003
+    a. Starting in 1956, 1984, 1996, 2003
     b. Age only, length only [No growth model], age/length?
 5. Discarding? Contact Bruce Turris or Greg Workman about a grading length
 
@@ -183,6 +180,8 @@ Here I need to include the data scenarios and model hypotheses I'm going to test
 AIC is standard, but need to calculate eff. number of parameters, and what about for choosing between two different data scenarios, e.g. coastwide vs multi-stock, different initial times? Cross validation??
 
 ## Reference points/management quantities
+
+
 
 # Results
 

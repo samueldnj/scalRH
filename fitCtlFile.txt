@@ -31,7 +31,7 @@ data$fYearIdx 1984
 data$lYearIdx 2016
 data$sexStructured TRUE
 data$idxFleets c("comm.hist","comm.mod","HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
-data$species c("Dover")
+data$species c("Dover","English")
 data$stocks c("HSHG","QCS","WCVI")
 data$idxFiles c("surveyBio.RData","commCPUE.RData")
 data$catchData c(survey="surveyCatch.RData",comm="catch_by_maj.csv")
@@ -109,7 +109,6 @@ phases$epsxSel50_vec 12
 phases$epsxSelStep_vec 12
 phases$omegaR_vec 6
 phases$omegaRinit_vec 2
-phases$lnF_spft 1
 phases$muxSel50_sg -1
 phases$muxSel95_sg -1
 phases$sigmaxSel50_sg -1
