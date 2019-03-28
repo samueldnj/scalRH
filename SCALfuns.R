@@ -958,7 +958,7 @@ TMBphase <- function( data,
 
     # Run benchmark for parallel accumulation
     if(parBen &  phase_cur == 1)
-      outList$phase1Benchmark <- benchmark(obj, cores = 1:detectCores())
+      outList$phase1Benchmark <- benchmark(obj, cores = 1:(detectCores()-1))
 
     # Create a control list for the assessment model
     tmbCtrl <- list(  eval.max = maxEval, 

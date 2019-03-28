@@ -10,7 +10,7 @@ ctrl$maxPhase 12
 ctrl$calcSD FALSE
 ctrl$calcRefPts TRUE
 ctrl$plots TRUE
-ctrl$parBen FALSE
+ctrl$parBen TRUE
 ctrl$intMethod "None"
 ctrl$mcChainLength 2000
 ctrl$mcChains 1
