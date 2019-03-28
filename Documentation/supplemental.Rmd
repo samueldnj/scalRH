@@ -1,5 +1,5 @@
 ---  
-title: "Supplementary material for evaluating the role of data quality when sharing information in hierarchical multi-stock assessment models, with an application to dover sole"
+title: "Supplementary material for a heirarchical age-structured assessment model for 5 species of British Columbia right-eyed flounders (Pleuronectidae) in three stock areas."
 author: 
   - Samuel D. N. Johnson (corresponding)
   - Sean P. Cox
@@ -132,18 +132,13 @@ on the Schnute formulation of the von Bertalanffy growth model
 \begin{align}
 L_{a,x,s,p} 
     &= L_{1,s} + (L_{2,x,s,p} - L_{1,s}) \cdot \frac{e^{-K_{x,s,p} A_{1,s}} - e^{-K_{x,s,p} a}}{e^{-K_{x,s,p} A_{1,s}} - e^{-K_{x,s,p} A_{x,2,s}}} \\
-
 \hat{P}_{x,s,p} (l~|~a) 
     &= \phi(\log (l + 0.5) ~|~ \log L_{a,x,s,p}, \sigma^{L}_{s,p} ) - \phi(\log (l - 0.5) ~|~ \log L_{a,s,p}, \sigma^{(L)}_{s,p} ). \\
-
 \hat{P}_{x,f,s,p} (a) 
     &= \sum_{l} \hat{P}_{x,s,p} (l~|~a) S_{l,s,p,f,t} N_{a,x,s,p,t} / N_{x,s,p,f,t} \\
-
 \hat{P}_{x,s,p} (a ~|~ l)
     &= \frac{ \hat{P}_{x,s,p} (l~|~a) \cdot \hat{P}(a) }{ \sum_{a} \hat{P}_{x,s,p} (l~|~a) \cdot \hat{P}(a) } \\
-
-\log L(\hat\theta ~|~ \hat{P}( a ~|~ l) ) &\sim MVL likelihood \\
-
+\log L(\hat\theta ~|~ \hat{P}( a ~|~ l) ) &\sim MVL likelihood_{x} \\
 \end{align}
 
 The probability of an individual fish of sex $x$ being observed by fleet $f$ 
@@ -276,27 +271,27 @@ gear [@dickson1993estimation; @dickson1993estimationb; @somerton1999incorporatin
 So, for fleets that use a similar survey design, fishing behaviour, and trawl net
 configuration (mesh size and cod end), we  may expect the trawl efficiency to
 be similar between fleets within a species, and somewhat similar between species
-for a given group.
+for a given group [@johnson2018evaluating].
 
 Given that the Hecate Strait Assemblage survey only surveyed a single stock,
 we used different prior structures for groups 2 and 3. For the Hecate
 Strait Assemblage survey, the priors were
 
 \begin{align}
-\log\hat{q}_{Ass,s,HSHG} &\sim N( \log \hat{q}_{Ass}, \hat{\tau}_{q,Ass} ), \\
-\hat{\tau}_{q,Ass} \sim IG( \alpha_{q,Ass}, \beta_{q,Ass} ), \\
-\hat{q}_{Ass} \sim N( m_{q,Ass}, sd_{q,Ass}).
+\log\hat{q}_{Ass,s,HSHG}  &\sim N( \log \hat{q}_{Ass}, \hat{\tau}_{q,Ass} ), \\
+\hat{\tau}_{q,Ass}        &\sim IG( \alpha_{q,Ass}, \beta_{q,Ass} ), \\
+\hat{q}_{Ass}             &\sim N( m_{q,Ass}, sd_{q,Ass}).
 \end{align}
 
 For the Synoptic survey, for a fleet $f \in \{ WCHGSyn, HSSyn, QCSSyn, WCVISyn \}$,
 we applied the prior structure was
 
 \begin{align}
-\log\hat{q}_{f,s,p} &\sim N( \log \hat{q}_{Syn,s}, \hat{\tau}_{q,Syn,s} ), \\
-\hat{\tau}_{q,Syn,s} \sim IG( \alpha_{q,Syn,Species}, \beta_{q,Syn,Species} ), \\
-\log\hat{q}_{Syn,s} \sim N( \log\hat{q}_{Syn}, \hat{\tau}_{q,Syn}), \\
-\hat{\tau}_{q,Syn} \sim IG( \alpha_{q,Syn}, \beta_{q,Syn} ),\\
-\hat{q}_{Syn} \sim N(m_{q,Syn}, sd_{q,Syn}).
+\log\hat{q}_{f,s,p}   &\sim N( \log \hat{q}_{Syn,s}, \hat{\tau}_{q,Syn,s} ), \\
+\hat{\tau}_{q,Syn,s}  &\sim IG( \alpha_{q,Syn,Species}, \beta_{q,Syn,Species} ), \\
+\log\hat{q}_{Syn,s}   &\sim N( \log\hat{q}_{Syn}, \hat{\tau}_{q,Syn}), \\
+\hat{\tau}_{q,Syn}    &\sim IG( \alpha_{q,Syn}, \beta_{q,Syn} ),\\
+\hat{q}_{Syn}         &\sim N(m_{q,Syn}, sd_{q,Syn}).
 \end{align}
 
 In scenarios where the assessment complex only had 1 species, we used the

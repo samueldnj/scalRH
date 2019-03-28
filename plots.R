@@ -342,25 +342,26 @@ plotCompFitYrs <- function( repObj = repInit,
                             save = FALSE,
                             savePath = "plotFitYrs" )
 {
+  nX <- repObj$nX
   # Pull predicted and observed ages
   if( comps == "age" )
   {
-    max       <- repObj$A_s[sIdx]
-    pred_xft <- repObj$aDist_aspftx_hat[1:max,sIdx,pIdx,,,sex]
-    obs_xft  <- repObj$age_aspftx[1:max,sIdx,pIdx,,,sex]  
-    xLab      <- "Age"
-    minProp   <- repObj$minAgeProp
+    max         <- repObj$A_s[sIdx]
+    pred_xftsex <- repObj$aDist_aspftx_hat[1:max,sIdx,pIdx,,,1:nX]
+    obs_xftsex  <- repObj$age_aspftx[1:max,sIdx,pIdx,,,1:nX]  
+    xLab        <- "Age"
+    minProp     <- repObj$minAgeProp
   }
   if( comps == "length" )
   {
-    max       <- repObj$L_s[sIdx]  
-    pred_xft  <- repObj$lDist_lspftx_hat[1:max,sIdx,pIdx,,,sex]
-    obs_xft   <- repObj$len_lspftx[1:max,sIdx,pIdx,,,sex] 
-    xLab      <- "Length"
-    minProp   <- repObj$minLenProp
+    max         <- repObj$L_s[sIdx]  
+    pred_xftsex <- repObj$lDist_lspftx_hat[1:max,sIdx,pIdx,,,1:nX]
+    obs_xftsex  <- repObj$len_lspftx[1:max,sIdx,pIdx,,,1:nX] 
+    xLab        <- "Length"
+    minProp     <- repObj$minLenProp
   }
 
-  dimNames  <- dimnames(pred_xft)
+  dimNames  <- dimnames(pred_xftsex)
   compNames <- dimNames[[1]]
   gearNames <- dimNames[[2]]
   yearNames <- dimNames[[3]]
@@ -382,12 +383,16 @@ plotCompFitYrs <- function( repObj = repInit,
   gearTimes <- vector(mode = "list", length = nF)
   for( fIdx in 1:nF )
   {
-    if( any(obs_xft[1,fIdx,] >= 0) )
-    {
-      obsGears <- c(obsGears,fIdx)
-      gearTimes[[fIdx]] <- which(obs_xft[1,fIdx,] >= 0)
-    }
+    gearTimes[[fIdx]] <- 1:nT
+    for( sex in 1:nX)
+      if( any(obs_xftsex[1,fIdx,,sex] >= 0) )
+      {
+        obsGears <- union(obsGears,fIdx)
+        gearTimes[[fIdx]] <- intersect(gearTimes[[fIdx]],which(obs_xftsex[1,fIdx,,sex] >= 0) )
+      }
   }
+
+  obs_xftsex[obs_xftsex < 0] <- 0
 
 
   # ok, obsGears are the ones we want to plot,
@@ -412,29 +417,45 @@ plotCompFitYrs <- function( repObj = repInit,
     nCols <- round(sqrt(nObs))
     nRows <- ceiling(nObs/nCols)
 
+
+    # Fix sex colours
+    sexcols <- c("steelblue","salmon")
+
     par(  mfcol = c(nRows,nCols), 
           mar = c(1,1,1,1),
           oma = c(3,3,3,3) )
 
     for( tIdx in times )
     { 
-      # get age obs and preds
-      nObs           <- sum(obs_xft[,fIdx,tIdx])
-      compObsProp_x  <- obs_xft[,fIdx,tIdx]/sum(obs_xft[,fIdx,tIdx])
-      compPred_x     <- pred_xft[,fIdx,tIdx]
+      nObs <- numeric(length = nX)
+      compObsProp_xsex  <- array(0,dim = c(max,nX))
+      compPred_xsex     <- array(0,dim = c(max,nX))
 
-      plot( x = c(1,max), y = c(0,max(compObsProp_x,compPred_x,na.rm = T) ),
+      # get age obs and preds
+      for( sex in 1:nX )
+      {
+        nObs[sex]               <- sum(obs_xftsex[,fIdx,tIdx,sex])
+        compObsProp_xsex[,sex]  <- obs_xftsex[,fIdx,tIdx,sex]/max(1,sum(obs_xftsex[,fIdx,tIdx,sex]))
+        compPred_xsex[,sex]     <- pred_xftsex[,fIdx,tIdx,sex]
+      }
+
+      plot( x = c(1,max), y = c(0,max(compObsProp_xsex,compPred_xsex,na.rm = T) ),
             xlab = "", ylab = "", type = "n", las = 1 )
-        rect( xleft = 1:max - .3, xright = 1:max + .3,
-              ybottom = 0, ytop = compObsProp_x,
-              col = "grey40", border = NA )
+        for( sex in 1:nX)
+        {
+          rect( xleft = 1:max - .3 + (sex - 1) * .3, xright = 1:max + (sex - 1) * .3,
+                ybottom = 0, ytop = compObsProp_xsex[,sex],
+                col = sexcols[sex], border = NA )
+          lines(  x = 1:max, y = compPred_xsex[,sex], lwd = 2,
+                col = cols[fIdx], lty = sex )
+          points(  x = 1:max, y = compPred_xsex[,sex],
+                  col = cols[fIdx], pch = 21 + sex - 1 )
+        }
         abline( h = minProp, lty = 3, lwd = .8, col = "grey30" )
-        lines(  x = 1:max, y = compPred_x, lwd = 1,
-                col = cols[fIdx] )
-        points(  x = 1:max, y = compPred_x,
-                col = cols[fIdx], pch = 21 )
         panLab( x=.5, y = .95, txt = years[tIdx] )
-        panLab( x=.1, y = .95, txt = paste("N = ", nObs, sep = "") )
+        for( sex in 1:nX )
+          panLab( x=.1, y = 1 - sex * .05, txt = paste("N = ", nObs[sex], sep = ""),
+                  col = sexcols[sex] )
 
     }
     mtext( side = 3, outer = T, text = gearNames[fIdx], line = 2, font = 2)
@@ -454,25 +475,25 @@ plotCompFitAvg <- function( repObj = repInit,
                             sex = "female",
                             comps = "age" )
 {
-  # Pull predicted and observed ages
+  nX <- repObj$nX
   if( comps == "age" )
   {
-    max       <- repObj$A_s[sIdx]
-    pred_xft  <- repObj$aDist_aspftx_hat[1:max,sIdx,pIdx,,,sex]
-    obs_xft   <- repObj$age_aspftx[1:max,sIdx,pIdx,,,sex]  
-    xLab      <- "Age"
-    minProp   <- repObj$minAgeProp
+    max         <- repObj$A_s[sIdx]
+    pred_xftsex <- repObj$aDist_aspftx_hat[1:max,sIdx,pIdx,,,1:nX]
+    obs_xftsex  <- repObj$age_aspftx[1:max,sIdx,pIdx,,,1:nX]  
+    xLab        <- "Age"
+    minProp     <- repObj$minAgeProp
   }
   if( comps == "length" )
   {
-    max       <- repObj$L_s[sIdx]  
-    pred_xft  <- repObj$lDist_lspftx_hat[1:max,sIdx,pIdx,,,sex]
-    obs_xft   <- repObj$len_lspftx[1:max,sIdx,pIdx,,,sex] 
-    xLab      <- "Length"
-    minProp   <- repObj$minLenProp
+    max         <- repObj$L_s[sIdx]  
+    pred_xftsex <- repObj$lDist_lspftx_hat[1:max,sIdx,pIdx,,,1:nX]
+    obs_xftsex  <- repObj$len_lspftx[1:max,sIdx,pIdx,,,1:nX] 
+    xLab        <- "Length"
+    minProp     <- repObj$minLenProp
   }
 
-  dimNames  <- dimnames(pred_xft)
+  dimNames  <- dimnames(pred_xftsex)
   compNames <- dimNames[[1]]
   gearNames <- dimNames[[2]]
   yearNames <- dimNames[[3]]
@@ -484,6 +505,7 @@ plotCompFitAvg <- function( repObj = repInit,
 
   # Make colours vector
   cols    <- brewer.pal( n = nF, "Dark2" )
+  sexcols <- c("steelblue","salmon")
 
   # Make years vector
   years   <- seq(initYear, length = nT+1, by = 1)
@@ -495,12 +517,16 @@ plotCompFitAvg <- function( repObj = repInit,
   gearTimes <- vector(mode = "list", length = nF)
   for( fIdx in 1:nF )
   {
-    if( any(obs_xft[1,fIdx,] >= 0) )
-    {
-      obsGears <- c(obsGears,fIdx)
-      gearTimes[[fIdx]] <- which(obs_xft[1,fIdx,] >= 0)
-    }
+    gearTimes[[fIdx]] <- 1:nT
+    for( sex in 1:nX)
+      if( any(obs_xftsex[1,fIdx,,sex] >= 0) )
+      {
+        obsGears <- union(obsGears,fIdx)
+        gearTimes[[fIdx]] <- intersect(gearTimes[[fIdx]],which(obs_xftsex[1,fIdx,,sex] >= 0) )
+      }
   }
+
+  obs_xftsex[obs_xftsex<0] <- 0
 
   # Some stocks don't have age observations,
   # so skip it
@@ -519,24 +545,31 @@ plotCompFitAvg <- function( repObj = repInit,
     times <- gearTimes[[fIdx]]
     
     # Average the observations and
-    fleetObs_xt  <- obs_xft[,fIdx,times,drop = FALSE]
-    fleetPred_xt <- pred_xft[,fIdx,times,drop = FALSE]
-    
-    # Average observations and predictions over time
-    compObs_x     <- apply( X = fleetObs_xt, FUN = sum, MARGIN = 1 )
-    compObsProp   <- compObs_x / sum(compObs_x)
-    compPred_x    <- apply( X = fleetPred_xt, FUN = mean, MARGIN = 1 )
+    fleetObs_xtsex  <- obs_xftsex[,fIdx,times,,drop = FALSE]
+    fleetPred_xtsex <- pred_xftsex[,fIdx,times,,drop = FALSE]
 
-    plot( x = c(1,max), y = c(0,max(compObsProp,compPred_x,na.rm = T) ),
+  
+    # Average observations and predictions over time
+    compObs_xsex      <- apply( X = fleetObs_xtsex, FUN = sum, MARGIN = c(1,4), na.rm = TRUE )
+    compObsProp_xsex <- compObs_xsex
+    for( sex in 1:nX)
+      compObsProp_xsex[,sex]  <- compObs_xsex[,sex] / max(1,sum(compObs_xsex[,sex]))
+    compPred_xsex     <- apply( X = fleetPred_xtsex, FUN = mean, MARGIN = c(1,4), na.rm = TRUE )
+
+    plot( x = c(1,max), y = c(0,max(compObsProp_xsex,compPred_xsex,na.rm = T) ),
             xlab = "", ylab = "", type = "n", las = 1 )
-      rect( xleft = 1:max - .3, xright = 1:max + .3,
-            ybottom = 0, ytop = compObsProp,
-            col = "grey40", border = NA )
+      for( sex in 1:nX)
+      {
+        rect( xleft = 1:max - .3 + (sex - 1) * .3, xright = 1:max + (sex - 1) * .3,
+              ybottom = 0, ytop = compObsProp_xsex[,sex],
+              col = sexcols[sex], border = NA )
+        lines(  x = 1:max, y = compPred_xsex[,sex], lwd = 2,
+              col = cols[fIdx], lty = sex )
+        points(  x = 1:max, y = compPred_xsex[,sex],
+                col = cols[fIdx], pch = 21 + sex - 1 )
+      }
+
       abline( h = minProp, lty = 3, lwd = .8, col = "grey30" )
-      lines(  x = 1:max, y = compPred_x, lwd = 1,
-              col = cols[fIdx] )
-      points(  x = 1:max, y = compPred_x,
-              col = cols[fIdx], pch = 21 )
 
       mtext( side = 4, text = gearNames[fIdx], line = 2)
   }
@@ -1089,7 +1122,8 @@ plotHeatmapProbLenAge <- function(  repObj = repInit,
   melted_probMat <- melted_probMat %>% filter( value > 1e-4 )
 
   predLenAtAge_ax <- repObj$lenAge_aspx[,sIdx,pIdx,, drop = FALSE]
-  predLenAtAge_ax <- melt(predLenAtAge_ax) 
+  predLenAtAge_ax <- melt(predLenAtAge_ax)  %>%
+                      filter( value > 0 )
 
 
 
@@ -1157,7 +1191,8 @@ plotHeatmapAgeLenResids <- function(  repObj = repInit,
   nA <- repObj$nA
 
   predLenAtAge <- repObj$lenAge_aspx[,sIdx,pIdx,, drop = FALSE]
-  predLenAtAge <- melt(predLenAtAge) 
+  predLenAtAge <- melt(predLenAtAge) %>%
+                  filter( value > 0 )
 
 
   tmp <- ggplot(data = melted_residsMat, aes(x=age, y=len, fill=value)) + 
@@ -1344,7 +1379,7 @@ plotIdxFits <- function ( repObj = repInit,
   I_ft        <- repObj$I_spft[sIdx,pIdx,,]
   q_f         <- repObj$q_spf[sIdx,pIdx,]
   q_ft        <- repObj$q_spft[sIdx,pIdx,,]
-  tau_f       <- repObj$tau2Idx_spf[sIdx,pIdx,]
+  tau_f       <- repObj$tauObs_spf[sIdx,pIdx,]
 
   gearNames   <- dimnames(Bv_ft)[[1]]
 

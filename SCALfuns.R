@@ -635,8 +635,9 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                 xMat50_s          = xMat50,
                 xMat95_s          = xMat95,
                 ## Observation models ##
-                # fleet catchability
+                # fleet catchability and obs idx SD
                 lnq_spf           = array(0,dim =c(nS,nP,nF)),
+                lntauObs_spf      = array(-1,dim = c(nS,nP,nF)),
                 # Selectivity
                 lnxSel50_sf       = lnxSel50_sf,
                 lnxSelStep_sf     = lnxSelStep_sf,
@@ -701,12 +702,10 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                 cvxSel            = hypoObj$cvxSel,
                 pmlnL2_s          = log(initL2_s),
                 pmlnL1_s          = log(initL1_s),
-                cvL2              = .05,
-                cvL1              = .05,
+                cvL2              = .1,
+                cvL1              = .1,
                 pmlnVonK          = log(.3),
-                cvVonK            = .05,
-                mF                = hypoObj$mF,
-                sdF               = hypoObj$sdF  )
+                cvVonK            = .1 )
 
 
 
@@ -716,6 +715,8 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                       dim = c(nS,nP,nF) )
   qmap_spf[calcIndex_spf == 0] <- NA
 
+  taumap_spf <- qmap_spf + 1e3
+
   # Map selectivity at length
   selMap_spf <- array(NA, dim = c(nS,nP,nF) )
   # Make unique initially
@@ -724,7 +725,7 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
     {
       for(p in 1:nP)  
         if( any(age_aspftx[,s,p,f,,] > 0) | any(len_lspftx[,s,p,f,,] > 0) )
-          selMap_spf[s,p,f] <- 200 + s * (nF - 1) * (nP - 1) + f * (nP - 1) + p
+          selMap_spf[s,p,f] <- 2e3 + s * (nF - 1) * (nP - 1) + f * (nP - 1) + p
     }
 
   # Collapse to species/fleet
@@ -742,16 +743,17 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
       gpFleets <- fleetGps[[gIdx]]
       gpFleets <- gpFleets[gpFleets %in% useFleets]
       estIdx <- which(!is.na(selMap_spf[,gpFleets,drop = FALSE]),arr.ind =T)
-      selMap_spf[estIdx[,1],estIdx[,2],gpFleets[estIdx[,3]]] <- gIdx + 200 + estIdx[,1] * nGps
+      selMap_spf[estIdx[,1],estIdx[,2],gpFleets[estIdx[,3]]] <- gIdx + 3e3 + estIdx[,1] * nGps
     }
   }
 
   # generate base map for TMBphase()
   map <- list(  lnq_spf           = factor(qmap_spf),
+                lntauObs_spf      = factor(taumap_spf),
                 epsxSel50_spf     = factor(selMap_spf),
-                epsxSelStep_spf   = factor(selMap_spf + 100),
-                lnxSel50_sf       = factor(selMap_sf + 200),
-                lnxSelStep_sf     = factor(selMap_sf + 300) )
+                epsxSelStep_spf   = factor(selMap_spf + 105),
+                lnxSel50_sf       = factor(selMap_sf + 50),
+                lnxSelStep_sf     = factor(selMap_sf + 100) )
 
   # Turn off tv sel deviations if not being used
   if( !hypoObj$tvSel | nSelDevs == 0 )
@@ -805,7 +807,8 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                           parBen = ctrlObj$parBen,
                           intMethod = ctrlObj$intMethod,
                           mcChainLength = ctrlObj$mcChainLength,
-                          mcChains = ctrlObj$mcChains ) 
+                          mcChains = ctrlObj$mcChains,
+                          savePhases = ctrlObj$savePhases ) 
 
   repOpt <- phaseList$repOpt
 
@@ -816,22 +819,23 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
 
   # Calculate refPts for repOpt
   if( ctrlObj$calcRefPts )
-    repOpt <- calcRefPts( phaseList$phaseReports[[maxSuccPhz]]$report )
+  {
+    repOpt <- calcRefPts( phaseList$repOpt )
+  }
   
 
   # Update names on report objects
-  outList <- list(  repInit = renameReportArrays(phaseList$repInit,data),
-                    repOpt = renameReportArrays(repOpt,data),
+  outList <- list(  repOpt = renameReportArrays(repOpt,data),
                     sdrepOpt = phaseList$sdrep,
+                    sdOptOutput = phaseList$optOutput,
                     fYear = fYear, 
                     lYear = lYear,
                     gearLabs = useFleets,
                     species = useSpecies,
                     stocks = useStocks,
-                    map = phaseList$phaseReports[[maxSuccPhz]]$map,
+                    map = phaseList$map,
                     data = data,
                     pars = pars,
-                    plotRep = plotRep,
                     phaseList = phaseList )
 
 
@@ -866,7 +870,8 @@ TMBphase <- function( data,
                       parBen = FALSE,
                       intMethod = "RE",
                       mcChainLength = 100,
-                      mcChains = 1 ) 
+                      mcChains = 1,
+                      savePhases = TRUE ) 
 {
   # function to fill list component with a factor
   # of NAs
@@ -960,27 +965,14 @@ TMBphase <- function( data,
     tmbCtrl <- list(  eval.max = maxEval, 
                       iter.max = maxIter  )
 
-    # if( phase_cur < maxPhase )
-    # {
-    #   tol10 <- 1
-    #   gradTol <- 1
-    #   stepTol <- 0.01
-
-    #   tmbCtrl$reltol <- 1e-2 
-    # } else { 
-    #   tol10 <- 0.001
-    #   gradTol <- 0.001
-    #   stepTol <- 0.0001
-    #   tmbCtrl$reltol <- 1e-4
-    # }
-
     if( phase_cur == 1 )
     {
-      outList$repInit <- obj$report()
+      repInit <- obj$report()
 
-      checkInit <- lapply( X = outList$repInit, FUN = .checkNaN )
-      if(any(unlist(checkInit)))
-        browser(beep(expr=cat("NaN items in repInit\n")))
+      checkInitNaN    <- lapply( X = repInit, FUN = .checkNaN )
+      checkInitFinite <- lapply( X = repInit, FUN = .checkFinite )
+      if(any(unlist(checkInitNaN)) | any(checkInitFinite))
+        browser(beep(expr=cat("NaN or Inf items in repInit\n")))
     }
 
     cat("\nStarting optimisation for phase ", phase_cur, "\n\n")
@@ -997,20 +989,29 @@ TMBphase <- function( data,
       cat("\nOptimisation halted due to error\n")
 
       outList$success                   <- FALSE
-      phaseReports[[phase_cur]]$opt     <- opt
-      phaseReports[[phase_cur]]$success <- FALSE
       outList$maxPhaseComplete          <- phase_cur - 1
+
+      if( savePhases )
+      {
+        phaseReports[[phase_cur]]$opt     <- opt
+        phaseReports[[phase_cur]]$success <- FALSE
+      }
+
       break
     }
+    # Save max phase complete
+    outList$maxPhaseComplete          <- phase_cur
 
     # Save reports and optimisation
     # output
-    phaseReports[[phase_cur]]$report  <- obj$report()
-    phaseReports[[phase_cur]]$opt     <- opt
-    phaseReports[[phase_cur]]$success <- TRUE
-    phaseReports[[phase_cur]]$map     <- map_use
-    phaseReports[[phase_cur]]$hess    <- obj$he()
-    outList$maxPhaseComplete          <- phase_cur
+    if(savePhases)
+    {
+      phaseReports[[phase_cur]]$report  <- obj$report()
+      phaseReports[[phase_cur]]$opt     <- opt
+      phaseReports[[phase_cur]]$success <- TRUE
+      phaseReports[[phase_cur]]$map     <- map_use
+      phaseReports[[phase_cur]]$hess    <- obj$he()
+    }
 
     # Update fitReport
     if(class(opt) != "try-error")
@@ -1101,9 +1102,13 @@ TMBphase <- function( data,
   if(outList$success & calcSD )
     outList$sdrep <- TMB::sdreport(obj)
 
-  outList$phaseReports      <- phaseReports
+  if( savePhases )
+    outList$phaseReports      <- phaseReports
+
   outList$repOpt            <- obj$report()
   outList$objfun            <- obj$fn()
+  outList$optOutput         <- opt
+  outList$map               <- map_use
   outList$maxGrad           <- max(obj$gr())
   outList$fitReport         <- fitReport
   outList$totTime           <- sum(fitReport$time)
@@ -1170,8 +1175,9 @@ renameReportArrays <- function( repObj = repInit, datObj = data )
 
   # Observation models
   dimnames(repObj$q_spf)        <- dimnames(datObj$age_aspftx)[c(2:4)]  
-  dimnames(repObj$tau2Idx_spf)  <- dimnames(datObj$age_aspftx)[c(2:4)]  
-  dimnames(repObj$sel_lfspt)     <- list( len = lenNames, 
+  dimnames(repObj$tau2Obs_spf)  <- dimnames(datObj$age_aspftx)[c(2:4)]  
+  dimnames(repObj$tauObs_spf)   <- dimnames(datObj$age_aspftx)[c(2:4)]  
+  dimnames(repObj$sel_lfspt)    <- list(  len = lenNames, 
                                           fleet = gearNames,
                                           species = specNames,
                                           stock = stockNames,
@@ -1275,11 +1281,7 @@ savePlots <- function(  fitObj = reports,
   fYear <- fitObj$fYear
   lYear <- fitObj$lYear
 
-  if(useRep == "init")
-    report <- fitObj$repInit
-
-  if( useRep == "opt" )
-    report   <- fitObj$repOpt
+  report   <- fitObj$repOpt
 
   specNames   <- fitObj$species
   stockNames  <- fitObj$stocks
@@ -1315,13 +1317,6 @@ savePlots <- function(  fitObj = reports,
   plotProbLenAge_sp( repObj = report)
   dev.off()
 
-  # Plot probLenAge 
-  png(  file.path(saveDir,"plotLenAtAgeDist.png"),
-        width = 11, height = 8.5, units = "in", res = 300)
-  plotHeatmapProbLenAge( repObj = report, 
-                          sIdx = 1:nS, pIdx = 1:nP)
-  dev.off()
-
   # Plot indices
   png( file.path(saveDir,"plotStdzedIndices.png"),
         width = 11, height = 8.5, units = "in", res = 300)
@@ -1336,34 +1331,6 @@ savePlots <- function(  fitObj = reports,
   plotYeqF( repObj = report,
             sIdx = 1:nS, pIdx = 1:nP )
   dev.off()
-
-  for( fIdx in 1:nF )
-  {
-    fleetID <- fleetNames[fIdx]
-    fileName <- paste("plotAgeLenResids_",fleetID,".png",sep = "")
-    png(  file.path(saveDir,fileName),
-        width = 11, height = 8.5, units = "in", res = 300)
-    plotHeatmapAgeLenResids(  repObj = report, 
-                              sIdx = 1:nS, pIdx = 1:nP,
-                              fIdx = fIdx )
-    dev.off()  
-
-    fileName <- paste("plotAgeResids_",fleetID,".png",sep = "")
-    png(  file.path(saveDir,fileName),
-        width = 11, height = 8.5, units = "in", res = 300)
-    plotCompResids( repObj = report, 
-                    sIdx = 1:nS, pIdx = 1:nP,
-                    fIdx = fIdx, comps = "age" )
-    dev.off()  
-
-    fileName <- paste("plotLenResids_",fleetID,".png",sep = "")
-    png(  file.path(saveDir,fileName),
-        width = 11, height = 8.5, units = "in", res = 300)
-    plotCompResids( repObj = report, 
-                    sIdx = 1:nS, pIdx = 1:nP,
-                    fIdx = fIdx, comps = "length" )
-    dev.off()  
-  }
 
   # Plot catch fits
   png(  file.path(saveDir,"plotCatchFit.png"),
@@ -1415,6 +1382,12 @@ savePlots <- function(  fitObj = reports,
                     fIdx = 1:nF, comps = "length" )
     dev.off()  
 
+    # Plot probLenAge 
+    png(  file.path(specPath,"plotLenAtAgeDist.png"),
+          width = 11, height = 8.5, units = "in", res = 300)
+    plotHeatmapProbLenAge( repObj = report, 
+                            sIdx = sIdx, pIdx = 1:nP)
+    dev.off()
 
     for( pIdx in 1:nP)
     {
@@ -1452,12 +1425,12 @@ savePlots <- function(  fitObj = reports,
                   sIdx = sIdx, pIdx = pIdx )
       dev.off()
 
-      # Plot maturity at length
-      png(  file.path(stockPath,"plotMatLen.png"),
-            width = 11, height = 8.5, units = "in", res = 300)
-      plotMatLength( repObj = report,
-                     sIdx = sIdx, pIdx = pIdx )
-      dev.off()
+      # # Plot maturity at length
+      # png(  file.path(stockPath,"plotMatLen.png"),
+      #       width = 11, height = 8.5, units = "in", res = 300)
+      # plotMatLength( repObj = report,
+      #                sIdx = sIdx, pIdx = pIdx )
+      # dev.off()
 
       # Plot maturity at Age
       png(  file.path(stockPath,"plotMatAge.png"),
@@ -1529,6 +1502,44 @@ savePlots <- function(  fitObj = reports,
               sIdx = sIdx, pIdx = pIdx )
       dev.off()
 
+      # Plot spawning biomass with catch and indices
+      png(  file.path(stockPath,"plotSBt.png"),
+            width = 11, height = 8.5, units = "in", res = 300)
+      plotSBt( repObj = report, initYear = fYear,
+                  sIdx = sIdx, pIdx = pIdx )
+      dev.off()
+
+      for( fIdx in 1:nF )
+      {
+        if(!dir.exists(file.path(stockPath,"resids")) )
+          dir.create(file.path(stockPath,"resids"))
+        
+        fleetID <- fleetNames[fIdx]
+        fileName <- paste("plotAgeLenResids_",fleetID,".png",sep = "")
+        png(  file.path(stockPath,"resids",fileName),
+            width = 11, height = 8.5, units = "in", res = 300)
+        plotHeatmapAgeLenResids(  repObj = report, 
+                                  sIdx = 1:nS, pIdx = 1:nP,
+                                  fIdx = fIdx )
+        dev.off()  
+
+        fileName <- paste("plotAgeResids_",fleetID,".png",sep = "")
+        png(  file.path(stockPath,"resids",fileName),
+            width = 11, height = 8.5, units = "in", res = 300)
+        plotCompResids( repObj = report, 
+                        sIdx = 1:nS, pIdx = 1:nP,
+                        fIdx = fIdx, comps = "age" )
+        dev.off()  
+
+        fileName <- paste("plotLenResids_",fleetID,".png",sep = "")
+        png(  file.path(stockPath,"resids",fileName),
+            width = 11, height = 8.5, units = "in", res = 300)
+        plotCompResids( repObj = report, 
+                        sIdx = 1:nS, pIdx = 1:nP,
+                        fIdx = fIdx, comps = "length" )
+        dev.off()  
+      }
+
     }
   }
 
@@ -1539,6 +1550,13 @@ savePlots <- function(  fitObj = reports,
 .checkNA <- function( listEntry )
 {
   x <- any(is.na(listEntry))
+  x
+}
+
+# Check for Infs in lists
+.checkFinite <- function( listEntry )
+{
+  x <- any(!is.finite(listEntry))
   x
 }
 

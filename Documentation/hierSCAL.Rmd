@@ -67,7 +67,7 @@ library(bookdown)
 
 # Introduction
 
-Fisheries stock assessment is concerned with determining the status of exploited fish stocks under uncertainty [@hilborn1992quantitative]. Stock assessment models are fit to multiple sources of data, including abundance or biomass indices, age compositions, length composition data, and age-at-length data. 
+Fisheries stock assessment is concerned with determining the status of exploited fish stocks under uncertainty [@hilborn1992quantitative]. Stock assessment models are fit to multiple sources of data, including abundance or biomass indices, age compositions, length composition data, and age-at-length data.
 
 Fisheries management typically focuses on a single stock of a single species at a time. This narrow focus often implictly assumes that fish are uniformly distributed across the management area, ignoring any spatial structure, and ignores interactions between species, except implicitly through recruitment or mortality [@albertsen2017connecting; @siple2017contributions].
 

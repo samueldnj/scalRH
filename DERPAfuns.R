@@ -1736,7 +1736,10 @@ makeALFreq <- function( ALFreqList = ALfreq,
     specAL[specAL < 0] <- NA
     specA <- dim(specAL)[2]
     specL <- dim(specAL)[3]
-    ALK_spalftx[specID, stockIDs, 1:specA, 1:specL, gears, years, ] <- specAL[stockIDs,1:specA,1:specL, gears, years, ]
+    ALK_spalftx[specID, stockIDs, 1:specA, 1:specL, gears, years, ]  <- specAL[stockIDs,1:specA,1:specL, gears, years, ]
+
+    
+
   }
 
   return(ALK_spalftx)
