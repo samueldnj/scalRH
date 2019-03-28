@@ -44,7 +44,7 @@ mp$mp2$hypo$tvq TRUE
 #
 # MP 3 : tvSel
 #
-mp$mp2$ctrl$modelHypName 'tvSel'
-mp$mp2$hypo$tvSel TRUE
+mp$mp3$ctrl$modelHypName 'tvSel'
+mp$mp3$hypo$tvSel TRUE
 #
 # File Ends <not run>.
