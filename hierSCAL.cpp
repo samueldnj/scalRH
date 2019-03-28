@@ -19,10 +19,7 @@
 //      a. Species/fleet for pooled compositions
 //      b. Species/fleet/stock for stock specific but pooled over years?
 //      c. Time-varying selectivity for species/fleet/stock/year
-//  6. Refactor Mortality and Steepness parameters:
-//      - Complex level means are leading pars
-//      - Species and stock level values are modeled as random 
-//        effects (deviations from higher level mean values)
+//  6. Un-center hierarchical distributions
 // 
 // 
 // Intended features:
@@ -863,8 +860,8 @@ Type objective_function<Type>::operator() ()
           if( matX == "age" )
             matAge_asp(a,s,p) = 1 / (1 + exp( -1. * log(Type(19.0)) * ( a+1 - xMat50_s(s)) / (xMat95_s(s) - xMat50_s(s)) ) );
 
-          // To compute ssbpr, we need to borrow N_aspt for a moment 
-          Surv_aspx(a,s,p,x) = exp(-a * M_spx(s,p,x));        
+          // To compute ssbpr, we need to reduce by the fraction of spawners
+          Surv_aspx(a,s,p,x) = exp(-a * M_spx(s,p,x))/nX;        
           if( a == A_s(s) - 1 ) 
             Surv_aspx(a,s,p,x) /= (1. - exp( -M_spx(s,p,x)) );
           // Compute ssbpr
@@ -1555,13 +1552,13 @@ Type objective_function<Type>::operator() ()
   L2nlp_p.setZero();
 
   // Fix sigmaVonK and sigmaL2 for now
-  Type sigmavonK  = 0.01;
-  Type sigmaL2    = 0.01;
+  Type sigmavonK  = 0.1;
+  Type sigmaL2    = 0.1;
 
   vector<Type>    sigmavonK_s(nS);
-                  sigmavonK_s.fill(.01);
+                  sigmavonK_s.fill(.1);
   vector<Type>    sigmaL2_s(nS);
-                  sigmaL2_s.fill(0.01);
+                  sigmaL2_s.fill(0.1);
 
 
   deltaL2bar_p.setZero();

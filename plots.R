@@ -399,6 +399,15 @@ plotCompFitYrs <- function( repObj = repInit,
   # and gearTimes is the list of time indices
   for( fIdx in obsGears )
   {
+    times <- gearTimes[[fIdx]]
+    # Count the number of age observations
+    # there are, and make the plotting window
+    nObs <- length(times)
+    if( nObs == 0) next
+    
+    nCols <- round(sqrt(nObs))
+    nRows <- ceiling(nObs/nCols)
+
     if(!save)
       dev.new()
 
@@ -410,12 +419,7 @@ plotCompFitYrs <- function( repObj = repInit,
             units = "in", res = 300 )
     }
 
-    times <- gearTimes[[fIdx]]
-    # Count the number of age observations
-    # there are, and make the plotting window
-    nObs <- length(times)
-    nCols <- round(sqrt(nObs))
-    nRows <- ceiling(nObs/nCols)
+    
 
 
     # Fix sex colours

@@ -1798,7 +1798,6 @@ makeCompsArray <- function( compList = ageComps,
           stockID <- stockIDs[stockIdx]
           for( tIdx in 1:nT)
           {
-
             yearLab <- as.character(years[tIdx])
             sumComps <- sum(specComps[stockID,fleetID,yearLab,1:obsX,sexIdx + 1],na.rm = T)
             if(sumComps <= minSampSize )

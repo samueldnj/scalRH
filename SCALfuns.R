@@ -5,8 +5,6 @@
 # Functions for hierSCAL TMB model.
 # 
 # To Do:
-#   4. Post-processing for report objects: add dimension names
-#       for use in plotting code
 #   6. Add in joint priors - be clever about it, we need to avoid
 #       joint q priors on 
 #
@@ -790,6 +788,7 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
     browser(cat("Data or Pars have NAs\n") )
   }
 
+  cat("\nFitting hierSCAL for ", paste(useSpecies,collapse = ","), "\n", sep = "")
   
 
   phaseList <- TMBphase(  data = data, 
