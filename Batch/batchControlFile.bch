@@ -37,9 +37,14 @@ scenario$scenario6$ctrl$dataScenarioName 'DERPA'
 #
 mp$mp1$ctrl$modelHypName 'baseModel'
 #
-# MP 2 : LIMEComps
+# MP 2 : tvq
 #
-mp$mp2$ctrl$modelHypName 'LIMEcomps'
-mp$mp2$hypo$lenCompMethod "LIME"
+mp$mp2$ctrl$modelHypName 'tvq'
+mp$mp2$hypo$tvq TRUE
+#
+# MP 3 : tvSel
+#
+mp$mp2$ctrl$modelHypName 'tvSel'
+mp$mp2$hypo$tvSel TRUE
 #
 # File Ends <not run>.

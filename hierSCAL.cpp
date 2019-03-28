@@ -394,8 +394,8 @@ Type objective_function<Type>::operator() ()
   PARAMETER_VECTOR(lnL1_s);             // species-specific vonB Length-at-age 1
   PARAMETER_ARRAY(deltaL2_sp);          // species-pop specific deviation in L2
   PARAMETER_ARRAY(deltaVonK_sp);        // species-pop specific deviation in VonK parameter
-  PARAMETER_ARRAY(deltaL2_spx);         // sex-species-pop specific deviation in L2
-  PARAMETER_ARRAY(deltaVonK_spx);       // sex-species-pop specific deviation in VonK parameter
+  PARAMETER_ARRAY(deltaL2_sx);          // sex-species-pop specific deviation in L2
+  PARAMETER_ARRAY(deltaVonK_sx);        // sex-species-pop specific deviation in VonK parameter
   PARAMETER_VECTOR(lnsigmaLa_s);        // species-specific individual growth SD intercept
   PARAMETER_VECTOR(sigmaLb_s);          // species-specific individual growth SD slope
   PARAMETER_VECTOR(LWa_s);              // species L-W conversion a par (units conv: cm -> kt)
@@ -589,8 +589,8 @@ Type objective_function<Type>::operator() ()
     {
       L1_spx.col(x).col(pIdx)   = L1_s;                    
       M_spx.col(x).col(pIdx)    = M_sp.col(pIdx) * exp(epsM_spx.col(x).col(pIdx));
-      L2_spx.col(x).col(pIdx)   = L2_sp.col(pIdx) * exp(deltaL2_spx.col(x).col(pIdx));
-      vonK_spx.col(x).col(pIdx) = vonK_sp.col(pIdx) * exp(deltaVonK_spx.col(x).col(pIdx));
+      L2_spx.col(x).col(pIdx)   = L2_sp.col(pIdx) * exp(deltaL2_sx.col(x));
+      vonK_spx.col(x).col(pIdx) = vonK_sp.col(pIdx) * exp(deltaVonK_sx.col(x));
     }
   }
 
@@ -861,7 +861,7 @@ Type objective_function<Type>::operator() ()
             matAge_asp(a,s,p) = 1 / (1 + exp( -1. * log(Type(19.0)) * ( a+1 - xMat50_s(s)) / (xMat95_s(s) - xMat50_s(s)) ) );
 
           // To compute ssbpr, we need to reduce by the fraction of spawners
-          Surv_aspx(a,s,p,x) = exp(-a * M_spx(s,p,x))/nX;        
+          Surv_aspx(a,s,p,x) = exp(-a * M_spx(s,p,x));        
           if( a == A_s(s) - 1 ) 
             Surv_aspx(a,s,p,x) /= (1. - exp( -M_spx(s,p,x)) );
           // Compute ssbpr
@@ -870,7 +870,7 @@ Type objective_function<Type>::operator() ()
       }
     }
 
-  SSBpr_asp = Surv_aspx.col(nX-1) * matAge_asp * meanWtAge_aspx.col(nX-1);
+  SSBpr_asp = Surv_aspx.col(nX-1) * matAge_asp * meanWtAge_aspx.col(nX-1) / nX;
 
   // --------- Selectivity and Fishing Mortality -------- //
   array<Type> sel_lfspt(nL,nF,nS,nP,nT);
@@ -975,7 +975,7 @@ Type objective_function<Type>::operator() ()
   baraZ_aspxt.setZero();
   baraF_spft.setZero();
 
-  // Loop over sexes, species
+  // Loop over time, species
   for( int t = 0; t < nT; t++ )
   { 
     for( int s = 0; s < nS; s++ )
@@ -1613,8 +1613,8 @@ Type objective_function<Type>::operator() ()
       if( nX > 1 )
         for( int x = 0; x < nX; x++ )
         {
-          vonKnlp_s(s)  -= dnorm( deltaVonK_spx(s,p,x), Type(0), sigmavonK_s(s), true);
-          L2nlp_s(s)    -= dnorm( deltaL2_spx(s,p,x), Type(0), sigmaL2_s(s), true);
+          vonKnlp_s(s)  -= dnorm( deltaVonK_sx(s,x), Type(0), sigmavonK_s(s), true);
+          L2nlp_s(s)    -= dnorm( deltaL2_sx(s,x), Type(0), sigmaL2_s(s), true);
           Mnlp_sp(s,p)  -= dnorm( epsM_spx(s,p,x), Type(0), sigmaM_s(s), true);
 
         }
@@ -1790,8 +1790,8 @@ Type objective_function<Type>::operator() ()
   REPORT( A2_s );
   REPORT( deltaVonK_sp );
   REPORT( deltaL2_sp );
-  REPORT( deltaVonK_spx );
-  REPORT( deltaL2_spx );
+  REPORT( deltaVonK_sx );
+  REPORT( deltaL2_sx );
   REPORT( deltaVonKbar_p );
   REPORT( deltaL2bar_p );
 

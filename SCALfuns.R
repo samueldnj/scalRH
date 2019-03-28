@@ -621,8 +621,8 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                 # Stock specific growth pars
                 deltaL2_sp        = array(0,dim = c(nS,nP)),
                 deltaVonK_sp      = array(0,dim = c(nS,nP)),
-                deltaL2_spx       = array(0,dim = c(nS,nP,nX)),
-                deltaVonK_spx     = array(0,dim = c(nS,nP,nX)),
+                deltaL2_sx        = array(0,dim = c(nS,nX)),
+                deltaVonK_sx      = array(0,dim = c(nS,nX)),
                 # process error in growth model
                 lnsigmaLa_s       = log(sigmaLa_s),
                 sigmaLb_s         = sigmaLb_s,
