@@ -669,7 +669,6 @@ Type objective_function<Type>::operator() ()
   // for each time step
   int epsSelVecIdx = 0;
   int epslnqVecIdx = 0;
-  int vecIdx = 0;
   for(int f = 0; f < nF; f++ )
   {
     for( int p = 0; p < nP; p++ )
@@ -679,7 +678,6 @@ Type objective_function<Type>::operator() ()
       xSel95_spf.col(f).col(p)    = xSel50_spf.col(f).col(p) + xSelStep_spf.col(f).col(p);
       for( int s = 0; s < nS; s++)
       {
-        int nPosCatch = 0;
         // Exponentiate q and tau for the index observations
         q_spf(s,p,f)        = exp(lnq_spf(s,p,f));
         tauObs_spf(s,p,f)   = exp(lntauObs_spf(s,p,f));
@@ -827,8 +825,6 @@ Type objective_function<Type>::operator() ()
       int A2 = A2_s(s);
       for( int p = 0; p < nP; p++ )
       {
-        Type tmpPhi = 0;
-
         lenAge_aspx.col(x).col(p).col(s) += L2_spx(s,p,x) - L1_sp(s,p);
         lenAge_aspx.col(x).col(p).col(s) *= (exp(-vonK_spx(s,p,x) * A1 ) - exp(-vonK_spx(s,p,x) * age) );
         lenAge_aspx.col(x).col(p).col(s) /= (exp(-vonK_spx(s,p,x) * A1 ) - exp(-vonK_spx(s,p,x) * A2) );
@@ -1434,9 +1430,6 @@ Type objective_function<Type>::operator() ()
   Type qnlpSyn = 0.;
   qnlpSyn_s.setZero();
   Type qnlpSurv = 0.;
-
-  Type Fnlp = 0;
-
 
 
   // Now a prior on catchability and observation error SD

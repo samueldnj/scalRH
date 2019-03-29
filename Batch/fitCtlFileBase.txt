@@ -87,6 +87,8 @@ hypo$hPriorMean 0.78
 hypo$hPriorSD 0.05
 hypo$fleetGroups list(comm=c("comm.hist","comm.mod"),Ass=c("HSAss"),Syn=c("WCHGSyn","QCSSyn","WCVISyn","HSSyn"))
 hypo$RE c("omegaR_vec","omegaRinit_vec")
+hypo$sigmaL2 .2
+hypo$sigmavonK .2
 phases$lnB0_sp 2
 phases$logitSteep 3
 phases$lnM 3
