@@ -233,10 +233,7 @@ array<Type> solveBaranov_spf( int   nIter,
         // Use catch plus bio for years where bio is dangerously small
         F_spf(s,p,f) = C_spf(s,p,f) / (vB_spf(s,p,f));
         for( int x = 0; x < nX; x++)
-          for( int a = 0; a < A_s(s); a++ )
-          {
-            newZ_aspx(a,s,p,x) +=  F_spf(s,p,f) * sel_aspfx(a,s,p,f,x);
-          }
+          newZ_aspx.col(x).col(p).col(s) +=  F_spf(s,p,f) * sel_aspfx.col(x).col(f).col(p).col(s);
       }
     }
   
@@ -283,17 +280,11 @@ array<Type> solveBaranov_spf( int   nIter,
         }
       }
 
+    // Subtract predicted catch
+    f_spf -= tmp_spf;
 
-    for( int s = 0; s < nS; s++ )
-      for( int p = 0; p < nP; p++ )
-        for( int f = 0; f < nF; f++ )
-        {
-          // Subtract predicted catch
-          f_spf(s,p,f) -= tmp_spf(s,p,f);
-
-          // Updated fishing mortality
-          F_spf(s,p,f) -= Bstep * f_spf(s,p,f) / J_spf(s,p,f);
-        }
+    // Updated fishing mortality
+    F_spf -= Bstep * f_spf / J_spf;
 
     newZ_aspx.setZero();
 
@@ -301,21 +292,16 @@ array<Type> solveBaranov_spf( int   nIter,
     for( int s = 0; s < nS; s++ )
       for( int p = 0; p < nP; p++ )
         for( int x = 0; x < nX; x++ )
-          for( int a = 0; a < A_s(s); a++ )
-          {
-            newZ_aspx(a,s,p,x) = M_spx(s,p,x);
-            for( int f= 0 ; f < nF; f ++)
-              newZ_aspx(a,s,p,x) += sel_aspfx(a,s,p,f,x) * F_spf(s,p,f) ;
-          }
+        {
+          newZ_aspx.col(x).col(p).col(s).fill(M_spx(s,p,x));
+          for( int f= 0 ; f < nF; f ++)
+            newZ_aspx.col(x).col(p).col(s) += sel_aspfx.col(x).col(f).col(p).col(s) * F_spf(s,p,f) ;  
+        }
 
   }  // end i
 
   // Now save the tmpZ_aspx array out to the Z_aspx input
-  for( int s = 0; s < nS; s++ )
-      for( int p = 0; p < nP; p++ )
-        for( int x = 0; x < nX; x++ )
-          for( int a = 0; a < A_s(s); a++)
-            Z_aspx(a,s,p,x) = newZ_aspx(a,s,p,x);
+  Z_aspx = newZ_aspx;
 
   return( J_spf );
 
@@ -393,9 +379,13 @@ Type objective_function<Type>::operator() ()
   PARAMETER_VECTOR(lnvonK_s);           // species-specific vonB K parameter
   PARAMETER_VECTOR(lnL1_s);             // species-specific vonB Length-at-age 1
   PARAMETER_ARRAY(deltaL2_sp);          // species-pop specific deviation in L2
+  PARAMETER_VECTOR(lnsigmaL2_s);        // species level L2 dev SD
   PARAMETER_ARRAY(deltaVonK_sp);        // species-pop specific deviation in VonK parameter
+  PARAMETER_VECTOR(lnsigmavonK_s);      // species level vonK dev SD
   PARAMETER_ARRAY(deltaL2_sx);          // sex-species-pop specific deviation in L2
   PARAMETER_ARRAY(deltaVonK_sx);        // sex-species-pop specific deviation in VonK parameter
+  PARAMETER(lnsigmaL2);                 // Complex level L2 dev SD (Is this necessary??)
+  PARAMETER(lnsigmavonK);               // Complex level vonK dev SD (Is this necessary??)
   PARAMETER_VECTOR(lnsigmaLa_s);        // species-specific individual growth SD intercept
   PARAMETER_VECTOR(sigmaLb_s);          // species-specific individual growth SD slope
   PARAMETER_VECTOR(LWa_s);              // species L-W conversion a par (units conv: cm -> kt)
@@ -453,7 +443,7 @@ Type objective_function<Type>::operator() ()
   PARAMETER_VECTOR(epsM_s);             // Species level natural mortality effect
   PARAMETER_ARRAY(epsSteep_sp);         // stock level steepness effect
   PARAMETER_ARRAY(epsM_sp);             // stock level natural mortality effect
-  PARAMETER_ARRAY(epsM_spx);            // sex specific natural mortality effect
+  PARAMETER_ARRAY(epsM_sx);             // sex specific natural mortality effect
   PARAMETER_VECTOR(omegaR_vec);         // species-stock specific recruitment errors 2:nT
   PARAMETER_VECTOR(omegaRinit_vec);     // stock-age specific recruitment initialisation errors
   PARAMETER_ARRAY(lnsigmaR_sp);         // stock recruitment errors sd (sqrt cov matrix diag)
@@ -545,20 +535,39 @@ Type objective_function<Type>::operator() ()
   Type f = 0;
   Type joint_nlp = 0.0;
 
+  // Let's test the multi-dimensional containers thingy
+  // I think it will speed things up later
+  vector<int> d(3); d << 2,2,2;
+  int a = d(0)*d(1)*d(2);
+
+  matrix<Type> m(2,3); 
+  m << 1,2,3,4,5,6;
+
+  vector< matrix<Type> > V(a);
+  array< matrix<Type> > A(V,d);
+
+  for(int i=0; i<2; i++)
+    for(int j=0; j<2; j++)
+      for(int k=0; k<2; k++)
+        A(i,j,k) = m*i*j*k;
+
 
 
   // Prior Hyperparameters //
   // Steepness
-  vector<Type>  h_s           = .2 + Type(0.78) / ( Type(1.0) + exp( -1 * (logitSteep + epsSteep_s ) ) );
   vector<Type>  sigmah_s      = exp(lnsigmah_s);
-  Type          mh            = .2 + Type(0.78) / ( Type(1.0) + exp( -1 * logit_muSteep) );
   Type          sigmah        = exp(lnsigmah);
+  vector<Type>  h_s           = .2 + Type(0.78) / ( Type(1.0) + exp( -1 * (logitSteep + sigmah * epsSteep_s ) ) );
+  Type          mh            = .2 + Type(0.78) / ( Type(1.0) + exp( -1 * logit_muSteep) );
+  // Need to add an sdh
 
   // Natural mortality
-  vector<Type>  M_s           = exp(lnM + epsM_s);
-  vector<Type>  sigmaM_s      = exp(lnsigmaM_s);
-  Type          muM           = exp(ln_muM);
   Type          sigmaM        = exp(lnsigmaM);
+  vector<Type>  sigmaM_s      = exp(lnsigmaM_s);
+  vector<Type>  M_s           = exp(lnM + sigmaM * epsM_s);
+  Type          muM           = exp(ln_muM);
+  // need to add an sdM
+  
   // RE SDs
   Type          sigmaSel      = exp(lnsigmaSel);
   Type          sigmalnq      = exp(lnsigmaepslnq);
@@ -568,29 +577,38 @@ Type objective_function<Type>::operator() ()
   Type          qbarSyn       = exp(lnqbarSyn);
   Type          tauqSyn       = exp(lntauqSyn);
 
+
+  // Growth model hierarchical priors
   L1_s      = exp(lnL1_s); 
   vonK_s    = exp(lnvonK_s);
   L2_s      = exp(lnL1_s) + exp(lnL2step_s);
   sigmaLa_s = exp(lnsigmaLa_s);
 
+  // Fix sigmaVonK and sigmaL2 for now
+  Type sigmavonK  = exp(lnsigmavonK);
+  Type sigmaL2    = exp(lnsigmaL2);
+
+  vector<Type>    sigmavonK_s = exp(lnsigmavonK_s);
+  vector<Type>    sigmaL2_s   = exp(lnsigmaL2_s);
+
   // Fill arrays that hold stock-specific parameters
   for( int pIdx = 0; pIdx < nP; pIdx++ )
   {
     B0_sp.col(pIdx)      = exp(lnB0_sp.col(pIdx));
-    h_sp.col(pIdx)       = .2 + 0.8 / ( Type(1.0) + exp( -1 * (logitSteep + epsSteep_s + epsSteep_sp.col(pIdx) ) ) );
-    M_sp.col(pIdx)       = exp(lnM) * exp(epsM_s) * exp(epsM_sp.col(pIdx) );
+    h_sp.col(pIdx)       = .2 + 0.8 / ( Type(1.0) + exp( -1 * (logitSteep + sigmah * epsSteep_s + sigmah_s * epsSteep_sp.col(pIdx) ) ) );
+    M_sp.col(pIdx)       = exp(lnM) * exp(sigmaM * epsM_s) * exp(sigmaM_s * epsM_sp.col(pIdx) );
     L1_sp.col(pIdx)      = L1_s;
-    L2_sp.col(pIdx)      = L2_s * exp(deltaL2_sp.col(pIdx));
-    vonK_sp.col(pIdx)    = vonK_s * exp(deltaVonK_sp.col(pIdx));
+    L2_sp.col(pIdx)      = L2_s * exp(sigmaL2_s * deltaL2_sp.col(pIdx));
+    vonK_sp.col(pIdx)    = vonK_s * exp(sigmavonK_s * deltaVonK_sp.col(pIdx));
     sigmaR_sp.col(pIdx)  = exp(lnsigmaR_sp.col(pIdx));
 
     // And sex specific
     for( int x = 0; x < nX; x++)
     {
       L1_spx.col(x).col(pIdx)   = L1_s;                    
-      M_spx.col(x).col(pIdx)    = M_sp.col(pIdx) * exp(epsM_spx.col(x).col(pIdx));
-      L2_spx.col(x).col(pIdx)   = L2_sp.col(pIdx) * exp(deltaL2_sx.col(x));
-      vonK_spx.col(x).col(pIdx) = vonK_sp.col(pIdx) * exp(deltaVonK_sx.col(x));
+      M_spx.col(x).col(pIdx)    = M_sp.col(pIdx) * exp( sigmaM_s * epsM_sx.col(x));
+      L2_spx.col(x).col(pIdx)   = L2_sp.col(pIdx) * exp( sigmaL2_s * deltaL2_sx.col(x));
+      vonK_spx.col(x).col(pIdx) = vonK_sp.col(pIdx) * exp(sigmavonK_s * deltaVonK_sx.col(x));
     }
   }
 
@@ -782,15 +800,12 @@ Type objective_function<Type>::operator() ()
   matLen_ls.fill(-1.0);
   for( int s = 0; s < nS; s++ )
   {
-    for( int l = 0; l < L_s(s); l++ )
-    {
-      // weight-at-length for each length bin midpoint
-      Wlen_ls(l,s) = LWa_s(s) * pow( l+1, LWb_s(s) );
-      // proportion mature-at-length
-      if(matX == "length")
-        matLen_ls(l,s) = 1/(1 + exp( -1. * log(Type(19.0)) * (l+1 - xMat50_s(s)) / (xMat95_s(s) - xMat50_s(s)) ) );
-      
-    }
+    // weight-at-length for each length bin midpoint
+    Wlen_ls.col(s) = LWa_s(s) * pow( len, LWb_s(s) );
+    
+    // proportion mature-at-length
+    if(matX == "length")
+      matLen_ls.col(s) = 1/(1 + exp( -1. * log(Type(19.0)) * ( len - xMat50_s(s)) / (xMat95_s(s) - xMat50_s(s)) ) );  
   }
 
   // Now produce the probability of length-at-age matrix for each stock
@@ -813,21 +828,26 @@ Type objective_function<Type>::operator() ()
       for( int p = 0; p < nP; p++ )
       {
         Type tmpPhi = 0;
+
+        lenAge_aspx.col(x).col(p).col(s) += L2_spx(s,p,x) - L1_sp(s,p);
+        lenAge_aspx.col(x).col(p).col(s) *= (exp(-vonK_spx(s,p,x) * A1 ) - exp(-vonK_spx(s,p,x) * age) );
+        lenAge_aspx.col(x).col(p).col(s) /= (exp(-vonK_spx(s,p,x) * A1 ) - exp(-vonK_spx(s,p,x) * A2) );
+        lenAge_aspx.col(x).col(p).col(s) += L1_sp(s,p);
+
         for( int a = 0; a < A_s(s); a ++ )
         {
           Type  sumProbs  = 0;
-          Type vonK_tmp = vonK_spx(s,p,x);
-          lenAge_aspx(a,s,p,x) += L2_spx(s,p,x) - L1_sp(s,p);
-          lenAge_aspx(a,s,p,x) *= (exp(-vonK_tmp * A1 ) - exp(-vonK_tmp * (a+1)) );
-          lenAge_aspx(a,s,p,x) /= (exp(-vonK_tmp * A1 ) - exp(-vonK_tmp * A2) );
-          lenAge_aspx(a,s,p,x) += L1_sp(s,p);
+          // Type vonK_tmp = vonK_spx(s,p,x);
+          // lenAge_aspx(a,s,p,x) += L2_spx(s,p,x) - L1_sp(s,p);
+          // lenAge_aspx(a,s,p,x) *= (exp(-vonK_tmp * A1 ) - exp(-vonK_tmp * (a+1)) );
+          // lenAge_aspx(a,s,p,x) /= (exp(-vonK_tmp * A1 ) - exp(-vonK_tmp * A2) );
+          // lenAge_aspx(a,s,p,x) += L1_sp(s,p);
           Type sigmaL = sigmaLa_s(s) + sigmaLb_s(s) * lenAge_aspx(a,s,p,x);
           for( int l = 0; l < L_s(s); l++ )
           {
             // Get length bin ranges
-            Type len = l + 1;
-            Type lenHi = len + .5;
-            Type lenLo = len - .5;
+            Type lenHi = len(l) + .5;
+            Type lenLo = len(l) - .5;
             // Compute density in each bin
             // Compute LH tail of the distribution
             
@@ -884,15 +904,11 @@ Type objective_function<Type>::operator() ()
         // Loop over fleets, create selectivities
         for( int f = 0; f < nF; f++ )
         {
-          Type maxSel = 0.0;
           // selectivity-at-length
           if( selX == "length" )
           {
-            for( int l = 0; l < L_s(s); l++ )
-            {
-              sel_lfspt(l,f,s,p,t) = 1;
-              sel_lfspt(l,f,s,p,t) /= ( 1 + exp( - log(Type(19.)) * ( l + 1 - xSel50_spft(s,p,f,t) ) / xSelStep_spft(s,p,f,t)  ) );
-            }
+            sel_lfspt.col(t).col(p).col(s).col(f).fill(1.);
+            sel_lfspt.col(t).col(p).col(s).col(f) /= ( 1 + exp( - log(Type(19.)) * ( len - xSel50_spft(s,p,f,t) ) / xSelStep_spft(s,p,f,t)  ) );
             // convert selectivity-at-length to selectivity-at-age using probability matrix
             for( int x = 0; x < nX; x++)
               for( int a = 0; a < A_s(s); a++ )
@@ -902,22 +918,13 @@ Type objective_function<Type>::operator() ()
                 probLenAgea_l = probLenAge_laspx.col(x).col(p).col(s).col(a);
                 sel_afsptx(a,f,s,p,t,x) = (probLenAgea_l*sel_lfspt.col(t).col(p).col(s).col(f)).sum();
 
-                // if( sel_afsptx(a,f,s,p,t,x) > maxSel )
-                //   maxSel = sel_afsptx(a,f,s,p,t,x);
               } 
           }
           if( selX == "age" )
-          {
             for( int x = 0; x < nX; x++)
-              for( int a = 0; a < A_s(s); a++)
-              {
-                sel_afsptx(a,f,s,p,t,x) = 1/( 1 + exp( - log(Type(19.)) * ( a + 1 - xSel50_spft(s,p,f,t) ) / xSelStep_spft(s,p,f,t)  ) );
-                // if( sel_afsptx(a,f,s,p,t,x) > maxSel )
-                //   maxSel = sel_afsptx(a,f,s,p,t,x);
-              }
-          }
-          // if(maxSel > 0)
-          //   sel_afspt.col(t).col(p).col(s).col(f) /= maxSel;
+              sel_afsptx.col(x).col(t).col(p).col(s).col(f) = 1/( 1 + exp( - log(Type(19.)) * ( age - xSel50_spft(s,p,f,t) ) / xSelStep_spft(s,p,f,t)  ) );
+
+
         }
       }
 
@@ -954,9 +961,6 @@ Type objective_function<Type>::operator() ()
 
 
   // Copies of state arrays for testing Baranov solver
-  array<Type> baraZ_aspxt(nA,nS,nP,nX,nT);
-  array<Type> baraF_spft(nS,nP,nF,nT);
-
   array<Type> B_aspxt(nA,nS,nP,nX,nT);
   array<Type> B_spxt(nS,nP,nX,nT);
   array<Type> vB_aspfxt(nA,nS,nP,nF,nX,nT);
@@ -971,9 +975,6 @@ Type objective_function<Type>::operator() ()
   vB_spfxt.setZero();
   vB_spft.setZero();
   sel_aspfxt.setZero();
-
-  baraZ_aspxt.setZero();
-  baraF_spft.setZero();
 
   // Loop over time, species
   for( int t = 0; t < nT; t++ )
@@ -1061,24 +1062,12 @@ Type objective_function<Type>::operator() ()
             for( int l = minL_s(s) - 1; l < L_s(s); l++ )
             {
               Type sumProbs = probAgeLen_alspftx.col(x).col(t).col(f).col(p).col(s).col(l).sum();
-              probAgeLen_alspftx.col(x).col(t).col(f).col(p).col(s).col(l) /= sumProbs;
+              if( sumProbs > 0 )
+                probAgeLen_alspftx.col(x).col(t).col(f).col(p).col(s).col(l) /= sumProbs;
             }
             
 
           }
-
-          // Arguments for Baranov solver::
-          // int   nIter,
-          // Type  Bstep,
-          // array<Type>  C_spf,       // Total observed catch
-          // array<Type>  M_spx,       // Mortality rate
-          // array<Type>  B_aspx,      // Biomass at age/sex
-          // array<Type>  vB_aspfx,    // vuln biomass at age
-          // array<Type>  vB_spfx,     // vuln biomass for each sex
-          // array<Type>  vB_spf,      // vuln biomass in each fleet
-          // array<Type>  sel_aspfx,   // selectivity at age/sex
-          // array<Type>& Z_aspx,      // total mortality at age/se
-          // array<Type>& F_spf       // fleet F
 
           // Compute total and spawning biomass
           B_asptx.col(x).col(t).col(p).col(s) = N_asptx.col(x).col(t).col(p).col(s) * meanWtAge_aspx.col(x).col(p).col(s);
@@ -1095,39 +1084,27 @@ Type objective_function<Type>::operator() ()
     }
 
     array<Type> tmpZ_aspx(nA,nS,nP,nX);
+    tmpZ_aspx = Z_aspxt.col(t);
+
     array<Type> tmpF_spf(nS,nP,nF);
-
-    array<Type> tmpC_spf(nS,nP,nF);
-    array<Type> tmpB_aspx(nA,nS,nP,nX);
-    array<Type> tmpvB_aspfx(nA,nS,nP,nF,nX);
-    array<Type> tmpvB_spfx(nS,nP,nF,nX);
-    array<Type> tmpvB_spf(nS,nP,nF);
-    array<Type> tmpsel_aspfx(nA,nS,nP,nF,nX);
-
-    // fill those arrays
-    tmpC_spf = C_spft.col(t);
-    tmpB_aspx = B_aspxt.col(t);
-    tmpvB_aspfx = vB_aspfxt.col(t);
-    tmpvB_spfx = vB_spfxt.col(t);
-    tmpvB_spf = vB_spft.col(t);
-    tmpsel_aspfx = sel_aspfxt.col(t);
+    tmpF_spf = F_spft.col(t);
 
     // Apply Baranov solver
     J_spft.col(t) = solveBaranov_spf( nBaranovIter,
                                       lambdaBaranovStep,
                                       A_s,
-                                      tmpC_spf,
+                                      C_spft.col(t),
                                       M_spx,
-                                      tmpB_aspx,
-                                      tmpvB_aspfx,
-                                      tmpvB_spfx,
-                                      tmpvB_spf,
-                                      tmpsel_aspfx,
+                                      B_aspxt.col(t),
+                                      vB_aspfxt.col(t),
+                                      vB_spfxt.col(t),
+                                      vB_spft.col(t),
+                                      sel_aspfxt.col(t),
                                       tmpZ_aspx,
-                                      tmpF_spf );
+                                      tmpF_spf);
 
     Z_aspxt.col(t) += tmpZ_aspx;
-    F_spft.col(t) += tmpF_spf;
+    F_spft.col(t)  += tmpF_spf;
 
     for( int s = 0; s < nS; s++)
       for( int p = 0; p < nP; p++ )
@@ -1267,7 +1244,7 @@ Type objective_function<Type>::operator() ()
     // expects vector<Type>
     vector<Type> obs(A_s(s));
     vector<Type> pred(A_s(s));
-    vector<Type> resids(A_s(s));
+    vector<Type> resids(nA);
     for( int p = 0; p < nP; p++ )
       for( int f = 0; f < nF; f++)
       {
@@ -1291,15 +1268,14 @@ Type objective_function<Type>::operator() ()
               // Compute resids etc. if observations aren't missing
               if(obs.sum() > 0 &  pred.sum() > 0)
               {
-                resids = calcLogistNormLikelihood(  obs, 
-                                                    pred,
-                                                    minPAAL,
-                                                    etaSumSqAgeAtLen_spf(s,p,f),
-                                                    nResidsAgeAtLen_spf(s,p,f) );
+                ageAtLenResids_alspftx.col(x).col(t).col(f).col(p).col(s).col(l).segment(0,A_s(s)) = calcLogistNormLikelihood(  obs, 
+                                                                                                                                pred,
+                                                                                                                                minPAAL,
+                                                                                                                                etaSumSqAgeAtLen_spf(s,p,f),
+                                                                                                                                nResidsAgeAtLen_spf(s,p,f) );
+
                 nObsAgeAtLen_spf(s,p,f) += 1;
               }
-              for(int a = 0; a < A_s(s); a++)
-                ageAtLenResids_alspftx(a,l,s,p,f,t,x) += resids(a);
             }
           } 
         }
@@ -1394,34 +1370,24 @@ Type objective_function<Type>::operator() ()
             fleetLenPred.setZero();
             fleetLenResids.setZero();
 
-            // Loop and fill age obs and pred matrices
-            for( int a = 0; a < A; a++ )
-            {
-              fleetAgeObs(a)  = age_aspftx(minA_s(s) + a - 1,s,p,f,t,x);
-              fleetAgePred(a) = aDist_aspftx_hat(minA_s(s) + a - 1,s,p,f,t,x);
-            }
+            // Get observations and predicted age comps
+            fleetAgeObs   = age_aspftx.col(x).col(t).col(f).col(p).col(s).segment(minA_s(s)-1,A);
+            fleetAgePred  = aDist_aspftx_hat.col(x).col(t).col(f).col(p).col(s).segment(minA_s(s)-1,A);
+            // And length comps
+            fleetLenObs   = len_lspftx.col(x).col(t).col(f).col(p).col(s).segment(minL_s(s)-1,L);
+            fleetLenPred  = lDist_lspftx_hat.col(x).col(t).col(f).col(p).col(s).segment(minL_s(s)-1,L);
 
-            // Loop and fill length obs and pred matrices
-            for( int l = 0; l < L; l++ )
-            {
-              fleetLenObs(l)  = len_lspftx(minL_s(s) - 1 + l,s,p,f,t,x);
-              fleetLenPred(l) = lDist_lspftx_hat(minL_s(s) - 1 + l,s,p,f,t,x);
-            }
-
+      
             // Now for compositional data. First, check if ages are 
             // being used (or exist), if so
             // compute logistic normal likelihood
             if( (fleetAgeObs.sum() > 0) & (fleetAgePred.sum() > 0) & (ageLikeWt > 0) )
             {
-              fleetAgeResids = calcLogistNormLikelihood(  fleetAgeObs, 
-                                                          fleetAgePred,
-                                                          minAgeProp,
-                                                          etaSumSqAge_spf(s,p,f),
-                                                          nResidsAge_spf(s,p,f) );
-
-              // Now place resids in the ageRes array
-              for( int a = minA_s(s) - 1; a < A_s(s); a++)
-                ageRes_aspftx(a,s,p,f,t,x) = fleetAgeResids(a - minA_s(s) + 1);
+              ageRes_aspftx.col(x).col(t).col(f).col(p).col(s).segment(minA_s(s)-1,A)  = calcLogistNormLikelihood(  fleetAgeObs, 
+                                                                                                                    fleetAgePred,
+                                                                                                                    minAgeProp,
+                                                                                                                    etaSumSqAge_spf(s,p,f),
+                                                                                                                    nResidsAge_spf(s,p,f) );
 
               // Increment number of ages
               nObsAge_spf(s,p,f) += 1;
@@ -1432,14 +1398,11 @@ Type objective_function<Type>::operator() ()
             // logistic normal likelihood
             if( (fleetLenObs.sum() > 0) & (fleetLenPred.sum() > 0) &  (lenLikeWt > 0) )
             {
-              fleetLenResids = calcLogistNormLikelihood(  fleetLenObs, 
-                                                          fleetLenPred,
-                                                          minLenProp,
-                                                          etaSumSqLen_spf(s,p,f),
-                                                          nResidsLen_spf(s,p,f) );
-              
-              for( int l = minL_s(s) - 1; l < L_s(s); l++)
-                lenRes_lspftx(l,s,p,f,t,x) = fleetLenResids(l - minL_s(s) + 1);
+              lenRes_lspftx.col(x).col(t).col(f).col(p).col(s).segment(minL_s(s)-1,L) = calcLogistNormLikelihood( fleetLenObs, 
+                                                                                                                  fleetLenPred,
+                                                                                                                  minLenProp,
+                                                                                                                  etaSumSqLen_spf(s,p,f),
+                                                                                                                  nResidsLen_spf(s,p,f) );
               
               nObsLen_spf(s,p,f) += 1;
             }
@@ -1551,15 +1514,6 @@ Type objective_function<Type>::operator() ()
   L2nlp_s.setZero();
   L2nlp_p.setZero();
 
-  // Fix sigmaVonK and sigmaL2 for now
-  Type sigmavonK  = 0.1;
-  Type sigmaL2    = 0.1;
-
-  vector<Type>    sigmavonK_s(nS);
-                  sigmavonK_s.fill(.1);
-  vector<Type>    sigmaL2_s(nS);
-                  sigmaL2_s.fill(0.1);
-
 
   deltaL2bar_p.setZero();
   deltaVonKbar_p.setZero();
@@ -1602,20 +1556,20 @@ Type objective_function<Type>::operator() ()
   {
     vector<Type> vonKVec  = deltaVonK_sp.transpose().col(s);
     vector<Type> L2Vec    = deltaL2_sp.transpose().col(s);
-    vonKnlp_s(s)         -= dnorm( vonKVec, Type(0), sigmavonK_s(s), true).sum();
-    L2nlp_s(s)           -= dnorm( L2Vec, Type(0), sigmaL2_s(s), true).sum();
+    vonKnlp_s(s)         -= dnorm( vonKVec, Type(0), Type(1), true).sum();
+    L2nlp_s(s)           -= dnorm( L2Vec, Type(0), Type(1), true).sum();
 
     for( int p = 0; p < nP; p ++)
     {
-      steepnessnlp_sp(s,p)  -= dnorm( epsSteep_sp(s,p), Type(0), sigmah_s(s), true);
-      Mnlp_sp(s,p)          -= dnorm( epsM_sp(s,p), Type(0), sigmaM_s(s), true);
+      steepnessnlp_sp(s,p)  -= dnorm( epsSteep_sp(s,p), Type(0), Type(1), true);
+      Mnlp_sp(s,p)          -= dnorm( epsM_sp(s,p), Type(0), Type(1), true);
 
       if( nX > 1 )
         for( int x = 0; x < nX; x++ )
         {
-          vonKnlp_s(s)  -= dnorm( deltaVonK_sx(s,x), Type(0), sigmavonK_s(s), true);
-          L2nlp_s(s)    -= dnorm( deltaL2_sx(s,x), Type(0), sigmaL2_s(s), true);
-          Mnlp_sp(s,p)  -= dnorm( epsM_spx(s,p,x), Type(0), sigmaM_s(s), true);
+          vonKnlp_s(s)  -= dnorm( deltaVonK_sx(s,x), Type(0), Type(1), true);
+          L2nlp_s(s)    -= dnorm( deltaL2_sx(s,x), Type(0), Type(1), true);
+          Mnlp_sp(s,p)  -= dnorm( epsM_sx(s,x), Type(0), Type(1), true);
 
         }
     }
@@ -1623,8 +1577,8 @@ Type objective_function<Type>::operator() ()
   }
   
   // add species level h prior
-  steepnessnlp_s  -= dnorm( epsSteep_s, 0, sigmah, true );
-  Mnlp_s          -= dnorm( epsM_s, 0, sigmaM, true );
+  steepnessnlp_s  -= dnorm( epsSteep_s, 0., Type(1), true );
+  Mnlp_s          -= dnorm( epsM_s, 0., Type(1), true );
   
   // Now prior on complex mean M
   // Currently have sigmaM/sigmah doing double duty, replace
@@ -1670,8 +1624,8 @@ Type objective_function<Type>::operator() ()
 
   array<Type> B0nlp_sp(nS,nP);
   B0nlp_sp.setZero();
-  for( int p = 0; p < nP; p++)
-    B0nlp_sp.col(p) += lambdaB0 * B_spt.col(0).col(p);
+  B0nlp_sp += lambdaB0 * log( B_spt.col(0) );
+    
   
 
   
@@ -1722,8 +1676,6 @@ Type objective_function<Type>::operator() ()
   REPORT( sigmaLb_s );
   REPORT( sigmaR_sp );
 
-
-
   // Fishery/Survey model pars
   REPORT( q_spf );          // Catchability
   REPORT( q_spft );         // Time-varying catchability
@@ -1758,8 +1710,6 @@ Type objective_function<Type>::operator() ()
   REPORT( Nv_aspftx );
   REPORT( SB_spt );
   REPORT( B_spt );
-  REPORT( baraZ_aspxt );
-  REPORT( baraF_spft );
 
   // Stock recruit parameters
   REPORT( Surv_aspx );
@@ -1825,7 +1775,7 @@ Type objective_function<Type>::operator() ()
   REPORT( omegaRmat_spt );
 
   // Species/stock effects
-  REPORT( epsM_spx );
+  REPORT( epsM_sx );
   REPORT( epsM_sp );
   REPORT( epsM_s );
   REPORT( epsSteep_sp );
@@ -1861,7 +1811,6 @@ Type objective_function<Type>::operator() ()
   REPORT( Mnlp_sp );
   REPORT( Mnlp_s );
   REPORT( Mnlp );
-  // REPORT( Ctnll_sp );
   REPORT( qnlpSurv );
   REPORT( qnlpSyn );
   REPORT( qnlpSyn_s );
@@ -1927,6 +1876,8 @@ Type objective_function<Type>::operator() ()
   REPORT( minPAAL );
   REPORT( lambdaB0 );
   REPORT( minTimeIdx_spf );
+
+  // REPORT(A);
 
   // REPORT( matX );
   // REPORT( selX );

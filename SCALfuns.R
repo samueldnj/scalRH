@@ -59,7 +59,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt", folder=NULL, quiet=TRUE )
 
   # Copy control file to sim folder for posterity
   file.copy(from=ctlFile,to=file.path(path,"fitCtlFile.txt"))
-  file.copy(from="phaseCtlFile.txt",to=file.path(path,"phaseCtlFile.txt"))
+  file.copy(from="hierSCAL.cpp",to=file.path(path,"hierSCAL.cpp"))
   # Done
 } # END fitHierSCAL()
 
@@ -620,9 +620,13 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                 lnL1_s            = log(initL1_s),
                 # Stock specific growth pars
                 deltaL2_sp        = array(0,dim = c(nS,nP)),
+                lnsigmaL2_s       = rep(log(hypoObj$sigmaL2),nS),
                 deltaVonK_sp      = array(0,dim = c(nS,nP)),
+                lnsigmavonK_s     = rep(log(hypoObj$sigmavonK),nS),
                 deltaL2_sx        = array(0,dim = c(nS,nX)),
                 deltaVonK_sx      = array(0,dim = c(nS,nX)),
+                lnsigmaL2         = log(hypoObj$sigmaL2),
+                lnsigmavonK       = log(hypoObj$sigmavonK),
                 # process error in growth model
                 lnsigmaLa_s       = log(sigmaLa_s),
                 sigmaLb_s         = sigmaLb_s,
@@ -678,7 +682,7 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                 epsSteep_sp       = array(0, dim = c(nS,nP)),
                 # Species/stock effect on M
                 epsM_sp           = array(0, dim = c(nS,nP)),
-                epsM_spx           = array(0, dim = c(nS,nP,nX)),
+                epsM_sx          = array(0, dim = c(nS,nX)),
                 # Recruitment resids
                 omegaR_vec        = rep( 0, nRecDevs),
                 omegaRinit_vec    = rep( 0, nInitDevs ),
