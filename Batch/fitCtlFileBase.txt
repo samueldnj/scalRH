@@ -95,8 +95,8 @@ phases$lnvonK_s 5
 phases$lnL1_s -5
 phases$deltaL2_sp 9
 phases$deltaVonK_sp 9
-phases$deltaL2_spx 4
-phases$deltaVonK_spx 4
+phases$deltaL2_sx 4
+phases$deltaVonK_sx 4
 phases$sigmaLa_s 6
 phases$sigmaLb_s -1
 phases$lnq_spf 1
