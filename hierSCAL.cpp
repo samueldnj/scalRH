@@ -1619,6 +1619,7 @@ Type objective_function<Type>::operator() ()
   array<Type> B0nlp_sp(nS,nP);
   B0nlp_sp.setZero();
   B0nlp_sp += lambdaB0 * log( B_spt.col(0) );
+  B0nlp_sp += ( B_spt.col(0) / B0_sp );
     
   
 

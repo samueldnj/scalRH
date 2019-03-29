@@ -456,26 +456,18 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   if( hypoObj$selX == "length")
   {
     # length at Sel50_sf initial value
-    xSel50_sf <- matrix(  c(    36, 36, 29, 31, 33, 33, 33,
-                                35, 35, 23, 25, 25, 25, 25,
-                                33, 30, 18, 18, 20, 20, 20,
-                                38, 38, 30, 30, 30, 30, 30,
-                                35, 35, 35, 35, 35, 35, 35 ), 
-                                nrow = length(allSpecies),
-                                ncol = length(allFleets), 
-                                byrow = TRUE )
+    xSel50_sf <- matrix(  20, 
+                          nrow = length(allSpecies),
+                          ncol = length(allFleets), 
+                          byrow = TRUE )
 
     xSel50_sf <- xSel50_sf[useSpecIdx,useFleetsIdx]
 
     # length at SelStep_sf initial value
-    xSelStep_sf <- matrix(  c(    2, 2, 2, 2, 2, 2, 2,
-                                  2, 2, 2, 2, 2, 2, 2,
-                                  2, 4, 5, 5, 5, 5, 5,
-                                  2, 2, 6, 6, 6, 6, 6,
-                                  2, 2, 2, 2, 2, 2, 2 ), 
-                                  nrow = length(allSpecies),
-                                  ncol = length(allFleets), 
-                                  byrow = TRUE )
+    xSelStep_sf <- matrix(  2, 
+                            nrow = length(allSpecies),
+                            ncol = length(allFleets), 
+                            byrow = TRUE )
 
     xSelStep_sf <- xSelStep_sf[useSpecIdx,useFleetsIdx,drop = FALSE]
   }
