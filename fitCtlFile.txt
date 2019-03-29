@@ -6,11 +6,7 @@ ctrl$modelHypName 'base'
 ctrl$maxFunEval 100000
 ctrl$maxIterations 100000
 ctrl$quiet FALSE
-<<<<<<< HEAD
-ctrl$maxPhase 8
-=======
-ctrl$maxPhase 4
->>>>>>> master
+ctrl$maxPhase 12
 ctrl$calcSD FALSE
 ctrl$calcRefPts TRUE
 ctrl$plots TRUE
@@ -23,7 +19,6 @@ ctrl$lambdaBaranovStep 0.5
 ctrl$savePhases FALSE
 data$commNames_g c("comm.hist","comm.mod")
 data$survNames_g c("HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
-#data$survNames_g c("HSAss","HSSyn","QCSSyn","WCVISyn")
 data$nA_s c(Dover=40,English=20,Rock=25,Petrale=25,Arrowtooth=25)
 data$minA_s c(Dover=2,English=2,Rock=2,Petrale=2,Arrowtooth=2)
 data$nL_s c(Dover=80,English=55,Rock=55,Petrale=75,Arrowtooth=85)
@@ -102,13 +97,8 @@ phases$lnvonK_s 4
 phases$lnL1_s -5
 phases$deltaL2_sp 9
 phases$deltaVonK_sp 9
-<<<<<<< HEAD
 phases$deltaL2_sx 5
 phases$deltaVonK_sx 5
-=======
-phases$deltaL2_sx 4
-phases$deltaVonK_sx 4
->>>>>>> master
 phases$sigmaLa_s 6
 phases$sigmaLb_s -1
 phases$lnq_spf 1
