@@ -793,7 +793,7 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   }
 
   cat("\nFitting hierSCAL for ", paste(useSpecies,collapse = ","), "\n", sep = "")
-  
+  gc()
 
   phaseList <- TMBphase(  data = data, 
                           parameters = pars, 
@@ -906,6 +906,7 @@ TMBphase <- function( data,
 
   for( phase_cur in 1:maxPhase ) 
   {
+    gc()
     # Start timing
     tBegin <- proc.time()[3]
 
