@@ -98,6 +98,7 @@ vector<Type> calcLogistNormLikelihood(  vector<Type>& yObs,
   // Normalise the observed samples in case they are numbers
   // and not proportions
   yObs /= yObs.sum();
+  pPred /= pPred.sum();
 
   // Create vector of residuals to return
   vector<Type> resids(nX);

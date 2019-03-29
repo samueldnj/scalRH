@@ -21,7 +21,7 @@ data$commNames_g c("comm.hist","comm.mod")
 data$survNames_g c("HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
 data$nA_s c(Dover=35,English=15,Rock=20,Petrale=20,Arrowtooth=20)
 data$minA_s c(Dover=2,English=2,Rock=2,Petrale=2,Arrowtooth=2)
-data$nL_s c(Dover=80,English=55,Rock=55,Petrale=75,Arrowtooth=85)
+data$nL_s c(Dover=80,English=55,Rock=65,Petrale=75,Arrowtooth=85)
 data$minL_s c(Dover=10,English=10,Rock=10,Petrale=10,Arrowtooth=30)
 data$A1_s c(Dover=3,English=3,Rock=2,Petrale=2,Arrowtooth=2)
 data$A2_s c(Dover=25,English=10,Rock=20,Petrale=15,Arrowtooth=17)
@@ -31,7 +31,7 @@ data$fYearIdx 1954
 data$lYearIdx 2016
 data$sexStructured TRUE
 data$idxFleets c("comm.hist","comm.mod","HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
-data$species c("Dover","English","Rock","Petrale","Arrowtooth")
+data$species c("Dover")
 data$stocks c("HSHG","QCS","WCVI")
 data$idxFiles c("surveyBio.RData","commCPUE.RData")
 data$catchData c(survey="surveyCatch.RData",comm="catch_by_maj.csv")

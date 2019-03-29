@@ -63,7 +63,7 @@ hypo$identSel FALSE
 hypo$tvSelFleets c("comm.hist","comm.mod")
 hypo$sigmaSelDevs 0.1
 hypo$cvxSel 0.05
-hypo$initFished c(Dover=0,English=1,Rock=1,Petrale=1,Arrowtooth=0)
+hypo$initFished c(Dover=1,English=1,Rock=1,Petrale=1,Arrowtooth=1)
 hypo$tvqFleets c("comm.hist","comm.mod","HSAss")
 hypo$tvq FALSE
 hypo$sigmaqdevs .2
@@ -78,7 +78,7 @@ hypo$mM 0.3
 hypo$sdM 0.05
 hypo$yFirstRecDev c(Dover=1955,English=1955,Rock=1955,Petrale=1955,Arrowtooth=1955)
 hypo$yLastRecDev c(Dover=2011,English=2013,Rock=2013,Petrale=2013,Arrowtooth=2013)
-hypo$sigmaR .5
+hypo$sigmaR .7
 hypo$sigmaM 0.1
 hypo$sigmaL .1
 hypo$tau2ObsIGa rep(10,7)
@@ -90,7 +90,7 @@ hypo$RE c("omegaR_vec","omegaRinit_vec")
 hypo$sigmaL2 .2
 hypo$sigmavonK .2
 phases$lnB0_sp 2
-phases$logitSteep 3
+phases$logitSteep 7
 phases$lnM 3
 phases$lnL2step_s 4
 phases$lnvonK_s 4
@@ -103,13 +103,13 @@ phases$sigmaLa_s 6
 phases$sigmaLb_s -1
 phases$lnq_spf 1
 phases$epslnq_vec 12
-phases$lnxSel50_sf 7
-phases$lnxSelStep_sf 7
+phases$lnxSel50_sf 3
+phases$lnxSelStep_sf 3
 phases$epsxSel50_spf 8
 phases$epsxSelStep_spf 8
 phases$epsxSel50_vec 12
 phases$epsxSelStep_vec 12
-phases$omegaR_vec 3
+phases$omegaR_vec 7
 phases$omegaRinit_vec 2
 phases$muxSel50_sg -1
 phases$muxSel95_sg -1
