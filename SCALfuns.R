@@ -466,7 +466,7 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   if( hypoObj$selX == "length")
   {
     # length at Sel50_sf initial value
-    xSel50_sf <- matrix(  20, 
+    xSel50_sf <- matrix(  25, 
                           nrow = length(allSpecies),
                           ncol = length(allFleets), 
                           byrow = TRUE )
@@ -474,7 +474,7 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
     xSel50_sf <- xSel50_sf[useSpecIdx,useFleetsIdx]
 
     # length at SelStep_sf initial value
-    xSelStep_sf <- matrix(  2, 
+    xSelStep_sf <- matrix(  5, 
                             nrow = length(allSpecies),
                             ncol = length(allFleets), 
                             byrow = TRUE )
