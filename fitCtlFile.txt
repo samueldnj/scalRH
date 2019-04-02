@@ -22,7 +22,7 @@ data$survNames_g c("HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
 data$nA_s c(Dover=40,English=20,Rock=25,Petrale=25,Arrowtooth=25)
 data$minA_s c(Dover=2,English=2,Rock=2,Petrale=2,Arrowtooth=4)
 data$nL_s c(Dover=80,English=55,Rock=65,Petrale=75,Arrowtooth=85)
-data$minL_s c(Dover=15,English=15,Rock=25,Petrale=15,Arrowtooth=30)
+data$minL_s c(Dover=10,English=15,Rock=25,Petrale=15,Arrowtooth=30)
 data$A1_s c(Dover=3,English=3,Rock=2,Petrale=2,Arrowtooth=2)
 data$A2_s c(Dover=25,English=10,Rock=20,Petrale=15,Arrowtooth=17)
 data$fYearData 1984
@@ -31,7 +31,8 @@ data$fYearIdx 1954
 data$lYearIdx 2016
 data$sexStructured TRUE
 data$idxFleets c("comm.hist","comm.mod","HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
-data$species c("Dover","English","Rock","Petrale","Arrowtooth")
+#data$species c("Dover","English","Rock","Petrale","Arrowtooth")
+data$species c("Dover")
 data$stocks c("HSHG","QCS","WCVI")
 data$idxFiles c("surveyBio.RData","commCPUE.RData")
 data$catchData c(survey="surveyCatch.RData",comm="catch_by_maj.csv")
@@ -89,7 +90,7 @@ hypo$fleetGroups list(comm=c("comm.hist","comm.mod"),Ass=c("HSAss"),Syn=c("WCHGS
 hypo$RE c("omegaR_vec","omegaRinit_vec")
 hypo$sigmaL2 .2
 hypo$sigmavonK .2
-phases$lnB0_sp 3
+phases$lnB0_sp 2
 phases$logitSteep 7
 phases$lnM 3
 phases$lnL2step_s 4
@@ -97,7 +98,7 @@ phases$lnvonK_s 4
 phases$lnL1_s -5
 phases$deltaL2_sp 9
 phases$deltaVonK_sp 9
-phases$deltaL2_sx 2
+phases$deltaL2_sx 5
 phases$deltaVonK_sx -5
 phases$sigmaLa_s -6
 phases$sigmaLb_s -1

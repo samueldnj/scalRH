@@ -330,6 +330,18 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   }
 
 
+  # Need an array of switches for calculating 
+  # stock specific growth parameters
+  calcStockGrowth <- array( 0, dim = (nS,nP) )
+  for( s in 1:nS )
+    for( p in 1:nP )
+    {
+      if( any( ALFreq_spalftx[s,p,,,,,] ) > 0 )
+        calcStockGrowth[s,p] <- 1
+    }
+  
+
+
 
   # Calculate the number of selectivity deviations
   # from length and age distributions
