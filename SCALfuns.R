@@ -611,7 +611,8 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                 nBaranovIter      = ctrlObj$nBaranovIter,
                 lambdaBaranovStep = ctrlObj$lambdaBaranovStep,
                 A1_s              = A1_s[useSpecies],
-                A2_s              = A2_s[useSpecies] )
+                A2_s              = A2_s[useSpecies],
+                 )
 
 
   # Generate parameter list
@@ -623,9 +624,9 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                 lnvonK_s          = log(hypoObj$initVonK[useSpecies]),
                 lnL1_s            = log(initL1_s),
                 # Stock specific growth pars
-                deltaL2_sp        = array(0,dim = c(nS,nP)),
+                deltaL2sp_vec     = rep(0,sum(calcStockGrowth)),
                 lnsigmaL2_s       = rep(log(hypoObj$sigmaL2),nS),
-                deltaVonK_sp      = array(0,dim = c(nS,nP)),
+                deltaVonKsp_vec   = rep(0,sum(calcStockGrowth)),
                 lnsigmavonK_s     = rep(log(hypoObj$sigmavonK),nS),
                 deltaL2_sx        = array(0,dim = c(nS,nX)),
                 deltaVonK_sx      = array(0,dim = c(nS,nX)),

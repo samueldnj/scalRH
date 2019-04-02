@@ -363,6 +363,7 @@ Type objective_function<Type>::operator() ()
   DATA_ARRAY(minTimeIdx_spf);           // array of earliest times for each index
   DATA_INTEGER(nBaranovIter);           // number of baranov steps
   DATA_SCALAR(lambdaBaranovStep);       // fractional step size for Newton-Rhapson Baranov iteration
+  DATA_ARRAY(calcStockGrowth);          // Switch for calculating stock-specific growth parameters
   // DATA_STRING(recruitVariance);         // Character-switch for recruitment variance model
 
   // Fixed values
@@ -379,9 +380,9 @@ Type objective_function<Type>::operator() ()
   PARAMETER_VECTOR(lnL2step_s);         // species-spec. step in Schnute-vonB L2 parameter
   PARAMETER_VECTOR(lnvonK_s);           // species-specific vonB K parameter
   PARAMETER_VECTOR(lnL1_s);             // species-specific vonB Length-at-age 1
-  PARAMETER_ARRAY(deltaL2_sp);          // species-pop specific deviation in L2
+  PARAMETER_VECTOR(deltaL2sp_vec);      // species-pop specific deviation in L2
   PARAMETER_VECTOR(lnsigmaL2_s);        // species level L2 dev SD
-  PARAMETER_ARRAY(deltaVonK_sp);        // species-pop specific deviation in VonK parameter
+  PARAMETER_VECTOR(deltaVonKsp_vec);    // species-pop specific deviation in VonK parameter
   PARAMETER_VECTOR(lnsigmavonK_s);      // species level vonK dev SD
   PARAMETER_ARRAY(deltaL2_sx);          // sex-species-pop specific deviation in L2
   PARAMETER_ARRAY(deltaVonK_sx);        // sex-species-pop specific deviation in VonK parameter
@@ -503,6 +504,22 @@ Type objective_function<Type>::operator() ()
   vector<Type>  deltaL2bar_p(nP);
 
 
+  array<Type>   deltaL2_sp(nS,nP);
+  array<Type>   deltaVonK_sp(nS,nP);
+  deltaL2_sp.setZero();
+  deltaVonK_sp.setZero();
+
+  int stockGrowthVecIdx=0;
+
+  for( int s = 0; s < nS; s++ )
+    for( int p = 0; p < nP; p++ )
+      if( calcStockGrowth(s,p) == 1 )
+      {
+        deltaL2_sp(s,p) = deltaL2sp_vec(stockGrowthVecIdx);
+        deltaVonK_sp(s,p) = deltaVonKsp_vec(stockGrowthVecIdx);
+        stockGrowthVecIdx++;
+      }
+
   // derived variables
   // Stock recruitment //
   array<Type>  R0_sp(nS,nP);            // eqbm recruitment
@@ -535,22 +552,6 @@ Type objective_function<Type>::operator() ()
   // parallel_accumulator<Type> f(this);
   Type f = 0;
   Type joint_nlp = 0.0;
-
-  // Let's test the multi-dimensional containers thingy
-  // I think it will speed things up later
-  vector<int> d(3); d << 2,2,2;
-  int a = d(0)*d(1)*d(2);
-
-  matrix<Type> m(2,3); 
-  m << 1,2,3,4,5,6;
-
-  vector< matrix<Type> > V(a);
-  array< matrix<Type> > A(V,d);
-
-  for(int i=0; i<2; i++)
-    for(int j=0; j<2; j++)
-      for(int k=0; k<2; k++)
-        A(i,j,k) = m*i*j*k;
 
 
 
