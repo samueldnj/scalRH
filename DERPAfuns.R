@@ -199,19 +199,26 @@ makeSurveyCatchStocks <- function(  spec = "dover",
 } # makeSurveyCatchStocks()
 
 
-filterSurveyBlocks <- function( blocks = grids$HS,
-                                density = synTab,
-                                plot = TRUE,
-                                species = "dover",
-                                survey = "HS",
-                                stratAreas = stratArea )
+# appendBlockID
+# Refactored from within filterSurveyBlocks
+# This function appends survey block IDs to a given
+# survey data frame (usually survey density,
+# but could also be bio data)
+appendBlockID <- function(  blocks = grids$HS,
+                            density = synTab,
+                            stratAreas = stratArea )
 {
   # First, get survey series ID from blocks
   survSeriesID <- unique(blocks$SURVEY_SERI)
 
+
   # Filter density to that survey
   density <- density %>%
-              filter(SURVEY_SERIES_ID == survSeriesID )
+              filter(SURVEY_SERIES_ID == survSeriesID ) %>%
+              filter(!is.na(GROUPING_CODE))
+
+  if(nrow(density) == 0)
+    return(NA)
   
 
   # Now we want to 
@@ -239,6 +246,9 @@ filterSurveyBlocks <- function( blocks = grids$HS,
     grpCode <- grpCodes[cIdx]
     subDensity <- density %>%
                   filter( GROUPING_CODE == grpCode )
+
+    if(any(is.na(blocks@data$"GROUPING_CO" == grpCode)))
+      browser()
 
     subBlocks <- blocks[blocks@data$"GROUPING_CO" == grpCode, ]
 
@@ -281,8 +291,100 @@ filterSurveyBlocks <- function( blocks = grids$HS,
 
   }
 
-  densityBlocks <- do.call(rbind, densByGrpCode) %>%
-                    mutate(densityKGPM2 = CATCH_WEIGHT / areaFished_m2 )
+  outList <- list(  densityBlocks = do.call(rbind, densByGrpCode),
+                    blocks        = blocksByGrpCode )
+
+  return( outList )
+}
+
+
+filterSurveyBlocks <- function( blocks = grids$HS,
+                                density = synTab,
+                                plot = TRUE,
+                                species = "dover",
+                                survey = "HS",
+                                stratAreas = stratArea )
+{
+  # # First, get survey series ID from blocks
+  # survSeriesID <- unique(blocks$SURVEY_SERI)
+
+  # # Filter density to that survey
+  # density <- density %>%
+  #             filter(SURVEY_SERIES_ID == survSeriesID )
+  
+
+  # # Now we want to 
+  # # 1. match survey sets to blocks,
+  # # Trying to use the over function, we get a pretty good 
+  # # coverage for the data set, but there are some missing points
+  
+  # # This needs to be done by stratum (grouping code)
+  # # so that tows outside blocks are assigned to the correct
+  # # stratum
+  # grpCodes    <- unique(density$GROUPING_CODE)
+  # nGrpCodes   <- length(grpCodes)
+
+  # stratAreas <- stratAreas %>% 
+  #               rename( grCode = GROUPING_CODE ) %>%
+  #               filter( grCode %in% grpCodes )
+
+  # densByGrpCode   <-  vector(mode = "list", length = nGrpCodes )
+  # blocksByGrpCode <-  vector(mode = "list", length = nGrpCodes )
+  # summGrpCode     <-  vector(mode = "list", length = nGrpCodes )
+
+  # for( cIdx in 1:nGrpCodes )
+  # {
+  #   # Subset to sets in the correct stratum
+  #   grpCode <- grpCodes[cIdx]
+  #   subDensity <- density %>%
+  #                 filter( GROUPING_CODE == grpCode )
+
+  #   subBlocks <- blocks[blocks@data$"GROUPING_CO" == grpCode, ]
+
+  #   # Convert LL density data to UTM so it's the same as the grids
+  #   setCoords.LL          <- subDensity[,c("LONGITUDE","LATITUDE")]
+  #   setCoords.sp          <- SpatialPoints(coords = setCoords.LL, proj4string = LLproj )
+  #   setCoords.UTM         <- spTransform( x = setCoords.sp, CRSobj = UTMproj )
+  #   setCoords.UTM.df      <- as.data.frame(setCoords.UTM)
+
+  #   subDensity$x          <- setCoords.UTM.df[,1]
+  #   subDensity$y          <- setCoords.UTM.df[,2]
+  #   subDensity$block      <- NA
+  #   subDensity$assGrCd    <- NA
+  #   subDensity$blockDepth <- NA
+
+  #   tryPoints             <- over( x = setCoords.UTM, y = subBlocks )
+  #   naSets                <- which(is.na(tryPoints[,1]))
+
+  #   subDensity$block      <- tryPoints[,"BLOCK_DESIG"]
+  #   subDensity$assGrCd    <- tryPoints[,"GROUPING_CO"]
+  #   subDensity$blockDepth <- tryPoints[,"DEPTH_M"]
+
+  #   if(length(naSets) > 0)
+  #   {
+  #     # Now find nearest blocks to unassigned points
+  #     naPoints  <- setCoords.UTM[naSets]
+  #     # Compute distances
+  #     distMtx   <- gDistance( naPoints, subBlocks, byid = TRUE )
+  #     # Find which.min
+  #     minBlock  <- apply(X = distMtx, FUN = which.min, MARGIN = 2)
+
+  #     subDensity[naSets,"block"]      <- subBlocks[minBlock,][["BLOCK_DESIG"]]
+  #     subDensity[naSets,"assGrCd"]    <- subBlocks[minBlock,][["GROUPING_CO"]]
+  #     subDensity[naSets,"blockDepth"] <- subBlocks[minBlock,][["DEPTH_M"]]
+  #   }
+
+  #   densByGrpCode[[cIdx]]     <- subDensity
+  #   blocksByGrpCode[[cIdx]]   <- subBlocks
+
+
+  # }
+
+  # densityBlocks <- do.call(rbind, densByGrpCode) %>%
+  #                   mutate(densityKGPM2 = CATCH_WEIGHT / areaFished_m2 )
+
+  densityBlocks <- appendBlockID( blocks = grids$HS,
+                                  density = synTab )
 
   # 2. identify blocks with positive tows >= minPosTow
   posTowBlocks    <-  densityBlocks %>%
@@ -465,6 +567,341 @@ filterSurveyBlocks <- function( blocks = grids$HS,
 
 
 }
+
+# Calculate relative biomass by species and arrange in an array
+# for feeding to TMB model
+plotBioDataMaps <- function(  spec = "dover",
+                              years = c(1975, 2016), 
+                              stocks = list(  HGHS = c(2,3,16),
+                                              QCS = c(1),
+                                              WCVI = c(4) ),
+                              survIDs = surveyIDs,
+                              stratArea = stratData,
+                              blocks = grids   )
+{
+  library(viridis)
+  library(ggsidekick)
+
+  # Read in density
+  specDensityFile <- paste(spec,"density.csv",sep = "_")
+  specDensityPath <- file.path(getwd(),"Data","density",specDensityFile)
+  densityTab <- read.csv(specDensityPath, header = T) %>%
+                mutate( surveyName = sapply(  X = SURVEY_SERIES_ID,
+                                              FUN = appendName,
+                                              survIDs ) )
+
+  includedSurveys <- unlist(stocks)
+
+  # Save survey names for use in filtering code
+  surveys     <- c("HS", "QCS", "WCHG", "WCVI")  
+  synSurveys <- paste(surveys,"Syn",sep ="")
+
+  # Split density tab into two parts
+  # 1. HSAss
+  # 2. Synoptic surveys
+  HSAssTab <- densityTab %>%
+              filter(SURVEY_SERIES_ID == surveyIDs["HSAss"])
+
+  # Should plot the HSAss survey, see how the effort shakes
+  # out year to year
+
+  synTab   <- densityTab %>%
+              filter( SURVEY_SERIES_ID %in% surveyIDs[synSurveys] )
+
+  surveyBioData <- readBioData( specName = spec, years = years )$survey
+
+  surveySetLocData <- densityTab %>%
+                      dplyr::select(  TRIP_ID,
+                                      SURVEY_SERIES_ID,
+                                      LATITUDE,
+                                      LONGITUDE,
+                                      FE_MAJOR_LEVEL_ID,
+                                      FISHING_EVENT_ID,
+                                      DEPTH_M,
+                                      GROUPING_CODE,
+                                      YEAR,
+                                      surveyName )
+
+  appendedLocToBioData <- surveyBioData %>%
+                          left_join(  surveySetLocData, 
+                                      by = c( "TRIP_ID",
+                                              "SURVEY_SERIES_ID",
+                                              "FE_MAJOR_LEVEL_ID",
+                                              "DEPTH_M", "YEAR") )
+
+  saveFile <- paste(spec,"surveyBioDataWithLoc.csv",sep = "")
+  savePath <- file.path("Outputs/speciesSurveyData",spec,saveFile)
+
+  write.csv(appendedLocToBioData, file = savePath )
+
+
+  yearlyAgeProp <-  appendedLocToBioData %>%
+                    filter( !is.na(AGE), SURVEY_SERIES_ID %in% surveyIDs) %>%
+                    group_by( surveyName, YEAR, AGE ) %>%
+                    summarise( nAge = n() ) %>%
+                    ungroup() %>%
+                    group_by(surveyName,YEAR) %>%
+                    mutate( pAge = nAge / sum(nAge) ) %>%
+                    ungroup()
+
+ surveyAgeProp <- yearlyAgeProp %>%
+                    group_by(surveyName,AGE) %>%
+                    summarise( nAge = sum(nAge) ) %>%
+                    ungroup() %>%
+                    group_by(surveyName) %>%
+                    mutate( pAge = nAge / sum(nAge )) %>%
+                    ungroup()
+
+
+
+
+  plotFile <- paste(spec,"surveyYearlyAgeComps.png",sep = "")
+  plotPath <- file.path("Outputs/speciesSurveyData",spec,plotFile)
+  png( plotPath, width = 8, height = 8, units = "in", res = 300 )
+
+  t <- ggplot( data = yearlyAgeProp,
+               aes( x = AGE, y = YEAR, 
+                    height = pAge, 
+                    group = YEAR) ) +
+        geom_ridgeline( scale = 10, aes(height = pAge) ) +
+        facet_wrap(~surveyName) +
+        theme_sleek()
+
+  print(t)
+
+  dev.off()
+
+  plotFile <- paste(spec,"surveyAverageAgeComps.png",sep = "")
+  plotPath <- file.path("Outputs/speciesSurveyData",spec,plotFile)
+  png( plotPath, width = 8, height = 8, units = "in", res = 300 )
+
+  t <- ggplot( data = surveyAgeProp,
+               aes( x = AGE, y = surveyName, 
+                    height = pAge, 
+                    group = surveyName) ) +
+        geom_ridgeline( scale = 10, aes(height = pAge) ) +
+        theme_sleek()
+
+  print(t)
+
+  dev.off()
+
+
+  yearlyLengthProp <-  appendedLocToBioData %>%
+                        filter( !is.na(LENGTH_MM), SURVEY_SERIES_ID %in% surveyIDs) %>%
+                        mutate( length = round(LENGTH_MM/10)) %>%
+                        group_by( surveyName, YEAR, length ) %>%
+                        summarise( nLen = n() ) %>%
+                        ungroup() %>%
+                        group_by(surveyName,YEAR) %>%
+                        mutate( pLen = nLen / sum(nLen) ) %>%
+                        ungroup()
+
+
+  surveyLengthProp <- yearlyLengthProp %>%
+                      group_by(surveyName,length) %>%
+                      summarise( nLen = sum(nLen) ) %>%
+                      ungroup() %>%
+                      group_by(surveyName) %>%
+                      mutate( pLen = nLen / sum(nLen )) %>%
+                      ungroup()
+
+
+
+
+  plotFile <- paste(spec,"surveyYearlyLenComps.png",sep = "")
+  plotPath <- file.path("Outputs/speciesSurveyData",spec,plotFile)
+  png( plotPath, width = 8, height = 8, units = "in", res = 300 )
+
+  t <- ggplot( data = yearlyLengthProp,
+               aes( x = length, y = YEAR, 
+                    height = pLen, 
+                    group = YEAR) ) +
+        geom_ridgeline( stat = "identity", scale = 10) +
+        facet_wrap(~surveyName) +
+        theme_sleek()
+
+  print(t)
+
+  dev.off()
+
+
+  plotFile <- paste(spec,"surveyAveLenComps.png",sep = "")
+  plotPath <- file.path("Outputs/speciesSurveyData",spec,plotFile)
+  png( plotPath, width = 8, height = 8, units = "in", res = 300 )
+
+  t <- ggplot( data = surveyLengthProp,
+               aes( x = length, y = surveyName, 
+                    height = pLen, 
+                    group = surveyName) ) +
+        geom_ridgeline( stat = "identity", scale = 10) +
+        theme_sleek()
+
+  print(t)
+
+  dev.off()
+
+
+  # This should return a list, each entry a list for a specific
+  # survey that contains the data.frame with block IDs,
+  # and a list of poly sets for each grouping code
+
+  bioDataWithBlocks <- lapply(  X = blocks, FUN = appendBlockID,
+                                density = appendedLocToBioData,
+                                stratAreas = stratArea )
+
+
+
+  
+  # Lets make a plot for each survey area, combining
+  # all the strata into 1 map, and show the average length
+  # in each block
+  nSurv <- length(bioDataWithBlocks)
+
+  nRows <- ceiling(sqrt(nSurv))
+  nCols <- floor(sqrt(nSurv))
+
+  for( sIdx in 1:nSurv )
+  {
+    subList <- bioDataWithBlocks[[sIdx]]
+
+    if(is.na(subList))
+      next
+
+    bioData     <- subList$densityBlocks
+    survBlocks  <- subList$blocks
+
+    nGrp <- length(survBlocks)
+
+    # Now group bio data by stratum and 
+    # block number, and average ages/lengths
+    bioData <- bioData %>%
+                group_by( assGrCd, block ) %>%
+                summarise(  meanLength = mean(LENGTH_MM/10, na.rm = T ),
+                            meanAge = mean(AGE, na.rm = T ),
+                            x = mean(x), y = mean(y),
+                            lat = mean(LATITUDE),
+                            lon = mean(LONGITUDE),
+                            depth = mean(DEPTH_M) ) %>%
+                ungroup()
+
+
+    saveTableFile <- paste(spec,surveys[sIdx],"BioDataBlocks.csv",sep = "")
+    saveTablePath <- file.path("Outputs/speciesSurveyData",spec,saveTableFile)
+    write.csv( bioData, file = saveTablePath )
+
+    bioData$meanAge[is.nan(bioData$meanAge)] <- NA
+
+    # Load land masses
+    data(nepacLL)
+    nePac <- PolySet2SpatialPolygons(nepacLL)
+    nePacUTM <- spTransform(x = nePac, CRSobj = UTMproj)
+    mapExtent <- extent(blocks[[sIdx]])
+
+    nePacUTMCrop <- crop(nePacUTM, mapExtent)
+
+    # Plot maps of blocks
+    colBreaks <- seq(from = 0, to = max(bioData$meanLength), length.out = 5)
+
+    cols <- viridis_pal(direction = 1, option = "inferno")(length(colBreaks)-1)
+    nCols <- length(cols)
+
+    plotFile <- paste(spec,surveys[sIdx],"meanLengthBlocks.png",sep = "")
+    plotPath <- file.path("Outputs/speciesSurveyData",spec,plotFile)
+    png( plotPath, width = 8, height = 8, units = "in", res = 300 )
+
+    plot( mapExtent, type = "n", xlab = "", ylab = "",
+          axes = FALSE )
+
+
+    pullCol <- function( value, breaks, cols )
+    {
+      colIdx <- max( which( breaks <= value ) )
+      return( cols[colIdx] )
+    }
+
+    bioData <- bioData %>%
+                mutate( colour = sapply( X = meanLength, FUN = pullCol, breaks = colBreaks,
+                                          cols = cols ))
+
+    plot( blocks[[sIdx]], add = TRUE)
+
+    # t <- ggplot( data = bioData, aes( x = x, y = y, 
+    #                                   col = meanLength ) ) +
+    #       geom_point() +
+    #       scale_fill_viridis() + theme_sleek() +
+    #       geom_polygon( data = blocks[[sIdx]], 
+    #                     aes( group = ID, col = GROUPING_CO ) )
+
+
+    # Loop and plot each grouping code
+    for( cIdx in 1:nGrp )
+    {
+      subBlocks   <- survBlocks[[cIdx]]
+      grpCode     <- unique(subBlocks$GROUPING_CO)
+
+      subBio      <- bioData %>% filter( assGrCd == grpCode )
+
+      subBlocks@data$meanLength <- NA
+      subBlocks@data$meanAge    <- NA
+
+      trawledBlocks <- subBlocks[subBlocks@data$BLOCK_DESIG %in% subBio$block, ]
+
+      colVec <- as.data.frame(subBio)[order(subBio$block),"colour"]
+
+      plot( trawledBlocks, add = TRUE, col = colVec)
+      
+
+      # grpSumm$grCode <- grpCodes[cIdx]
+
+      # # Get some info about the stratum
+      # grpSumm$nBlocks     <- length(subBlocks[[1]])
+      # # Subset to positive and zero observations 
+      # posSubBlocks  <- subBlocks[subBlocks@data$BLOCK_DESIG %in% posTowBlockIDs, ]
+      # zeroSubBlocks <- subBlocks[subBlocks@data$BLOCK_DESIG %in% zeroTowBlockIDs, ]
+
+      # # Count number of blocks with positive and zero obs
+      # grpSumm$pBlocks    <- length(posSubBlocks[[1]])
+      # grpSumm$zBlocks    <- length(zeroSubBlocks[[1]])
+
+      # grpSumm[,c("minDepth","maxDepth")]    <- range(subBlocks$DEPTH_M)
+      # grpSumm[,c("minDepthP","maxDepthP")]  <- range(posSubBlocks$DEPTH_M)
+      # grpSumm[,c("minDepthZ","maxDepthZ")]  <- range(zeroSubBlocks$DEPTH_M)
+
+      
+      # title     <- paste("GC", grpCodes[cIdx], sep = "" )
+
+
+      # # Plot maps of blocks
+      # plot( mapExtent, type = "n", xlab = "", ylab = "",
+      #       axes = FALSE )
+      # plot( subBlocks, add = TRUE )
+      # box()
+      # mtext( side = 3, text = title, font = 2 )
+
+      # # Plot presences and absences
+      # plot(posSubBlocks, add =TRUE, col = "blue")
+      # plot(zeroSubBlocks, add =TRUE, col = "red")
+
+      # # Plot landmasses
+      # plot(nePacUTM, add = TRUE, col = "grey40", border = NA )
+
+      # if(cIdx == 1)
+      #   legend( x = "topright",
+      #           fill = c("blue","red"),
+      #           legend = c("Positive tow observed","No positive tows") )   
+
+      # summGrpCode[[cIdx]] <- grpSumm
+
+    }
+    box()
+    mtext( side = 3, text = "meanLength", font = 2 )
+    plot(nePacUTM, add = TRUE, col = "grey40", border = NA )
+    dev.off()
+  }
+  
+}
+
 
 
 # Calculate relative biomass by species and arrange in an array
