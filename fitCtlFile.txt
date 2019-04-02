@@ -89,7 +89,7 @@ hypo$fleetGroups list(comm=c("comm.hist","comm.mod"),Ass=c("HSAss"),Syn=c("WCHGS
 hypo$RE c("omegaR_vec","omegaRinit_vec")
 hypo$sigmaL2 .2
 hypo$sigmavonK .2
-phases$lnB0_sp 2
+phases$lnB0_sp 3
 phases$logitSteep 7
 phases$lnM 3
 phases$lnL2step_s 4
@@ -97,9 +97,9 @@ phases$lnvonK_s 4
 phases$lnL1_s -5
 phases$deltaL2_sp 9
 phases$deltaVonK_sp 9
-phases$deltaL2_sx 5
-phases$deltaVonK_sx 5
-phases$sigmaLa_s 6
+phases$deltaL2_sx 2
+phases$deltaVonK_sx -5
+phases$sigmaLa_s -6
 phases$sigmaLb_s -1
 phases$lnq_spf 1
 phases$epslnq_vec 12
