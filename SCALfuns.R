@@ -687,7 +687,7 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                 epsSteep_sp       = array(0, dim = c(nS,nP)),
                 # Species/stock effect on M
                 epsM_sp           = array(0, dim = c(nS,nP)),
-                epsM_sx          = array(0, dim = c(nS,nX)),
+                epsM_sx           = array(0, dim = c(nS,nX)),
                 # Recruitment resids
                 omegaR_vec        = rep( 0, nRecDevs),
                 omegaRinit_vec    = rep( 0, nInitDevs ),
@@ -978,8 +978,8 @@ TMBphase <- function( data,
 
     if( phase_cur == 1 )
     {
-      checkInitNaN    <- lapply( X = prevRep, FUN = .checkNaN )
-      checkInitFinite <- lapply( X = prevRep, FUN = .checkFinite )
+      checkInitNaN    <- lapply( X = repInit, FUN = .checkNaN )
+      checkInitFinite <- lapply( X = repInit, FUN = .checkFinite )
       if(any(unlist(checkInitNaN)) | any(checkInitFinite))
         browser(beep(expr=cat("NaN or Inf items in initial rep\n")))
     }

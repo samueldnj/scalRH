@@ -29,7 +29,8 @@ scenario$scenario5$data$species "Arrowtooth"
 #
 # Scenario 6 : DERPA
 #
-scenario$scenario6$ctrl$dataScenarioName 'DERPA'
+scenario$scenario6$ctrl$dataScenarioName 'DERP'
+scenario$scenario6$data$species c("Dover","English","Rock","Petrale")
 #
 # Management Procedures
 #

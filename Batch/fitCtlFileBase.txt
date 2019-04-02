@@ -31,8 +31,7 @@ data$fYearIdx 1954
 data$lYearIdx 2016
 data$sexStructured TRUE
 data$idxFleets c("comm.hist","comm.mod","HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
-#data$species c("Dover","English","Rock","Petrale","Arrowtooth")
-data$species c("Dover")
+data$species c("Dover","English","Rock","Petrale","Arrowtooth")
 data$stocks c("HSHG","QCS","WCVI")
 data$idxFiles c("surveyBio.RData","commCPUE.RData")
 data$catchData c(survey="surveyCatch.RData",comm="catch_by_maj.csv")

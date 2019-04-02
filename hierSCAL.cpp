@@ -876,7 +876,7 @@ Type objective_function<Type>::operator() ()
 
           // Calculate maturity at age if age based
           if( matX == "age" )
-            matAge_asp(a,s,p) = 1 / (1 + exp( -1. * log(Type(19.0)) * ( a+1 - xMat50_s(s)) / (xMat95_s(s) - xMat50_s(s)) ) );
+            matAge_asp(a,s,p) = 1 / (1 + exp( -1. * log(Type(19.0)) * ( age(a) - xMat50_s(s)) / (xMat95_s(s) - xMat50_s(s)) ) );
 
           // To compute ssbpr, we need to reduce by the fraction of spawners
           Surv_aspx(a,s,p,x) = exp(-a * M_spx(s,p,x));        
