@@ -332,7 +332,7 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
 
   # Need an array of switches for calculating 
   # stock specific growth parameters
-  calcStockGrowth <- array( 0, dim = (nS,nP) )
+  calcStockGrowth <- array( 0, dim = c(nS,nP) )
   for( s in 1:nS )
     for( p in 1:nP )
     {
@@ -612,7 +612,7 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                 lambdaBaranovStep = ctrlObj$lambdaBaranovStep,
                 A1_s              = A1_s[useSpecies],
                 A2_s              = A2_s[useSpecies],
-                 )
+                calcStockGrowth   = calcStockGrowth )
 
 
   # Generate parameter list
@@ -974,14 +974,14 @@ TMBphase <- function( data,
     tmbCtrl <- list(  eval.max = maxEval, 
                       iter.max = maxIter  )
 
+    repInit <- obj$report()
+
     if( phase_cur == 1 )
     {
-      repInit <- obj$report()
-
-      checkInitNaN    <- lapply( X = repInit, FUN = .checkNaN )
-      checkInitFinite <- lapply( X = repInit, FUN = .checkFinite )
+      checkInitNaN    <- lapply( X = prevRep, FUN = .checkNaN )
+      checkInitFinite <- lapply( X = prevRep, FUN = .checkFinite )
       if(any(unlist(checkInitNaN)) | any(checkInitFinite))
-        browser(beep(expr=cat("NaN or Inf items in repInit\n")))
+        browser(beep(expr=cat("NaN or Inf items in initial rep\n")))
     }
 
     cat("\nStarting optimisation for phase ", phase_cur, "\n\n")
@@ -1057,6 +1057,8 @@ TMBphase <- function( data,
                             map= map_use,
                             silent = silent )  
 
+    repInit <- obj$report()
+
     tol10 <- 0.01
     
     TMB::newtonOption(obj, tol10 = tol10)
@@ -1114,7 +1116,10 @@ TMBphase <- function( data,
   if( savePhases )
     outList$phaseReports      <- phaseReports
 
-  outList$repOpt            <- obj$report()
+  if(outList$success)
+    outList$repOpt            <- obj$report()
+  else outList$repOpt         <- repInit
+
   outList$objfun            <- obj$fn()
   outList$optOutput         <- opt
   outList$map               <- map_use
