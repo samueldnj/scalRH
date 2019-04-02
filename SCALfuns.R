@@ -335,10 +335,8 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   calcStockGrowth <- array( 0, dim = c(nS,nP) )
   for( s in 1:nS )
     for( p in 1:nP )
-    {
       if( any( ALFreq_spalftx[s,p,,,,,] ) > 0 )
         calcStockGrowth[s,p] <- 1
-    }
   
 
 

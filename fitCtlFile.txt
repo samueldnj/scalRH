@@ -1,5 +1,5 @@
 # Base fitCtlFile.txt for hierSCAL assessment model
-# written Friday, Nov 23, 2018 
+# written Tuesday, Apr 2, 2018 
 parameter value
 ctrl$dataScenarioName 'DERPA'
 ctrl$modelHypName 'base'
@@ -19,10 +19,10 @@ ctrl$lambdaBaranovStep 0.5
 ctrl$savePhases FALSE
 data$commNames_g c("comm.hist","comm.mod")
 data$survNames_g c("HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
-data$nA_s c(Dover=40,English=20,Rock=25,Petrale=25,Arrowtooth=25)
+data$nA_s c(Dover=40,English=15,Rock=15,Petrale=25,Arrowtooth=25)
 data$minA_s c(Dover=2,English=2,Rock=2,Petrale=2,Arrowtooth=4)
 data$nL_s c(Dover=80,English=55,Rock=65,Petrale=75,Arrowtooth=85)
-data$minL_s c(Dover=10,English=15,Rock=25,Petrale=15,Arrowtooth=30)
+data$minL_s c(Dover=10,English=15,Rock=10,Petrale=15,Arrowtooth=30)
 data$A1_s c(Dover=3,English=3,Rock=2,Petrale=2,Arrowtooth=2)
 data$A2_s c(Dover=25,English=10,Rock=20,Petrale=15,Arrowtooth=17)
 data$fYearData 1984
@@ -32,7 +32,7 @@ data$lYearIdx 2016
 data$sexStructured TRUE
 data$idxFleets c("comm.hist","comm.mod","HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
 #data$species c("Dover","English","Rock","Petrale","Arrowtooth")
-data$species c("English")
+data$species c("Rock")
 data$stocks c("HSHG","QCS","WCVI")
 data$idxFiles c("surveyBio.RData","commCPUE.RData")
 data$catchData c(survey="surveyCatch.RData",comm="catch_by_maj.csv")
@@ -51,8 +51,8 @@ data$growthLikeWt 1
 data$minAgeProp 0.02
 data$minLenProp 0.02
 data$minPAAL 0.02
-data$minAgeSampSize 50
-data$minLenSampSize 200
+data$minAgeSampSize 100
+data$minLenSampSize 100
 data$lambdaB0 1
 hypo$initVonK c(Dover=.3,English=.3,Rock=.3,Petrale=.3,Arrowtooth=.3)
 hypo$matX "age"
@@ -63,7 +63,7 @@ hypo$tvSel FALSE
 hypo$identSel FALSE
 hypo$tvSelFleets c("comm.hist","comm.mod")
 hypo$sigmaSelDevs 0.1
-hypo$cvxSel 0.2
+hypo$cvxSel 0.05
 hypo$initFished c(Dover=1,English=1,Rock=1,Petrale=1,Arrowtooth=1)
 hypo$tvqFleets c("comm.hist","comm.mod","HSAss")
 hypo$tvq FALSE
@@ -76,11 +76,11 @@ hypo$regFMaxPhase 12
 hypo$mF .2
 hypo$sdF 1e-3
 hypo$mM 0.3
-hypo$sdM 0.1
+hypo$sdM 0.05
 hypo$yFirstRecDev c(Dover=1955,English=1955,Rock=1955,Petrale=1955,Arrowtooth=1955)
 hypo$yLastRecDev c(Dover=2011,English=2013,Rock=2013,Petrale=2013,Arrowtooth=2013)
 hypo$sigmaR .5
-hypo$sigmaM 0.2
+hypo$sigmaM 0.1
 hypo$sigmaL .1
 hypo$tau2ObsIGa rep(10,7)
 hypo$tau2ObsPriorMode c(.1,.1,.1,.04,.04,.04,.04)
@@ -93,24 +93,24 @@ hypo$sigmavonK .2
 phases$lnB0_sp 2
 phases$logitSteep 7
 phases$lnM 3
-phases$lnL2step_s 4
-phases$lnvonK_s 4
+phases$lnL2step_s 5
+phases$lnvonK_s 5
 phases$lnL1_s -5
-phases$deltaL2_sp 9
-phases$deltaVonK_sp 9
-phases$deltaL2_sx 5
+phases$deltaL2sp_vec 9
+phases$deltaVonKsp_vec 9
+phases$deltaL2_sx 6
 phases$deltaVonK_sx -5
-phases$sigmaLa_s -6
+phases$sigmaLa_s -7
 phases$sigmaLb_s -1
 phases$lnq_spf 1
 phases$epslnq_vec 12
-phases$lnxSel50_sf 3
-phases$lnxSelStep_sf 3
+phases$lnxSel50_sf 4
+phases$lnxSelStep_sf 4
 phases$epsxSel50_spf 8
 phases$epsxSelStep_spf 8
 phases$epsxSel50_vec 12
 phases$epsxSelStep_vec 12
-phases$omegaR_vec 7
+phases$omegaR_vec 3
 phases$omegaRinit_vec 2
 phases$muxSel50_sg -1
 phases$muxSel95_sg -1

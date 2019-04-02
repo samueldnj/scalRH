@@ -835,11 +835,6 @@ Type objective_function<Type>::operator() ()
         for( int a = 0; a < A_s(s); a ++ )
         {
           Type  sumProbs  = 0;
-          // Type vonK_tmp = vonK_spx(s,p,x);
-          // lenAge_aspx(a,s,p,x) += L2_spx(s,p,x) - L1_sp(s,p);
-          // lenAge_aspx(a,s,p,x) *= (exp(-vonK_tmp * A1 ) - exp(-vonK_tmp * (a+1)) );
-          // lenAge_aspx(a,s,p,x) /= (exp(-vonK_tmp * A1 ) - exp(-vonK_tmp * A2) );
-          // lenAge_aspx(a,s,p,x) += L1_sp(s,p);
           Type sigmaL = sigmaLa_s(s) + sigmaLb_s(s) * lenAge_aspx(a,s,p,x);
           for( int l = 0; l < L_s(s); l++ )
           {
