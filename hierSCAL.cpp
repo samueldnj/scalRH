@@ -469,6 +469,8 @@ Type objective_function<Type>::operator() ()
   PARAMETER(cvL1);                      // Prior CV on L1
   PARAMETER(pmlnVonK);                  // Prior complex vonK 
   PARAMETER(cvVonK);                    // Prior CV on VonK
+  PARAMETER(mF);                        // Prior mean value for mean F
+  PARAMETER(sdF);                       // Prior sd for meanF
 
   // mortality deviations //
   /*
@@ -1099,9 +1101,12 @@ Type objective_function<Type>::operator() ()
     Z_aspxt.col(t) += tmpZ_aspx;
     F_spft.col(t)  += tmpF_spf;
 
+    Fbar_spf += F_spft.col(t) / nT;
+
     for( int s = 0; s < nS; s++)
       for( int p = 0; p < nP; p++ )
         for( int f = 0; f < nF; f++ )
+        {
           for( int x = 0; x < nX; x++ )
             for( int a = 0; a < A_s(s); a++)
             {
@@ -1116,6 +1121,7 @@ Type objective_function<Type>::operator() ()
               predC_spft(s,p,f,t) += C_aspftx(a,s,p,f,t,x);
 
             }
+        }
 
   }
 
@@ -1427,6 +1433,7 @@ Type objective_function<Type>::operator() ()
   Type qnlpSyn = 0.;
   qnlpSyn_s.setZero();
   Type qnlpSurv = 0.;
+  Type Fnlp = 0;
 
 
   // Now a prior on catchability and observation error SD
@@ -1438,9 +1445,8 @@ Type objective_function<Type>::operator() ()
     for( int p = 0; p < nP; p++ )
       for( int f = 0; f < nF; f++ )
       {
-
-        // if( Fbar_spf(s,p,f) > 0)
-        //   Fnlp += log(Fbar_spf(s,p,f));
+        if( regFfleets(f) > 0)
+          Fnlp -= dnorm(Fbar_spf(s,p,f), mF, sdF, true);
         // Penalise fleet specific catchabilities if
         // they are a calculated index
         // Synoptic survey
@@ -1458,6 +1464,8 @@ Type objective_function<Type>::operator() ()
           tauObsnlp_f(f) += (IGatau_f(f)+Type(1))*2*lntauObs_spf(s,p,f)+IGbtau_f(f)/(tau2Obs_spf(s,p,f));
         
       }
+
+  
     
   // Synoptic species qs are penaliesd against a complex q
   // if there are more than 1 species
@@ -1626,6 +1634,7 @@ Type objective_function<Type>::operator() ()
   f += lenLikeWt * ageCompsnll_spf.sum(); // Age compositions
   f += idxLikeWt * CPUEnll_spf.sum();     // Survey CPUE
   f += sel_nlp;
+  f += Fnlp;
   f += tauObsnlp_f.sum();
   // Growth model
   f += growthLikeWt * vonBnll_spf.sum();     // Growth model

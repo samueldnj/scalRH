@@ -21,7 +21,7 @@ data$commNames_g c("comm.hist","comm.mod")
 data$survNames_g c("HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
 data$nA_s c(Dover=40,English=20,Rock=25,Petrale=25,Arrowtooth=25)
 data$minA_s c(Dover=2,English=2,Rock=2,Petrale=2,Arrowtooth=2)
-data$nL_s c(Dover=80,English=55,Rock=55,Petrale=75,Arrowtooth=85)
+data$nL_s c(Dover=80,English=55,Rock=65,Petrale=75,Arrowtooth=85)
 data$minL_s c(Dover=10,English=10,Rock=10,Petrale=10,Arrowtooth=30)
 data$A1_s c(Dover=3,English=3,Rock=2,Petrale=2,Arrowtooth=2)
 data$A2_s c(Dover=25,English=10,Rock=20,Petrale=15,Arrowtooth=17)
@@ -70,11 +70,11 @@ hypo$tvq FALSE
 hypo$sigmaqdevs .2
 hypo$mq .5
 hypo$sdq 1
-hypo$tauqSyn .1
+hypo$tauqSyn .7
 hypo$regFfleets c("comm.hist","comm.mod")
-hypo$regFMaxPhase 12
+hypo$regFPhases c(4:12) 
 hypo$mF .2
-hypo$sdF 1e-3
+hypo$sdF 1e-2
 hypo$mM 0.3
 hypo$sdM 0.05
 hypo$yFirstRecDev c(Dover=1955,English=1955,Rock=1955,Petrale=1955,Arrowtooth=1955)
@@ -91,7 +91,7 @@ hypo$RE c("omegaR_vec","omegaRinit_vec")
 hypo$sigmaL2 .2
 hypo$sigmavonK .2
 phases$lnB0_sp 2
-phases$logitSteep 7
+phases$logitSteep 3
 phases$lnM 3
 phases$lnL2step_s 5
 phases$lnvonK_s 5

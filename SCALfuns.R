@@ -51,15 +51,15 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt", folder=NULL, quiet=TRUE )
   fitRepPath <- file.path(path,"fitReport.csv")
   write.csv( reports$phaseList$fitReport, file = fitRepPath )
 
-  # Save plots?
-  if(controlList$ctrl$plots)
-    savePlots(  fitObj = reports,
-                useRep = reports$plotRep,
-                saveDir = path  )
-
   # Copy control file to sim folder for posterity
   file.copy(from=ctlFile,to=file.path(path,"fitCtlFile.txt"))
   file.copy(from="hierSCAL.cpp",to=file.path(path,"hierSCAL.cpp"))
+
+  # Save plots?
+  if(controlList$ctrl$plots)
+    savePlots(  fitObj = reports,
+                saveDir = path  )
+  
   # Done
 } # END fitHierSCAL()
 
@@ -69,24 +69,71 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt", folder=NULL, quiet=TRUE )
 # inputs:   fit=ordinal indicator of sim in project folder
 # ouputs:   NULL
 # usage:    Prior to plotting simulation outputs
-.loadFit <- function( fit = 1 )
+.loadFit <- function( fit = 1, groupFolder = "." )
 {
+  fitFolder <- file.path("./Outputs/fits",groupFolder)
+
   # List directories in project folder, remove "." from list
-  dirList <- list.dirs (path="./Outputs/fits",full.names = FALSE,
+  dirList <- list.dirs (path=fitFolder,full.names = FALSE,
                         recursive=FALSE)
-  # Restrict to sim_ folders, pick the nominated simulation
+  # Restrict to fit_ folders, pick the nominated simulation
   fitList <- dirList[grep(pattern="fit",x=dirList)]
   folder <- fitList[fit]
 
   # Load the nominated blob
   reportsFileName <- paste(folder,".RData",sep="")
-  reportsPath <- file.path(getwd(),"Outputs/fits",folder,reportsFileName)
+  reportsPath <- file.path(fitFolder,folder,reportsFileName)
   load ( file = reportsPath )
 
-  assign( "reports",reports,pos=1 )
-  cat("MSG (loadFit) Reports in ", folder, " loaded from ./Outputs/fits/\n", sep="" )
+  reports$path <- file.path(fitFolder, folder) 
 
+  assign( "reports",reports,pos=1 )
+  cat("MSG (loadFit) Reports in ", folder, " loaded from", fitFolder, "\n", sep="" )
+
+  return( file.path(fitFolder, folder) )
 }
+
+
+# # runBatchPlots()
+# # Function to redo all plots from a given
+# # folder of fits
+# runBatchPlots <- function( batchFolder = "batch_1954" )
+# {
+#   # Get list of fit objects in batchFolder
+#   fitObjs <- list.dirs( path = file.path("./Outputs/fits",batchFolder),
+#                         full.names = TRUE, recursive =FALSE )
+
+#   # Restrict to fit_ folders, pick the nominated simulation
+#   fitList <- fitObjs[grep(pattern="fit_",x=fitObjs)]
+#   nFits <- length(fitList)
+
+#   for( i in 1:nFits )
+#   {
+#     # Load the fit object
+#     fitPath <- .loadFit(i, batchFolder)
+
+#     if(!is.null(reports$repInit))
+#       reports$repInit <- renameReportArrays( reports$repInit, reports$data )
+
+#     if(!is.null(reports$repOpt))
+#       reports$repOpt <- renameReportArrays( reports$repOpt, reports$data )
+
+#     if(is.null(reports$refPoints))
+#       reports$repOpt <- calcRefPts(reports$repOpt)
+
+#     # rerun savePlots
+#     savePlots(  fitObj = reports,
+#                 saveDir = fitPath )
+
+#     reports <<- NULL
+
+#     cat("MSG (rerunPlots) Plots redone in ", reports$path, "\n", sep = "")
+#     beep()
+#   }
+
+ 
+# }
+
 
 
 # rerunPlots()
@@ -114,7 +161,6 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
 
   # rerun savePlots
   savePlots(  fitObj = reports,
-              useRep = reports$plotRep,
               saveDir = reports$path )
 
   cat("MSG (rerunPlots) Plots redone in ", reports$path, "\n", sep = "")
@@ -710,7 +756,9 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                 cvL2              = .1,
                 cvL1              = .1,
                 pmlnVonK          = log(.3),
-                cvVonK            = .1 )
+                cvVonK            = .1,
+                mF                = hypoObj$mF,
+                sdF               = hypoObj$sdF )
 
 
 
@@ -811,6 +859,7 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                           maxIter = ctrlObj$maxIterations,
                           calcSD = ctrlObj$calcSD,
                           parBen = ctrlObj$parBen,
+                          regFPhases = hypoObj$regFPhases,
                           intMethod = ctrlObj$intMethod,
                           mcChainLength = ctrlObj$mcChainLength,
                           mcChains = ctrlObj$mcChains,
@@ -842,7 +891,8 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                     map = phaseList$map,
                     data = data,
                     pars = pars,
-                    phaseList = phaseList )
+                    phaseList = phaseList,
+                    ctlList = obj )
 
 
 
@@ -872,7 +922,7 @@ TMBphase <- function( data,
                       calcSD = FALSE,
                       maxEval = 1000,
                       maxIter = 1000,
-                      regFMaxPhase = 3,
+                      regFPhases = 3,
                       parBen = FALSE,
                       intMethod = "RE",
                       mcChainLength = 100,
@@ -885,7 +935,9 @@ TMBphase <- function( data,
 
 
   # compile the model
-  DLL_use <- model_name  
+  DLL_use <- model_name
+
+  regFfleets <- data$regFfleets  
   
   #loop over phases
   if(!is.null(maxPhase))
@@ -944,9 +996,11 @@ TMBphase <- function( data,
       }
 
     }
+
     
-    if( phase_cur > regFMaxPhase )
-      data$regFfleets <- rep(0,length(data$regFfleets))
+    if( phase_cur %in% regFPhases )
+      data$regFfleets <- data$regFfleets
+    else data$regFfleets <- rep(0,length(data$regFfleets))
   
     #remove the random effects if they are not estimated
     random_use <- random[ !random %in% names(map_use) ]
@@ -1282,7 +1336,6 @@ renameReportArrays <- function( repObj = repInit, datObj = data )
 
 # savePlots()
 savePlots <- function(  fitObj = reports,
-                        useRep = "opt",
                         saveDir = "./Outputs/fits/" )
 {
   # Create a plots sub directory in the saveDir
