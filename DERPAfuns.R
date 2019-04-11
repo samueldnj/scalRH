@@ -105,10 +105,10 @@ makeIndexArray <- function( relBio = relBioList_Survey,
   nS <- length(relBio)
   nT <- length(years)
 
-  nSurv   <- dim(relBio$Dover$relBio.arr)[1]
-  survIDs <- dimnames(relBio$Dover$relBio.arr)[[1]]
+  nSurv   <- dim(relBio$Dover)[1]
+  survIDs <- dimnames(relBio$Dover)[[1]]
 
-  stockIDs <- dimnames(relBio$Dover$relBio.arr)[[2]]
+  stockIDs <- dimnames(relBio$Dover)[[2]]
 
   nComm   <- dim(commCPUE$Dover$cpue.arr)[1]
   commIDs <- dimnames(commCPUE$Dover$cpue.arr)[[1]]
@@ -130,7 +130,8 @@ makeIndexArray <- function( relBio = relBioList_Survey,
   {
     specID <- names(relBio)[specIdx]
 
-    subRelBio   <- relBio[[specID]]$relBio.arr[,,as.character(years),1]
+
+    subRelBio   <- relBio[[specID]][,,as.character(years)]
     subCommCPUE <- commCPUE[[specID]]$cpue.arr[,,as.character(years),1,1]
 
     subCommCPUE[subCommCPUE < 0] <- NA
@@ -168,7 +169,7 @@ makeSurveyCatchStocks <- function(  spec = "dover",
 {
   # Read in density
   specDensityFile <- paste(spec,"density.csv",sep = "_")
-  specDensityPath <- file.path(getwd(),"Data","density",specDensityFile)
+  specDensityPath <- file.path(getwd(),"Data","Raw","density",specDensityFile)
   densityTab <- read.csv(specDensityPath, header = T)
 
   # Now join and select the columns we want
@@ -270,6 +271,7 @@ appendBlockID <- function(  blocks = grids$HS,
     subDensity$block      <- tryPoints[,"BLOCK_DESIG"]
     subDensity$assGrCd    <- tryPoints[,"GROUPING_CO"]
     subDensity$blockDepth <- tryPoints[,"DEPTH_M"]
+    subDensity$totBlocks  <- nrow(subBlocks)
 
     if(length(naSets) > 0)
     {
@@ -280,10 +282,16 @@ appendBlockID <- function(  blocks = grids$HS,
       # Find which.min
       minBlock  <- apply(X = distMtx, FUN = which.min, MARGIN = 2)
 
-      subDensity[naSets,"block"]      <- subBlocks[minBlock,][["BLOCK_DESIG"]]
+      subDensity[naSets,"block"]      <- subBlocks[["BLOCK_DESIG"]][minBlock]
       subDensity[naSets,"assGrCd"]    <- subBlocks[minBlock,][["GROUPING_CO"]]
       subDensity[naSets,"blockDepth"] <- subBlocks[minBlock,][["DEPTH_M"]]
     }
+
+    blockAreas <- rgeos::gArea(blocks, byid = TRUE)
+
+    subDensity$blockArea  <- mean(blockAreas, na.rm = T)
+
+    
 
     densByGrpCode[[cIdx]]     <- subDensity
     blocksByGrpCode[[cIdx]]   <- subBlocks
@@ -298,6 +306,215 @@ appendBlockID <- function(  blocks = grids$HS,
 }
 
 
+removeSmallFish <- function(  minL = 25,
+                              species = "dover",
+                              pathToData = NULL,
+                              stratAreas = stratArea,
+                              blocks = grids,
+                              years = c(1975, 2016), 
+                              stocks = list(  HSHG = c(2,3,16),
+                                              QCS = c(1),
+                                              WCVI = c(4) ),
+                              survIDs = surveyIDs,
+                              save = FALSE )
+{
+
+  # Load the density
+  library(viridis)
+  library(ggsidekick)
+
+  if(is.null(pathToData))
+  {
+    pathToData <- file.path(getwd(),"Data","Raw")
+  }
+
+  # Read in density
+  specDensityFile <- paste(species,"density.csv",sep = "_")
+  specDensityPath <- file.path(pathToData,"density",specDensityFile)
+  densityTab <- read.csv(specDensityPath, header = T) %>%
+                mutate( surveyName = sapply(  X = SURVEY_SERIES_ID,
+                                              FUN = appendName,
+                                              survIDs ) )
+
+  includedSurveys <- unlist(stocks)
+
+  # Save survey names for use in filtering code
+  surveys     <- c("HS", "QCS", "WCHG", "WCVI")  
+  synSurveys <- paste(surveys,"Syn",sep ="")
+
+  # Split density tab into two parts
+  # 1. HSAss
+  # 2. Synoptic surveys
+  HSAssTab <- densityTab %>%
+              filter(SURVEY_SERIES_ID == surveyIDs["HSAss"])
+
+  # Should plot the HSAss survey, see how the effort shakes
+  # out year to year
+
+  synTab   <- densityTab %>%
+              filter( SURVEY_SERIES_ID %in% surveyIDs[synSurveys] )
+
+  surveyBioData <- readBioData( specName = species, 
+                                years = years,
+                                pathToData = pathToData )$survey
+
+  surveySetLocData <- densityTab %>%
+                      dplyr::select(  TRIP_ID,
+                                      SURVEY_SERIES_ID,
+                                      LATITUDE,
+                                      LONGITUDE,
+                                      FE_MAJOR_LEVEL_ID,
+                                      FISHING_EVENT_ID,
+                                      GROUPING_CODE,
+                                      YEAR,
+                                      surveyName )
+
+  appendedLocToBioData <- surveyBioData %>%
+                          left_join(  surveySetLocData, 
+                                      by = c( "TRIP_ID",
+                                              "SURVEY_SERIES_ID",
+                                              "FE_MAJOR_LEVEL_ID",
+                                              "YEAR",
+                                              "surveyName") )
+
+
+  # This should return a list, each entry a list for a specific
+  # survey that contains the data.frame with block IDs,
+  # and a list of poly sets for each grouping code
+  bioDataWithBlocks <- lapply(  X = blocks, FUN = appendBlockID,
+                                density = appendedLocToBioData,
+                                stratAreas = stratAreas )
+
+  densityWithBlocks   <- lapply(  X = blocks, FUN = appendBlockID,
+                                  density = synTab, stratAreas = stratAreas )
+  
+  # Get number of surveys
+  nSurv <- length(bioDataWithBlocks)
+
+  remBlocks <- vector(mode = "list", length = nSurv)
+  remDens   <- vector(mode = "list", length = nSurv)
+  remBio    <- vector(mode = "list", length = nSurv)
+
+  # Loop over surveys, get
+  for( sIdx in 1:nSurv )
+  {
+    subBioList    <- bioDataWithBlocks[[sIdx]]
+    densData      <- densityWithBlocks[[sIdx]]$densityBlocks
+
+    if(is.na(subBioList))
+      next
+
+    bioData     <- subBioList$densityBlocks
+    survBlocks  <- subBioList$blocks
+
+    nGrp <- length(survBlocks)
+
+    # Now group bio data by stratum and 
+    # block number, and average ages/lengths
+    remBlocks[[sIdx]] <-  bioData %>%
+                          group_by( assGrCd, block ) %>%
+                          summarise(  meanLength = mean(LENGTH_MM/10, na.rm = T ),
+                                      meanAge = mean(AGE, na.rm = T ),
+                                      x = mean(x), y = mean(y),
+                                      nFish = n(),
+                                      lat = mean(LATITUDE),
+                                      lon = mean(LONGITUDE),
+                                      depth = mean(DEPTH_M),
+                                      blockArea = mean(blockArea,na.rm =T),
+                                      surveySeries = mean(SURVEY_SERIES_ID) ) %>%
+                          ungroup() %>%
+                          filter( meanLength < minL ) %>%
+                          dplyr::select( assGrCd, block, blockArea, surveySeries )
+
+    # This is the set of blocks that we need to remove from the
+    # density AND biological data.
+    # Loop over grouping codes, pull data apart
+    nGrps <- length( unique( remBlocks$assGrCd ) )
+    grps  <- unique( remBlocks$assGrCd )
+    groupDensList <- vector(mode = "list", length = nGrps)
+
+
+    remDens[[sIdx]]   <-  densData %>%
+                          anti_join(  y = remBlocks[[sIdx]], 
+                                      by = c("assGrCd","block") )
+
+
+    remBio[[sIdx]]    <-  bioData %>%
+                          anti_join(  y = remBlocks[[sIdx]],
+                                      by = c("assGrCd","block") )
+
+  }
+
+  # Something similar will need to be done with HSAss, but
+  # I need to understand the survey design better before
+  # I recalc the index. Maybe just removing the biodata will
+  # suffice for now.
+
+  HSAssBadSets <- appendedLocToBioData %>%
+                  filter( surveyName == "HSAss" ) %>%
+                  group_by( YEAR, TRIP_ID, FE_MAJOR_LEVEL_ID) %>%
+                  summarise( meanLength = mean(LENGTH_MM,na.rm = T)/10 ) %>%
+                  ungroup() %>%
+                  filter( meanLength < minL ) %>%
+                  dplyr::select( YEAR, TRIP_ID, FE_MAJOR_LEVEL_ID )
+
+  HSAssRemTab <-  HSAssTab %>%
+                  anti_join( HSAssBadSets,
+                             by = c("YEAR", "TRIP_ID", "FE_MAJOR_LEVEL_ID") )
+
+
+  HSAssBioTab <-  appendedLocToBioData %>%
+                  filter( surveyName == "HSAss" ) %>%
+                  anti_join( HSAssBadSets,
+                             by = c("YEAR", "TRIP_ID", "FE_MAJOR_LEVEL_ID") )
+
+
+
+
+  remDens.df  <- do.call(rbind, remDens)
+  remBio.df   <- do.call(rbind, remBio)
+
+  remBlocks.df <- do.call(rbind, remBlocks) %>%
+                  group_by( surveySeries, assGrCd) %>%
+                  summarise(  nRemBlocks = n(),
+                              removedArea.m2 = sum(blockArea) )
+
+  outList <- list(  remBlocks     = remBlocks,
+                    remDens       = remDens,
+                    remBio        = remBio,
+                    remDens.df    = remDens.df,
+                    remBio.df     = remBio.df,
+                    remBlocks.df  = remBlocks.df,
+                    HSAssTab      = HSAssRemTab,
+                    HSAssBio      = HSAssBioTab,
+                    stratAreas    = stratAreas )
+
+  outList$newDensity  <- calcShrunkDens(outList, species = species, save = save )
+  outList$newBio      <- plotShrunkBio( outList, species = species, save = save )
+
+  newDensFile         <- paste( species,"RemSmallBioIdxSurv.csv",sep = "")
+  newBioFile          <- paste( species,"RemSmallBioDataSurv.csv",sep = "")
+
+  outList$relBio.arr  <- makeRelBioArray( outList$newDensity, 
+                                          years = years[1]:years[2],
+                                          stocks = names(stocks),
+                                          survIDs = names(survIDs) )
+
+
+
+  if(save)
+  {
+    write.csv( outList$newDensity, file = file.path("./Data/Proc",species,newDensFile))
+    write.csv( outList$newBio, file = file.path("./Data/Proc",species,newBioFile))
+  }
+
+  outList
+}
+
+
+
+
+
 filterSurveyBlocks <- function( blocks = grids$HS,
                                 density = synTab,
                                 plot = TRUE,
@@ -305,84 +522,6 @@ filterSurveyBlocks <- function( blocks = grids$HS,
                                 survey = "HS",
                                 stratAreas = stratArea )
 {
-  # # First, get survey series ID from blocks
-  # survSeriesID <- unique(blocks$SURVEY_SERI)
-
-  # # Filter density to that survey
-  # density <- density %>%
-  #             filter(SURVEY_SERIES_ID == survSeriesID )
-  
-
-  # # Now we want to 
-  # # 1. match survey sets to blocks,
-  # # Trying to use the over function, we get a pretty good 
-  # # coverage for the data set, but there are some missing points
-  
-  # # This needs to be done by stratum (grouping code)
-  # # so that tows outside blocks are assigned to the correct
-  # # stratum
-  # grpCodes    <- unique(density$GROUPING_CODE)
-  # nGrpCodes   <- length(grpCodes)
-
-  # stratAreas <- stratAreas %>% 
-  #               rename( grCode = GROUPING_CODE ) %>%
-  #               filter( grCode %in% grpCodes )
-
-  # densByGrpCode   <-  vector(mode = "list", length = nGrpCodes )
-  # blocksByGrpCode <-  vector(mode = "list", length = nGrpCodes )
-  # summGrpCode     <-  vector(mode = "list", length = nGrpCodes )
-
-  # for( cIdx in 1:nGrpCodes )
-  # {
-  #   # Subset to sets in the correct stratum
-  #   grpCode <- grpCodes[cIdx]
-  #   subDensity <- density %>%
-  #                 filter( GROUPING_CODE == grpCode )
-
-  #   subBlocks <- blocks[blocks@data$"GROUPING_CO" == grpCode, ]
-
-  #   # Convert LL density data to UTM so it's the same as the grids
-  #   setCoords.LL          <- subDensity[,c("LONGITUDE","LATITUDE")]
-  #   setCoords.sp          <- SpatialPoints(coords = setCoords.LL, proj4string = LLproj )
-  #   setCoords.UTM         <- spTransform( x = setCoords.sp, CRSobj = UTMproj )
-  #   setCoords.UTM.df      <- as.data.frame(setCoords.UTM)
-
-  #   subDensity$x          <- setCoords.UTM.df[,1]
-  #   subDensity$y          <- setCoords.UTM.df[,2]
-  #   subDensity$block      <- NA
-  #   subDensity$assGrCd    <- NA
-  #   subDensity$blockDepth <- NA
-
-  #   tryPoints             <- over( x = setCoords.UTM, y = subBlocks )
-  #   naSets                <- which(is.na(tryPoints[,1]))
-
-  #   subDensity$block      <- tryPoints[,"BLOCK_DESIG"]
-  #   subDensity$assGrCd    <- tryPoints[,"GROUPING_CO"]
-  #   subDensity$blockDepth <- tryPoints[,"DEPTH_M"]
-
-  #   if(length(naSets) > 0)
-  #   {
-  #     # Now find nearest blocks to unassigned points
-  #     naPoints  <- setCoords.UTM[naSets]
-  #     # Compute distances
-  #     distMtx   <- gDistance( naPoints, subBlocks, byid = TRUE )
-  #     # Find which.min
-  #     minBlock  <- apply(X = distMtx, FUN = which.min, MARGIN = 2)
-
-  #     subDensity[naSets,"block"]      <- subBlocks[minBlock,][["BLOCK_DESIG"]]
-  #     subDensity[naSets,"assGrCd"]    <- subBlocks[minBlock,][["GROUPING_CO"]]
-  #     subDensity[naSets,"blockDepth"] <- subBlocks[minBlock,][["DEPTH_M"]]
-  #   }
-
-  #   densByGrpCode[[cIdx]]     <- subDensity
-  #   blocksByGrpCode[[cIdx]]   <- subBlocks
-
-
-  # }
-
-  # densityBlocks <- do.call(rbind, densByGrpCode) %>%
-  #                   mutate(densityKGPM2 = CATCH_WEIGHT / areaFished_m2 )
-
   densityBlocks <- appendBlockID( blocks = grids$HS,
                                   density = synTab )
 
@@ -568,11 +707,11 @@ filterSurveyBlocks <- function( blocks = grids$HS,
 
 }
 
-# Calculate relative biomass by species and arrange in an array
-# for feeding to TMB model
+# Plot maps of biological data, and ridgeline
+# plots of compositions
 plotBioDataMaps <- function(  spec = "dover",
                               years = c(1975, 2016), 
-                              stocks = list(  HGHS = c(2,3,16),
+                              stocks = list(  HSHG = c(2,3,16),
                                               QCS = c(1),
                                               WCVI = c(4) ),
                               survIDs = surveyIDs,
@@ -902,23 +1041,241 @@ plotBioDataMaps <- function(  spec = "dover",
   
 }
 
+# plotShrunkBioData
+# Makes ridgeline plots of biological
+# data from all surveys, with sets/blocks
+# removed may have been on nursery grounds.
+plotShrunkBio <- function(  remSmallList,
+                            species = "dover",
+                            save = FALSE )
+{
+  bioDataSyn <- remSmallList$remBio.df
+  bioDataAss <- remSmallList$HSAssBio
+
+  bioDataSyn <- bioDataSyn[,names(bioDataAss)]
+
+  bioDataFull <- rbind( bioDataAss, bioDataSyn)
+
+  ageComps <- bioDataFull %>%
+              filter( !is.na(AGE) ) %>%
+              group_by( surveyName, YEAR, AGE ) %>%
+              summarise( nAge = n() ) %>%
+              ungroup() %>%
+              group_by(surveyName,YEAR) %>%
+              mutate( pAge = nAge / sum(nAge) ) %>%
+              ungroup()
+
+
+  lenComps <- bioDataFull %>%
+              filter( !is.na(LENGTH_MM) ) %>%
+              mutate( length = round(LENGTH_MM/10)) %>%
+              group_by( surveyName, YEAR, length ) %>%
+              summarise( nLen = n() ) %>%
+              ungroup() %>%
+              group_by(surveyName,YEAR) %>%
+              mutate( pLen = nLen / sum(nLen) ) %>%
+              ungroup()
+
+  if(save)
+  {
+    plotFile <- paste("remSmallLenComps",species,".png",sep = "")
+    plotPath <- file.path("Outputs/speciesSurveyData",species,plotFile)
+    png( plotPath, width = 8, height = 8, units = "in", res = 300 )
+
+    t <- ggplot( data = lenComps,
+                 aes( x = length, y = YEAR, 
+                      height = pLen, 
+                      group = YEAR) ) +
+          geom_ridgeline( stat = "identity", scale = 10) +
+          facet_wrap(~surveyName) +
+          theme_sleek()
+
+    print(t)
+
+    dev.off()
+
+    plotFile <- paste("remSmallAgeComps",species,".png",sep = "")
+    plotPath <- file.path("Outputs/speciesSurveyData",species,plotFile)
+    png( plotPath, width = 8, height = 8, units = "in", res = 300 )
+
+    t <- ggplot( data = ageComps,
+                 aes( x = AGE, y = YEAR, 
+                      height = pAge, 
+                      group = YEAR) ) +
+          geom_ridgeline( stat = "identity", scale = 10) +
+          facet_wrap(~surveyName) +
+          theme_sleek()
+
+    print(t)
+
+    dev.off()
+  }
+
+  return(bioDataFull)
+
+} # END plotShrunkBio
+
+# Calculate the new density from the 
+# shrunken footprint
+calcShrunkDens <- function( remSmallList,
+                            species = "dover",
+                            stocks = list(  HSHG = c(2,3,16),
+                                            QCS = c(1),
+                                            WCVI = c(4) ),
+                            survIDs = surveyIDs,
+                            save = FALSE )
+{
+  dens        <- remSmallList$remDens.df
+  remBlocks   <- remSmallList$remBlocks.df
+  stratAreas  <- remSmallList$stratAreas
+
+  HSAssTab  <- remSmallList$HSAssTab %>%
+                group_by( SURVEY_SERIES_ID, YEAR, GROUPING_CODE, ) %>%
+                summarise(  meanDens = mean(DENSITY_KGPM2,na.rm =T),
+                            catch = sum(CATCH_WEIGHT),
+                            surveyName = unique(surveyName) ) %>%
+                ungroup() %>%
+                left_join(  stratAreas,
+                            by = c("GROUPING_CODE") ) %>%
+                mutate( relBio = meanDens * AREA_KM2 ) %>%
+                group_by( SURVEY_SERIES_ID, YEAR ) %>% 
+                summarise(  relBio = sum(relBio),
+                            catch = sum(catch)/1e6 ) %>%
+                ungroup() %>%
+                mutate( species = species,
+                        surveyName = sapply(  X = SURVEY_SERIES_ID,
+                                              FUN = appendName,
+                                              survIDs ),
+                        stockName = sapply( X = SURVEY_SERIES_ID, 
+                                            FUN = appendName, 
+                                            stocks ) )
+
+
+
+
+
+  dens <- dens %>%
+          group_by( SURVEY_SERIES_ID, YEAR,
+                    assGrCd ) %>%
+          summarise(  meanDens = mean(DENSITY_KGPM2, na.rm = T),
+                      catch = sum(CATCH_WEIGHT),
+                      blockArea.m2 = mean(blockArea),
+                      totBlocks = mean(totBlocks) ) %>%
+          ungroup() %>%
+          left_join( remBlocks, by = c("assGrCd") ) 
+
+  # replace NAs with zeroes
+  dens[is.na(dens$nRemBlocks),"nRemBlocks"] <- 0
+
+  # Now compute rel biomass
+  dens <- dens %>%
+          mutate( nBlocks = totBlocks - nRemBlocks,
+                  habArea = nBlocks * blockArea.m2,
+                  relBio = habArea * meanDens / 1e6 ) %>%
+          group_by( SURVEY_SERIES_ID, YEAR ) %>%
+          summarise(  relBio = sum(relBio),
+                      catch = sum(catch)/1e6 ) %>%
+          ungroup()
+
+  dens <- dens %>%
+          mutate( species = species,
+                  surveyName = sapply(  X = SURVEY_SERIES_ID,
+                                        FUN = appendName,
+                                        survIDs ),
+                  stockName = sapply( X = SURVEY_SERIES_ID, 
+                                      FUN = appendName, 
+                                      stocks ) )
+
+  dens <- rbind( dens, HSAssTab )
+
+  if(save)
+  {
+    saveFile <- paste("remSmall", species, ".csv", sep = "")
+    savePath <- file.path("./Data/Proc/",species)
+
+    if( !dir.exists(savePath) )
+      dir.create( savePath )
+
+    write.csv(dens, file = file.path(savePath, saveFile) )
+
+    png( file.path(savePath,"remSmallIdx.png"),
+          width = 10, height = 10, units = "in",
+          res = 300 )
+
+    t <- ggplot( data = dens, aes( x = YEAR, y = relBio, 
+                              group = surveyName, 
+                              col = surveyName ) ) + 
+            geom_point( ) +
+            geom_line() + 
+            theme_sleek()
+
+    print(t)
+    dev.off()
+  }
+
+  dens
+}
+
+makeRelBioArray <- function(  densityTable,
+                              years = 1954:2016,
+                              stocks = c("HSHG","QCS","WCVI"),
+                              survIDs = surveyIDs )
+{
+  # Make array
+  relativeBioArray <- array(  -1, dim = c(length(survIDs),length(stocks),length(years)),
+                              dimnames = list(  survIDs, stocks,
+                                                years ) )
+  # Get min year, so we don't waste so many loops
+  minYr <- min(densityTable$YEAR)
+
+  for( survIdx  in 1:length(survIDs) )
+  {
+    survTable <-  densityTable %>%
+                  filter(surveyName == survIDs[survIdx])
+    subYrs    <- survTable$YEAR 
+    for( yr in subYrs )
+    {
+      for( sIdx in 1:length(stocks) )
+      {
+        stockID <- stocks[sIdx]
+        subRelBio <-  densityTable %>%
+                      filter( YEAR == yr, 
+                              surveyName == survIDs[survIdx], 
+                              stockName == stockID )
+        if( nrow(subRelBio) == 0 ) next
+        if( nrow(subRelBio) > 1 ) browser()
+
+        relativeBioArray[survIdx, sIdx, as.character(yr) ]  <- subRelBio$relBio
+
+      }
+      
+    }
+  }
+
+  return(relativeBioArray)
+}
 
 
 # Calculate relative biomass by species and arrange in an array
 # for feeding to TMB model
 makeRelBioStocks <- function( spec = "dover",
+                              pathToData = NULL,
                               years = c(1975, 2016), 
-                              stocks = list(  HGHS = c(2,3,16),
+                              stocks = list(  HSHG = c(2,3,16),
                                               QCS = c(1),
                                               WCVI = c(4) ),
                               survIDs = surveyIDs,
                               stratArea = stratData,
-                              grids = grids   )
+                              grids = grids,
+                              filterSurvey = TRUE   )
 {
+
+  if(is.null(pathToData))
+    pathToData <- file.path(getwd(),"Data","Raw")
 
   # Read in density
   specDensityFile <- paste(spec,"density.csv",sep = "_")
-  specDensityPath <- file.path(getwd(),"Data","density",specDensityFile)
+  specDensityPath <- file.path(pathToData,"density",specDensityFile)
   densityTab <- read.csv(specDensityPath, header = T)
 
   # first, calculate the tow length from speed and distance, if
@@ -967,17 +1324,18 @@ makeRelBioStocks <- function( spec = "dover",
   # and determine positive blocks, from which
   # we will make a new stratArea table, as well as identify
   # observations to remove
-  for( gridIdx in 1:length(grids) )
-  {
-    # Run filterSurveyBlocks to produce plots of block
-    # design and density ~ depth for all species/surveys
-    filterSurveyBlocks( blocks = grids[[gridIdx]],
-                        density = synTab,
-                        plot = TRUE,
-                        species = spec,
-                        survey = surveys[gridIdx],
-                        stratAreas = stratArea )  
-  }
+  if(filterSurvey)
+    for( gridIdx in 1:length(grids) )
+    {
+      # Run filterSurveyBlocks to produce plots of block
+      # design and density ~ depth for all species/surveys
+      filterSurveyBlocks( blocks = grids[[gridIdx]],
+                          density = synTab,
+                          plot = TRUE,
+                          species = spec,
+                          survey = surveys[gridIdx],
+                          stratAreas = stratArea )  
+    }
   
 
 
@@ -1027,66 +1385,7 @@ makeRelBioStocks <- function( spec = "dover",
                                                 FUN = appendName,
                                                 survIDs ) )
 
-  # relativeBio <-  surveyData %>%
-  #                 group_by( year, stockName, survSeriesID, stratum ) %>%
-  #                 dplyr::summarise( density.var = var(density),
-  #                                   density.mean = mean(density),
-  #                                   area = mean(stratArea),
-  #                                   fishedArea = sum(fishedArea),
-  #                                   nBlocks = n() ) %>%
-  #                 dplyr::summarize( relBio_Kt = sum( area * density.mean),
-  #                                   relBio.var_Kt = sum( area * (area - fishedArea) * density.var / fishedArea ),
-  #                                   surveyArea = sum(area) ) %>%
-  #                 ungroup() %>%
-  #                 filter( year >= years[1] & year <= years[2] )
-
-  # if( collapseSyn )
-  # {
-  #   # isolate synoptic IDs
-  #   synIDs <-  c( QCSyn = 1, HSSyn = 3, WCVISyn=4,
-  #                 WCHGSyn = 16 )
-  #   synStratAreas <- surveyData %>%
-  #                   filter( survSeriesID %in% synIDs ) %>%
-  #                   group_by( stockName, survSeriesID, stratum ) %>%
-  #                   summarise( stratArea = unique( stratArea ) ) %>%
-  #                   summarise( surveyArea = sum( stratArea ) ) %>%
-  #                   ungroup()
-
-  #   synStockAreas <-  synStratAreas %>%
-  #                     group_by( stockName ) %>%
-  #                     summarise( stockArea = sum( surveyArea ) ) %>%
-  #                     ungroup()
-
-
-  #   synRelativeBio <- relativeBio %>% 
-  #                     filter( survSeriesID %in% synIDs ) %>%
-  #                     left_join( synStockAreas, by = "stockName" ) %>%
-  #                     group_by( stockName, year ) %>%
-  #                     dplyr::summarize( area = sum(surveyArea),
-  #                                       relBio_Kt = sum( relBio_Kt ),
-  #                                       relBio_Kt.var = sum( relBio_Kt.var ),
-  #                                       stockArea = unique(stockArea) ) %>%
-  #                     dplyr::mutate(  relBio_Kt = relBio_Kt * stockArea / area,
-  #                                     survSeriesID = 1 ) %>%
-  #                     dplyr::select(  year,
-  #                                     stockName,
-  #                                     survSeriesID,
-  #                                     relBio_Kt,
-  #                                     relBio_Kt.var,
-  #                                     surveyArea = area,
-  #                                     stockArea = stockArea
-  #                                   )
-
-  #   relativeBio <-  relativeBio %>%
-  #                   left_join( synStockAreas, by = "stockName" ) %>%
-  #                   filter( !(survSeriesID %in% synIDs) )
-
-  #   relativeBio <- rbind(as.data.frame(relativeBio),as.data.frame(synRelativeBio))
-
-  #   survIDs <- intersect(survIDs[c(1,2,5,6)],includedSurveys)
-
-  # }
-
+ 
   yrs <- years[1]:years[2]
   stockNames <- names(stocks)
   relativeBioArray <- array(  -1, dim = c(length(survIDs),length(stocks),length(yrs),2),
@@ -1144,10 +1443,16 @@ appendName <- function( dataCode, codeKey )
 #                     columns in data
 readCommCPUE <- function( specName = "dover-sole",
                           stocks = stocksCommCPUE,
-                          years = c(1954,2018) )
+                          years = c(1954,2018),
+                          pathToData = NULL )
 {
+
+  if(is.null(pathToData))
+    pathToData <- file.path(getwd(),"Data","Raw")
+
+
   # Set data path
-  datPath       <- file.path(getwd(),"Data","comm-cpue-flatfish")
+  datPath       <- file.path(pathToData,"comm-cpue-flatfish")
   modernName    <- paste("cpue-predictions-",specName,"-modern.csv",sep = "")
   historicName  <- paste("cpue-predictions-",specName,"-historic.csv",sep = "")
   # Read modern and historic data
@@ -1244,25 +1549,60 @@ transByMean <- function(x)
   x
 }
 
+# Read in bio data
+readProcBioData <- function(  specName = "dover",
+                              stocksSurv = stocksSurvey,
+                              stocksComm = stocksCommBio,
+                              years = c(1954,2018) )
+{
+  # First, read in survey bio data
+  surveyDataName <- paste(specName,"RemSmallBioDataSurv.csv",sep = "")
+  surveyDataPath <- file.path(getwd(),"Data","Proc",specName,surveyDataName)
+  surveyBio      <- read.csv(surveyDataPath, header = TRUE, stringsAsFactors = FALSE )
+  # Read in commercial bio data
+  commDataName <- paste(specName,"_comm_biodata.csv",sep = "")
+  commDataPath <- file.path(getwd(),"Data","Raw","DERPA_commercial_biodata",commDataName)
+  commBio      <- read.csv(commDataPath, header = TRUE, stringsAsFactors = FALSE )
+  
+  # Now do the same for the commercial data
+  commBio <-  commBio %>%
+              mutate( stockName = sapply( X = MAJ, 
+                                          FUN = appendName,
+                                          codeKey = stocksComm ) )
+
+
+  outList <- list(  survey = surveyBio,
+                    comm = commBio )
+
+  return(outList)
+} # END readProcBioData()
+
 
 # Read in bio data
 readBioData <- function(  specName = "dover",
                           stocksSurv = stocksSurvey,
                           stocksComm = stocksCommBio,
-                          years = c(1954,2018) )
+                          years = c(1954,2018),
+                          pathToData = NULL,
+                          survIDs = surveyIDs )
 {
+  if(is.null(pathToData))
+  {
+    pathToData <- file.path(getwd(),"Data","Raw")
+  }
+
   # First, read in survey bio data
   surveyDataName <- paste(specName,"_bio.csv",sep = "")
-  surveyDataPath <- file.path(getwd(),"Data","biology_with_mat",surveyDataName)
+  surveyDataPath <- file.path(pathToData,"biology_with_mat",surveyDataName)
   surveyBio      <- read.csv(surveyDataPath, header = TRUE, stringsAsFactors = FALSE )
   # Read in commercial bio data
   commDataName <- paste(specName,"_comm_biodata.csv",sep = "")
-  commDataPath <- file.path(getwd(),"Data","DERPA_commercial_biodata",commDataName)
+  commDataPath <- file.path(pathToData,"DERPA_commercial_biodata",commDataName)
   commBio      <- read.csv(commDataPath, header = TRUE, stringsAsFactors = FALSE )
 
   # Read in density
   specDensityFile <- paste(specName,"density.csv",sep = "_")
-  specDensityPath <- file.path(getwd(),"Data","density",specDensityFile)
+  specDensityPath <- file.path(pathToData,"density",specDensityFile)
   trawlInfoTab <- read.csv(specDensityPath, header = T) %>%
                   dplyr::select(  TRIP_ID, FE_MAJOR_LEVEL_ID,
                                   MAJOR_STAT_AREA_CODE, SURVEY_SERIES_ID,
@@ -1275,7 +1615,9 @@ readBioData <- function(  specName = "dover",
                 mutate( stockName = sapply( X = SURVEY_SERIES_ID, 
                                             FUN = appendName,
                                             codeKey = stocksSurv),
-                        stockName = unlist(stockName) )
+                        surveyName = sapply( X = SURVEY_SERIES_ID,
+                                              FUN = appendName,
+                                              codeKey = survIDs) )
 
   
   # Now do the same for the commercial data
@@ -1707,6 +2049,33 @@ makeWtLen <- function(  data = bioData$English,
 
   outList
 } # END makeLenAge()
+
+makeWtLenDF <- function(wtLen)
+{
+  specNames <- names(wtLen)
+  nS <- length(specNames)
+
+  # make a data.frame of coastwide wtLen parameters for all fish (M+F)
+  wtLen.df <- matrix(NA, nrow = nS, ncol = 3 )
+  colnames(wtLen.df) <- c("Species","lw.a","lw.b")
+
+  wtLen.df <- as.data.frame(wtLen.df)
+
+  for( sIdx in 1:nS)
+  {
+    coastwideModel <- wtLen[[sIdx]]$wtLen$coastWide$wtLenAll
+
+    coeffs <- coef(coastwideModel)
+
+    wtLen.df[sIdx,"Species"] <- specNames[sIdx]
+    wtLen.df[sIdx,"lw.a"]    <- exp(coeffs[1])
+    wtLen.df[sIdx,"lw.b"]    <- coeffs[2]
+
+    
+  }
+  
+  wtLen.df
+}
 
 # plotLenAge()
 # Plots vonBertalanffy growth models for each species
@@ -3594,6 +3963,34 @@ makeSpecMat <- function(  data = bioData$Dover,
 
   return(outList)
 } # END makeSpecMat
+
+makeMatDF <- function( matOgives )
+{
+  specNames <- names(matOgives)
+  nS        <- length(specNames)
+
+  matAgeLen.df <- matrix(NA, nrow = nS, ncol = 5)
+
+  colnames(matAgeLen.df) <- c("Species","a50","a95","l50","l95")
+
+  matAgeLen.df <- as.data.frame(matAgeLen.df)
+
+  for( sIdx in 1:nS )
+  {
+    matAgeLen.df[sIdx,"Species"] <- specNames[sIdx]
+
+    # Now fill in from cwList
+    matAge <- matOgives[[sIdx]]$coastWide$all$age
+    matLen <- matOgives[[sIdx]]$coastWide$all$length
+
+    # Now lets fill the table
+    matAgeLen.df[sIdx,c("a50","a95")] <- c(matAge$x50,matAge$x95)
+    matAgeLen.df[sIdx,c("l50","l95")] <- c(matLen$x50,matLen$x95)    
+  }
+
+
+  matAgeLen.df
+}
 
 # plotMatOgives()
 # Takes output from makeSpecMat() and plots the ogives

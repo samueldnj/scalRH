@@ -102,125 +102,72 @@ names(grids) <- surveys
 # These have been coerced to UTM so the grids are nice
 # and rectangular.
 
+# Make shrunken biomass indices by removing small fish
+source("removeSmallFish.R")
+
 # Plots that we want to make - and may not
 # need to reinvent the code for...
 # 1. Catch and indices - how to plot comm CPUE?
-relBioList_Survey <- lapply(  X = survSpecNames,
-                              FUN = makeRelBioStocks,
-                              years = c(fYear,lYear),
-                              stocks = stocksSurvey,
-                              survIDs = surveyIDs,
-                              stratArea = stratData,
-                              grids = grids )
-names(relBioList_Survey) <- names(survSpecNames)
-save(relBioList_Survey, file = "./Data/surveyBio.RData")
+# relBioList_Survey <- lapply(  X = survSpecNames,
+#                               FUN = makeRelBioStocks,
+#                               years = c(fYear,lYear),
+#                               stocks = stocksSurvey,
+#                               survIDs = surveyIDs,
+#                               stratArea = stratData,
+#                               grids = grids )
+# names(relBioList_Survey) <- names(survSpecNames)
+# save(relBioList_Survey, file = "./Data/surveyBio.RData")
 
 commCPUEList <- lapply( X = commSpecNames,
                         FUN = readCommCPUE,
                         stocks = stocksCommCPUE )
 names(commCPUEList) <- names(commSpecNames)
-save(commCPUEList, file = "./Data/commCPUE.RData")
+save(commCPUEList, file = "./Data/Proc/commCPUE.RData")
 
 
 # Read in bio data, join survey density by tripID
 # to add data for year and location
 bioData <- lapply(  X = survSpecNames,
-                    FUN = readBioData )
+                    FUN = readProcBioData )
 names(bioData) <- names(commSpecNames)
-save(bioData, file = "./Data/bioData.RData")
+save(bioData, file = "./Data/Proc/bioData.RData")
 
 # 2. Length at age plots - stock and sex - spit out age-length freq array
 ALfreq <- lapply( X = bioData, FUN = makeALFreq_FleetYear )
 names(ALfreq) <- names(commSpecNames)
 # Save data out
-save(ALfreq, file = "./Data/ALfreq.RData")
+save(ALfreq, file = "./Data/Proc/ALfreq.RData")
 
 # 3. Length/wt plots - stock and sex
-# wtLen <- lapply( X = bioData, FUN = makeWtLen, stocks = names(stocksCommBio))
-# names(wtLen) <- names(commSpecNames)
-# # Save data out
-# save(wtLen, file = "./Data/wtLen.RData")
+wtLen <- lapply( X = bioData, FUN = makeWtLen, stocks = names(stocksCommBio))
+names(wtLen) <- names(commSpecNames)
+# Save data out
+save(wtLen, file = "./Data/Proc/wtLen.RData")
+wtLen.df <- makeWtLenDF(wtLen)
+write.csv(wtLen.df, file = "./Data/Proc/wtLen.csv")
 # plotWtLen(save = TRUE)
 
 # 4. Catch and discards - Species and area
-catchData <- read.csv(  "./Data/catch_by_maj.csv", header = TRUE,
+catchData <- read.csv(  "./Data/Raw/catch_by_maj.csv", header = TRUE,
                         stringsAsFactors = FALSE )
 plotCatch(save = TRUE)
 # Get survey removals
 surveyCatch <- lapply( X = survSpecNames, FUN = makeSurveyCatchStocks )
 names(surveyCatch) <- names(survSpecNames)
-save( surveyCatch, file = "./Data/surveyCatch.RData" )
+save( surveyCatch, file = "./Data/Proc/surveyCatch.RData" )
 
 # 5a. Age compositions by fleet, stock, and species - spit out comp data array
 ageComps <- lapply( X = bioData, FUN = makeAgeComps )
-save(ageComps, file = "./Data/ageComps.RData")
+save(ageComps, file = "./Data/Proc/ageComps.RData")
 
 # 5b. length compositions by fleet, stock, and species - spit out comp data array
 lenComps <- lapply( X = bioData, FUN = makeLenComps )
-save(lenComps, file = "./Data/lenComps.RData")
+save(lenComps, file = "./Data/Proc/lenComps.RData")
 
 # 6. Maturity at age by stock and species
 matOgives <- lapply( X = bioData, FUN = makeSpecMat )
-save(matOgives, file = "./Data/matOgives.RData" )
+save(matOgives, file = "./Data/Proc/matOgives.RData" )
+matAgeLen.df <- makeMatDF(matOgives)
+write.csv(matAgeLen.df, file = "./Data/Proc/matAgeLen.csv")
 
-
-# Spatial plots: show sampling effort, relative biomass,
-# average age, weight, length etc. by survey block
-
-
-
-# dover <- dataPlots("dover", save = F, maxMatAge = 5 )
-# english <- dataPlots("english", save = F, maxMatAge = 5 )
-# srock <- dataPlots("srock", save = F, maxMatAge = 10)
-# petrale <- dataPlots("petrale", save = F, maxMatAge = 15)
-# atooth <- dataPlots("atooth", save = F, maxMatAge = 10)
-
-
-# Now create a raster brick object with 6 layers:
-# one for each species, and one for the total
-# catchRaster   <- catchToRaster( saveFile = "surveyCatchRaster.RData" )
-# relBioRaster  <- densityToRaster( saveFile = "relBioRaster.RData", yrRange = c( 1984, 2016 ), dummRes = 50 )
-# names(catchRaster) <- c(specNames,"DERPA Total")
-# names(relBioRaster) <- c(specNames,"DERPA Total")
-
-
-
-# # Plot rasters with the map and management areas
-# plotCatchMap( catchRaster, saveFile = "surveyCatchHeatmap.png",
-#               units = "t", scale = 1000, quant = "Catch", leg.cex = 1 )
-# plotCatchMap( relBioRaster, saveFile = "relBioHeatmap.png",
-#               units = "kg", scale = 1, quant = "Tr. Biomass",
-#               width = 10, height = 5, axisTicks = F, leg.cex = 1 )
-
-# plotCatchMap( relBioRaster[[1]], label = FALSE, saveFile = "relBioHeatmapDover.png",
-#               units = "kg", scale = 1, quant = "B_trawl", multiPanel = F,
-#               width = 7, height = 7, axisTicks = F, leg.cex = 1.5, labLL = T )
-
-
-# Read in commercial catch data
-# commCatch <- read.csv( "catch_by_maj.csv", header = T, stringsAsFactors = F)
-
-# # Mung the commercial catch data
-# catchAreaFleetSpecies <-  commCatch %>%
-#                           group_by( YEAR, MAJOR_STAT_AREA_CODE, 
-#                                     GEAR, SPECIES_CODE ) %>%
-#                           summarise(  landedWt = sum( LANDED_KG ) / 1e6,
-#                                       discardWt = sum( DISCARDED_KG ) / 1e6,
-#                                       discardPc = sum( DISCARDED_PCS ),
-#                                       specName = unique( SPECIES_COMMON_NAME ) ) %>%
-#                           ungroup() %>%
-#                           dplyr::select(  year = YEAR, 
-#                                           majorStatArea = MAJOR_STAT_AREA_CODE,
-#                                           gearType = GEAR,
-#                                           specName,
-#                                           specCode = SPECIES_CODE,
-#                                           landedWt,
-#                                           discardWt,
-#                                           discardPc )
-
-# catchSpecies <- catchAreaFleetSpecies %>%
-#                 group_by(specName, year) %>%
-#                 summarise( katch = sum(landedWt + discardWt) )
-
-# plotCatch( df = catchAreaFleetSpecies )
 

@@ -90,6 +90,7 @@ commSpecNames <- c( Dover = "dover-sole",
                     Arrowtooth = "arrowtooth-flounder" )
 
 
+
 # Plots that we want to make - and may not
 # need to reinvent the code for...
 # 1. Catch and indices - how to plot comm CPUE?
@@ -100,13 +101,13 @@ relBioList_Survey <- lapply(  X = survSpecNames,
                               survIDs = surveyIDs,
                               stratArea = stratData )
 names(relBioList_Survey) <- names(survSpecNames)
-save(relBioList_Survey, file = "./Data/surveyBio.RData")
+save(relBioList_Survey, file = "./Data/Proc/surveyBio.RData")
 
 commCPUEList <- lapply( X = commSpecNames,
                         FUN = readCommCPUE,
                         stocks = stocksCommCPUE )
 names(commCPUEList) <- names(commSpecNames)
-save(commCPUEList, file = "./Data/commCPUE.RData")
+save(commCPUEList, file = "./Data/Proc/commCPUE.RData")
 
 # Plot stock indices
 plotIndices(save = TRUE)
@@ -124,24 +125,24 @@ names(bioData) <- names(commSpecNames)
 lenAge <- lapply( X = bioData, FUN = makeLenAge, stocks = names(stocksCommBio) )
 names(lenAge) <- names(commSpecNames)
 # Save data out
-save(lenAge, file = "./Data/lenAge.RData")
+save(lenAge, file = "./Data/Proc/lenAge.RData")
 plotLenAge(save = TRUE)
 
 # 3. Length/wt plots - stock and sex
 wtLen <- lapply( X = bioData, FUN = makeWtLen, stocks = names(stocksCommBio))
 names(wtLen) <- names(commSpecNames)
 # Save data out
-save(wtLen, file = "./Data/wtLen.RData")
+save(wtLen, file = "./Data/Proc/wtLen.RData")
 plotWtLen(save = TRUE)
 
 # 4. Catch and discards - Species and area
-catchData <- read.csv(  "./Data/catch_by_maj.csv", header = TRUE,
+catchData <- read.csv(  "./Data/Raw/catch_by_maj.csv", header = TRUE,
                         stringsAsFactors = FALSE )
 plotCatch(save = TRUE)
 
 # 5a. Age compositions by fleet, stock, and species - spit out comp data array
 ageComps <- lapply( X = bioData, FUN = makeAgeComps )
-save(ageComps, file = "./Data/ageComps.RData")
+save(ageComps, file = "./Data/Proc/ageComps.RData")
 # plotAgeComps()
 
 # 5b. length compositions by fleet, stock, and species - spit out comp data array

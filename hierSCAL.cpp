@@ -365,6 +365,7 @@ Type objective_function<Type>::operator() ()
   DATA_SCALAR(lambdaBaranovStep);       // fractional step size for Newton-Rhapson Baranov iteration
   DATA_ARRAY(calcStockGrowth);          // Switch for calculating stock-specific growth parameters
   // DATA_STRING(recruitVariance);         // Character-switch for recruitment variance model
+  // DATA_INTEGER(debugMode);              // Turn on debug mode (will return more in the report object and calculate quantities)
 
   // Fixed values
   DATA_IVECTOR(A1_s);                   // Age at which L1_s is estimated
@@ -963,6 +964,7 @@ Type objective_function<Type>::operator() ()
   array<Type> vB_spft(nS,nP,nF,nT);
   array<Type> sel_aspfxt(nA,nS,nP,nF,nX,nT);
   array<Type> J_spft(nS,nP,nF,nT);
+  array<Type> U_spft(nS,nP,nF,nT);
 
   B_aspxt.setZero();
   B_spxt.setZero();
@@ -1084,6 +1086,9 @@ Type objective_function<Type>::operator() ()
     array<Type> tmpF_spf(nS,nP,nF);
     tmpF_spf = F_spft.col(t);
 
+    // Switch Baranov solver to return predicted catch
+    // Cw_aspftx
+
     // Apply Baranov solver
     J_spft.col(t) = solveBaranov_spf( nBaranovIter,
                                       lambdaBaranovStep,
@@ -1118,14 +1123,16 @@ Type objective_function<Type>::operator() ()
               Cw_aspftx(a,s,p,f,t,x) = C_aspftx(a,s,p,f,t,x) * meanWtAge_aspx(a,s,p,x);
               // Generate predicted total catch in weight and numbers
               predCw_spft(s,p,f,t) += Cw_aspftx(a,s,p,f,t,x);
-              predC_spft(s,p,f,t) += C_aspftx(a,s,p,f,t,x);
+              predC_spft(s,p,f,t)  += C_aspftx(a,s,p,f,t,x);
 
             }
+          
         }
 
   }
 
- 
+  // Compute exploitation rate
+  U_spft = predCw_spft / vB_spft;
 
   
   // --------- Observation Model --------- //
@@ -1446,7 +1453,14 @@ Type objective_function<Type>::operator() ()
       for( int f = 0; f < nF; f++ )
       {
         if( regFfleets(f) > 0)
-          Fnlp -= dnorm(Fbar_spf(s,p,f), mF, sdF, true);
+        {
+          vector<Type> Fvec(nT);
+          vector<Type> Uvec(nT);
+          Fvec = F_spft.rotate(1).col(f).col(p).col(s);
+          Uvec = U_spft.rotate(1).col(f).col(p).col(s);
+          // Penalize deviations of F from exploitation rate.
+          Fnlp -= dnorm(Fvec, Uvec, sdF, true).sum();
+        }
         // Penalise fleet specific catchabilities if
         // they are a calculated index
         // Synoptic survey
@@ -1804,6 +1818,7 @@ Type objective_function<Type>::operator() ()
   REPORT( nResidsLen_spf );
   REPORT( nObsLen_spf );
   REPORT( tau2Len_spf );
+  REPORT( Fnlp );
   REPORT( lenRes_lspftx );
   REPORT( steepnessnlp_sp );
   REPORT( steepnessnlp_s );

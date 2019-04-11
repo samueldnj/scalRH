@@ -1,0 +1,489 @@
+---  
+title: "Species data report for hierSCAL model inputs"
+geometry: letterpaper
+nocaption: false
+header-includes:
+- \usepackage{booktabs}
+- \usepackage{longtable}
+- \usepackage{array}
+- \usepackage{multirow}
+- \usepackage[table]{xcolor}
+- \usepackage{wrapfig}
+- \usepackage{float}
+- \usepackage{colortbl}
+- \usepackage{pdflscape}
+- \usepackage{tabu}
+- \usepackage{threeparttable}
+- \usepackage{threeparttablex}
+- \usepackage[normalem]{ulem}
+- \usepackage{makecell}
+- \usepackage{caption}
+- \usepackage{pdflscape}
+- \newcommand{\blandscape}{\begin{landscape}}
+- \newcommand{\elandscape}{\end{landscape}}
+always_allow_html: yes
+params:
+  species: Arrowtooth
+  fYear: 1954
+  lYear: 2018
+  lowL: 20
+  hiL: 22
+  rootDir: "~/Work/code/models/stockAssessment/multispecies/hierSCAL/Data/Raw"
+  pathToData: "."
+output: 
+  pdf_document:
+    keep_tex: true
+    fig_caption: true
+    latex_engine: pdflatex
+    template: ~/Work/write/templates/tex/TandF.latex
+  html_document:
+    self_contained: true
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    df_print: kable
+    keep_md: false
+  word_document:
+    df_print: kable
+    reference_docx: /Users/sdnjohnson/Work/write/templates/docx/basic.docx
+  bookdown::pdf_document2:
+    keep_tex: true
+    fig_caption: true
+    latex_engine: pdflatex
+    template: ~/Work/write/templates/tex/TandF.latex
+    fig_width: 7
+    fig_height: 6
+  bookdown::html_document2:
+    self_contained: true
+    df_print: kable
+    keep_md: false
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    number_sections: false
+  bookdown::word_document2:
+    df_print: kable
+    reference_docx: /Users/sdnjohnson/Work/write/templates/docx/basic.docx
+---
+
+# Full Data Sets
+
+```{r, setup, message=FALSE, warning=FALSE, include=FALSE}
+knitr::opts_chunk$set(  fig.pos = 'p' ) # Places figures on their own pages
+knitr::opts_chunk$set(  out.width = '100%', dpi=300, 
+                        root.dir = params$rootDir )
+
+
+# I usually load my libraries up front to keep things organized
+library(bookdown)
+library(knitr)
+library(kableExtra)
+library(dplyr)
+library(stringr)
+library(PBSmapping)
+library(tidyverse)
+library( ggmap )
+library( maptools )
+library( rgdal )
+library( PBSmapping ) 
+library( RColorBrewer )
+library( RgoogleMaps)
+library( sp )
+library( raster )
+library( MASS )
+library( psyphy )
+library( boot )
+library( RCurl )
+library( scales )
+library( rgeos )
+library( ggridges )
+library( ggsidekick )
+
+opts_chunk$set( message = FALSE, warning = FALSE )
+
+
+species <- params$species
+
+# Load shape file data
+data(nepacLL)
+
+source("../../mseRtools.r")
+source("../../DERPAfuns.R")
+
+loadStockSpecNameLists()
+loadCRS()
+
+
+# Read in strata areas
+stratData <- read.csv( "../derpa_strata.csv", header=T )
+stratData <-  stratData %>%
+              dplyr::select( GROUPING_CODE, AREA_KM2, MIN_DEPTH, MAX_DEPTH )
+
+# Get blocks for synoptic surveys
+surveys     <- c("HS", "QCS", "WCHG", "WCVI")
+shapeFiles  <- paste(surveys,"_Synoptic_Survey_Active_Blocks",sep = "")
+shapePath   <- file.path("../ShapeFiles/SynSurveyBlocks")
+
+# Load grids in a list
+grids <- lapply(X = shapeFiles, FUN = openShapeFile, path = shapePath)
+names(grids) <- surveys
+
+```
+
+This report is for quick views of the available fishery independent survey and commercial fishery dependent data for `r species`. We're also gonna look at how the indices and age/length comps change with the removal of blocks containing fish below a given length, on average, ranging from `r params$lowL` to `r params$hiL`.
+
+So, let's load all the data and make some basic data plots.
+
+## Indices
+
+### Survey
+
+Survey relative (swept area) biomass indices.
+
+```{r, surveyIdxCaption, include = FALSE }
+
+fullIdxCaption <- paste("Survey biomass indices for ", species, ", standardised by their geometric means, with unstandardised values calculated using the full block design for the Synoptic surveys and the full strata area for the HS Assemblage survey", sep = "")
+```
+
+```{r, readSurveyIndices, fig.cap = fullIdxCaption }
+
+relBioList <- makeRelBioStocks( spec = survSpecNames[species],
+                                pathToData = params$pathToData,
+                                years = c(params$fYear, params$lYear), 
+                                stocks = stocksSurvey,
+                                survIDs = surveyIDs,
+                                stratArea = stratData,
+                                grids = grids,
+                                filterSurvey = FALSE )
+
+relBiodf <- relBioList$relBio.df %>%
+            group_by( surveyName ) %>%
+            mutate( stdRelBio = exp( log(relBio_Kt) - mean(log(relBio_Kt)) ) )
+
+
+ggplot( data = relBiodf,
+        aes(x = year, y = stdRelBio,
+              group = surveyName,
+              colour = surveyName ) ) +
+  geom_line() +
+  geom_point() +
+  theme_sleek() +
+  facet_grid( stockName ~ . )
+
+```
+
+### Commercial
+
+Commercial trawl catch per unit of effort (CPUE) indices
+
+```{r, commCPUEcaption, include = FALSE}
+
+commCPUEcap <- paste("Trawl fishery biomass indices for ", species, ", standardised by their geometric means. The comm.hist fleet is from 1954 - 1995, while the comm.mod fleet is from 1996 - 2018", sep = "")
+
+```
+
+```{r, commCPUEplot, fig.cap = commCPUEcap, fig.cap = commCPUEcap }
+
+commCPUE <- readCommCPUE( commSpecNames[species],
+                          stocks = stocksCommCPUE,
+                          pathToData = params$pathToData )
+
+
+commCPUE.df <- commCPUE$cpue.df %>%
+                filter( version == "Full standardization") %>%
+                group_by(period, stockName) %>%
+                mutate( stdCPUE = exp( est_link - mean(est_link)) ) %>%
+                ungroup()
+
+ggplot( data = commCPUE.df, aes(  x = year, 
+                                  y = stdCPUE,
+                                  group = period,
+                                  colour = period ) ) +
+  geom_line() +
+  geom_point() +
+  theme_sleek() +
+  facet_grid(  stockName ~ . )
+
+
+```
+
+## Biological data
+
+Read in biological data
+```{r, readBioData }
+
+bioData <- readBioData( specName = survSpecNames[species],
+                        stocksSurv = stocksSurvey,
+                        stocksComm = stocksCommBio,
+                        years = c(params$fYear,params$lYear),
+                        pathToData = params$pathToData )
+
+```
+
+There's a commercial and survey component. It would be nice to plot them
+both together.
+
+### Age compositions
+
+```{r, compDataCaptions, include = FALSE}
+
+ageCompCaptions <- paste("Age composition densities for ", species, ".", sep = "")
+lenCompCaptions <- paste("Length composition densities for ", species, ".", sep = "")
+
+```
+
+Plot age compositions from all fleets as ridgeline plots.
+
+```{r, plotFullAgeComps, fig.cap = ageCompCaptions }
+
+bioDataSurv <- bioData$survey %>%
+                dplyr::select(  year = YEAR,
+                                fleet = surveyName,
+                                stock = stockName,
+                                age = AGE,
+                                length = LENGTH_MM ) %>%
+                mutate( length = round(length/10))
+bioDataComm <- bioData$comm %>%
+                dplyr::select(  year = YEAR,
+                                stock = stockName,
+                                age = AGE,
+                                length = LENGTH_MM ) %>%
+                mutate( length = round(length/10),
+                        fleet = "comm" )
+
+# Save a copy of the bio data for later
+fullBioData <- rbind(bioDataSurv, bioDataComm)
+
+# Make age comps
+fullAgeComps <- fullBioData %>%
+                group_by( year, fleet, stock, age ) %>%
+                summarise( nAge = n() ) %>%
+                ungroup() %>%
+                group_by( year, fleet, stock ) %>%
+                mutate( pAge = nAge / sum(nAge) ) %>%
+                ungroup()
+
+yrRange <- range(fullAgeComps$year, na.rm = TRUE)
+
+# Need to combine together and plot as densities
+ggplot( data = fullAgeComps, 
+        aes(  x = age, 
+              y = year, 
+              height = pAge,
+              fill = fleet,
+              group = year ),
+        alpha = .2 ) +
+  geom_ridgeline( stat = "identity", scale = 20) +
+  facet_grid(. ~ fleet ) +
+  ylim( yrRange ) +
+  theme_sleek()
+
+
+```
+
+### Length compositions
+
+```{r, plotFullLenComps, fig.cap = lenCompCaptions }
+
+# Make age comps
+fullLenComps <- fullBioData %>%
+                group_by( year, fleet, stock, length ) %>%
+                summarise( nLen = n() ) %>%
+                ungroup() %>%
+                group_by( year, fleet, stock ) %>%
+                mutate( pLen = nLen / sum(nLen) ) %>%
+                ungroup()
+
+yrRange <- range(fullLenComps$year, na.rm = TRUE)
+
+# Need to combine together and plot as densities
+ggplot( data = fullLenComps, 
+        aes(  x = length, 
+              y = year, 
+              height = pLen,
+              fill = fleet,
+              group = year ),
+        alpha = .2 ) +
+  geom_ridgeline( stat = "identity", scale = 20) +
+  facet_grid(. ~ fleet ) +
+  ylim(yrRange) +
+  theme_sleek()
+
+
+```
+
+
+### Maturity
+
+**UNDER CONSTRUCTION**
+
+### Weight-at-length
+
+**UNDER CONSTRUCTION**
+
+### Length-at-age
+
+**UNDER CONSTRUCTION**
+
+# Removing small fish from the survey
+
+First, let's pick a range of lengths to test. Then we're going to generate new subsets of survey biological data, and survey indices, based on those removals
+
+```{r, makeRemSmallList, warning = FALSE, message = FALSE, cache = FALSE }
+
+# Pick a large range to start with
+lengthRange <- seq(from = params$lowL, to = params$hiL, by = 1 )
+
+# The removeSmallFish function automates the process,
+# see DERPAfuns.R for its definition
+
+lenRangeList <- lapply( X = lengthRange, FUN = removeSmallFish,
+                        species = survSpecNames[species],
+                        pathToData = params$pathToData,
+                        stratAreas = stratData,
+                        blocks = grids,
+                        years = c(params$fYear, params$lYear), 
+                        stocks = stocksSurvey,
+                        survIDs = surveyIDs,
+                        save = FALSE  )
+
+densDataList  <- vector(mode = "list", length = length(lengthRange))
+bioDataList   <- vector(mode = "list", length = length(lengthRange))
+
+# Now loop and fill the density and biodata lists, adding a minL column 
+# to both tabless
+for( lIdx in 1:length(lengthRange) )
+{
+  minL <- lengthRange[lIdx]
+
+  newDens <- lenRangeList[[lIdx]]$newDensity %>%
+              mutate(minL = minL)
+
+  newBio  <- lenRangeList[[lIdx]]$newBio %>%
+              mutate(minL = minL)
+
+
+  densDataList[[lIdx]] <- newDens
+  bioDataList[[lIdx]]  <- newBio
+}
+
+```
+
+
+## Indices
+
+So, let's plot the indices in a grid plot. We'll standardise each index by
+its geometric mean, and plot each fleet's index in a separate plot. The colours 
+of each series indicate the minimum average length for a block/set to 
+be included in the survey. Blocks are removed from the Synoptic survey, and
+sets are removed from the HSAss survey. I'll add some exploration to the bottom
+of this document for adjusting the HSAss survey index without removing
+blocks.
+
+```{r, idxPlotCap, include = FALSE}
+
+idxPlotCaption <- paste( "Plots of survey biomass indices for ",
+                          species, " with blocks/sets removed when average lengths fall below a minimum length, ranging from ",
+                          params$lowL, " to ", params$hiL,", represented by the colour of the line." )
+
+```
+
+```{r, plotIndices, warning = FALSE, message = FALSE, fig.cap = idxPlotCaption}
+
+densData <- do.call(rbind, densDataList) %>%
+            group_by( surveyName, minL ) %>%
+            mutate( logRelBio = log(relBio),
+                    stdRelBio = exp(logRelBio - mean(logRelBio)) ) %>%
+            ungroup()
+
+ggplot( data = densData, aes( x = YEAR, y = stdRelBio, group = minL,
+                              color = minL ) ) +
+  geom_point() +
+  geom_line() +
+  facet_grid(surveyName ~ . ) +
+  theme_sleek()
+
+```
+
+
+
+## Biological data
+
+We also want to see how the age and length compositions change as we remove the
+blocks with smaller fish. I think ridgeline plots might do this.
+
+### Length comps
+
+```{r, lengthPlotCap, include = FALSE}
+
+lengthPlotCaption <- paste( "Plots of average length compositions for ",
+                          species, " with blocks/sets removed when average lengths fall below a minimum length, ranging from ",
+                          params$lowL, " to ", params$hiL,", represented by the colour of the line." )
+
+```
+
+```{r, plotRemSmallLengthComps, warning = FALSE, message = FALSE, fig.cap = lengthPlotCaption}
+
+lenComps <- do.call(rbind, bioDataList) %>%
+            filter( !is.na(LENGTH_MM) ) %>%
+            mutate( length = round(LENGTH_MM/10)) %>%
+            group_by( surveyName, minL, length ) %>%
+            summarise( nLen = n() ) %>%
+            ungroup() %>%
+            group_by(surveyName,minL) %>%
+            mutate( pLen = nLen / sum(nLen) ) %>%
+            ungroup()
+
+
+ggplot( data = lenComps,
+        aes(  x = length, y = minL, 
+              height = pLen, 
+              group = minL,
+              fill = minL ),
+        alpha = .2 ) +
+  geom_ridgeline( stat = "identity", scale = 20) +
+  facet_grid(. ~ surveyName ) +
+  theme_sleek()
+
+
+```
+
+
+### Age comps
+
+```{r, agePlotCap, include = FALSE}
+
+agePlotCaption <- paste( "Plots of average age compositions for ",
+                          species, " with blocks/sets removed when average lengths fall below a minimum length, ranging from ",
+                          params$lowL, " to ", params$hiL,", represented by the colour of the line." )
+
+```
+
+```{r, plotRemSmallAgeComps, warning = FALSE, message = FALSE, fig.cap = lengthPlotCaption}
+
+ageComps <- do.call(rbind, bioDataList) %>%
+            filter( !is.na(AGE) ) %>%
+            group_by( surveyName, minL, AGE ) %>%
+            summarise( nAge = n() ) %>%
+            ungroup() %>%
+            group_by(surveyName,minL) %>%
+            mutate( pAge = nAge / sum(nAge) ) %>%
+            ungroup()
+
+
+ggplot( data = ageComps,
+        aes(  x = AGE, y = minL, 
+              height = pAge, 
+              group = minL,
+              fill = minL),
+              alpha = .2 ) +
+  geom_ridgeline( stat = "identity", scale = 20) +
+  facet_grid(. ~ surveyName ) +
+  theme_sleek()
+
+
+```
+
+
+
+

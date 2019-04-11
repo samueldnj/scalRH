@@ -225,12 +225,12 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
 
   # Load index data
   idxDataFiles <- dataObj$idxFiles
-  idxDataFilePaths <- file.path("./Data",idxDataFiles )
+  idxDataFilePaths <- file.path("./Data/Proc",idxDataFiles )
   for( i in 1:length(idxDataFilePaths))
     load( idxDataFilePaths[i] )
 
   # Update makeIndexArray to use the commFleetYrRange vector
-  I_spft <- makeIndexArray( relBio = relBioList_Survey,
+  I_spft <- makeIndexArray( relBio = relBioList,
                             commCPUE = commCPUEList,
                             nP = length(allStocks), years = fYear:lYear,
                             collapseComm = FALSE,
@@ -251,11 +251,11 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
           minTimeIdx_spf[sIdx,pIdx,fIdx] <- min(which(I_spft[sIdx,pIdx,fIdx,]>0)) - 1
 
   # Load catch data
-  commCatch <- read.csv(  file.path("./Data/",dataObj$catchData["comm"]), 
+  commCatch <- read.csv(  file.path("./Data/Raw/",dataObj$catchData["comm"]), 
                           header = TRUE,
                           stringsAsFactors = FALSE )
 
-  survCatchPath  <- file.path("./Data",dataObj$catchData["survey"])
+  survCatchPath  <- file.path("./Data/Proc",dataObj$catchData["survey"])
   load(  file = survCatchPath )
 
   # Update makeCatchDiscArrays to use the commFleetYrRange vector
@@ -302,19 +302,13 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   # to inform the vonB model in the
   # assessment
   growthFiles <- dataObj$growthFiles
-  growthFilePaths <- file.path("./Data",growthFiles )
+  growthFilePaths <- file.path("./Data/Proc",growthFiles )
   for( i in 1:length(growthFiles))
     load(growthFilePaths[i])
 
-  # Either use modeled uncertainty in growth or fixed CV
-  if( hypoObj$sigmaL == "Model" )
-  {
-    sigmaLa_s <- vonBFits$sigA_s[useSpecIdx]
-    sigmaLb_s <- vonBFits$sigB_s[useSpecIdx]
-  } else {
-    sigmaLa_s = rep(hypoObj$sigmaL,nS)
-    sigmaLb_s = rep(0,nS)
-  }
+  # Set growth CV ~ length coefficients
+  sigmaLa_s = rep(hypoObj$sigmaL,nS)
+  sigmaLb_s = rep(0,nS)
 
   # Make the age-length key - this might be useful,
   # or we can include it so we can integrate a growth
@@ -335,8 +329,8 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
 
 
   # Load age and length compositions
-  load(file.path("./Data",dataObj$ageData))
-  load(file.path("./Data",dataObj$lenData))
+  load(file.path("./Data/Proc",dataObj$ageData))
+  load(file.path("./Data/Proc",dataObj$lenData))
 
   # Create compositional arrays
   age_aspftx <- makeCompsArray(  compList = ageComps,
@@ -363,7 +357,7 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   nX <- 2
 
   # Combine sexes if not sex structured
-  if(!dataObj$sexStructured)
+  if( dataObj$sexStructure == "Combined")
   {
     ALFreq_spalftx <- ALFreq_spalftx[,,,,,,1,drop = FALSE] + ALFreq_spalftx[,,,,,,2,drop = FALSE]
     dimnames(ALFreq_spalftx)[[7]] <- "both"
@@ -372,6 +366,15 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
     len_lspftx <- len_lspftx[,,,,,1,drop = FALSE] + len_lspftx[,,,,,2,drop = FALSE] 
     dimnames(len_lspftx)[[6]] <- "both"
 
+    nX <- 1
+  }
+
+  # Pare down to female only
+  if( dataObj$sexStructure == "Female")
+  {
+    ALFreq_spalftx <- ALFreq_spalftx[,,,,,,2,drop = FALSE]
+    age_aspftx <- age_aspftx[,,,,,2,drop = FALSE] 
+    len_lspftx <- len_lspftx[,,,,,2,drop = FALSE]
     nX <- 1
   }
 
@@ -442,7 +445,8 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   regFfleets[ useFleets %in% hypoObj$regFfleets ] <- 1 
 
   # Load maturity ogives
-  load(file.path("./Data",dataObj$matFiles))
+  matOgives <- read.csv(file.path("./Data/Proc",dataObj$matFiles))
+  wtLen     <- read.csv(file.path("./Data/Proc",dataObj$wtLen))
 
   # Get growth and maturity info
   # Vectors to hold
@@ -453,32 +457,23 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   LWa_s <- numeric(length = nS)
   LWb_s <- numeric(length = nS)
 
-  matOgives <- matOgives[useSpecies]
-
   for( sIdx in 1:nS )
   {
     specName <- useSpecies[sIdx]
     if( hypoObj$matX == "length")
     {
-      xMat50[sIdx] <- matOgives[[specName]]$coastWide$all$length$x50
-      xMat95[sIdx] <- matOgives[[specName]]$coastWide$all$length$x95
+      xMat50[sIdx] <- matOgives[matOgives$Species == specName,"l50"]
+      xMat95[sIdx] <- matOgives[matOgives$Species == specName,"l95"]
     }
     if(hypoObj$matX == "age")
     {
-      xMat50[sIdx] <- matOgives[[specName]]$coastWide$all$age$x50
-      xMat95[sIdx] <- matOgives[[specName]]$coastWide$all$age$x95
+      xMat50[sIdx] <- matOgives[matOgives$Species == specName,"a50"]
+      xMat95[sIdx] <- matOgives[matOgives$Species == specName,"a95"]
     }
 
-    LWa_s[sIdx] <- exp(coef(wtLen[[specName]]$wtLen$coastWide$wtLenAll)[1])
-    LWb_s[sIdx] <- coef(wtLen[[specName]]$wtLen$coastWide$wtLenAll)[2]
+    LWa_s[sIdx] <- wtLen[wtLen$Species == specName, 'lw.a']
+    LWb_s[sIdx] <- wtLen[wtLen$Species == specName, 'lw.b']
   }
-
-  matOgives <- NULL
-  wtLen <- NULL
-  gc()
-  
-  # Count number of free F parameters
-  nPosCatch <- length(which(C_spft > 0) )
 
   # Initialised in a fished state (0 == unfished, 1 == fished)
   initFished_s     <- hypoObj$initFished[useSpecies]
@@ -999,7 +994,7 @@ TMBphase <- function( data,
 
     
     if( phase_cur %in% regFPhases )
-      data$regFfleets <- data$regFfleets
+      data$regFfleets <- regFfleets
     else data$regFfleets <- rep(0,length(data$regFfleets))
   
     #remove the random effects if they are not estimated

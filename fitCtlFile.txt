@@ -29,10 +29,10 @@ data$fYearData 1954
 data$lYearData 2016
 data$fYearIdx 1954
 data$lYearIdx 2016
-data$sexStructured TRUE
+data$sexStructure "Explicit"
 data$idxFleets c("comm.hist","comm.mod","HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
-#data$species c("Dover","English","Rock","Petrale","Arrowtooth")
-data$species c("English")
+data$species c("Dover","English","Rock","Petrale","Arrowtooth")
+#data$species c("English")
 data$stocks c("HSHG","QCS","WCVI")
 data$idxFiles c("surveyBio.RData","commCPUE.RData")
 data$catchData c(survey="surveyCatch.RData",comm="catch_by_maj.csv")
@@ -41,8 +41,9 @@ data$ageData c("ageComps.RData")
 data$lenData c("lenComps.RData")
 data$growthFleets c("HSAss","HSSyn","QCSSyn","WCVISyn","WCHGSyn")
 data$posPenFactor 1e4
-data$matFiles c("matOgives.RData")
-data$growthFiles c(len="lenAge.RData",wt="wtLen.RData",vB="vBFits.RData",alFreq="ALfreq.RData")
+data$matFiles c("matAgeLen.csv")
+data$wtLenFile c("wtLen.csv")
+data$growthFiles c(alFreq="ALfreq.RData")
 data$commCPUEscalar 1e2
 data$idxLikeWt 1
 data$ageLikeWt 1
@@ -72,9 +73,9 @@ hypo$mq .5
 hypo$sdq 1
 hypo$tauqSyn .7
 hypo$regFfleets c("comm.hist","comm.mod")
-hypo$regFPhases c(4:12) 
+hypo$regFPhases c(4:12)
 hypo$mF .2
-hypo$sdF 1e-2
+hypo$sdF 1.0
 hypo$mM 0.3
 hypo$sdM 0.05
 hypo$yFirstRecDev c(Dover=1955,English=1955,Rock=1955,Petrale=1955,Arrowtooth=1955)
