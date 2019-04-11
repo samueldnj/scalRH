@@ -22,7 +22,7 @@ data$survNames_g c("HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
 data$nA_s c(Dover=40,English=20,Rock=25,Petrale=25,Arrowtooth=25)
 data$minA_s c(Dover=2,English=2,Rock=2,Petrale=2,Arrowtooth=2)
 data$nL_s c(Dover=80,English=55,Rock=65,Petrale=75,Arrowtooth=85)
-data$minL_s c(Dover=10,English=10,Rock=10,Petrale=10,Arrowtooth=30)
+data$minL_s c(Dover=10,English=10,Rock=10,Petrale=10,Arrowtooth=10)
 data$A1_s c(Dover=3,English=3,Rock=2,Petrale=2,Arrowtooth=2)
 data$A2_s c(Dover=25,English=10,Rock=20,Petrale=15,Arrowtooth=17)
 data$fYearData 1954
@@ -39,7 +39,7 @@ data$catchData c(survey="surveyCatch.RData",comm="catch_by_maj.csv")
 data$modelDisc FALSE
 data$ageData c("ageComps.RData")
 data$lenData c("lenComps.RData")
-data$growthFleets c("HSAss","HSSyn","QCSSyn","WCVISyn","WCHGSyn")
+data$growthFleets c("comm.hist","comm.mod","HSAss","HSSyn","QCSSyn","WCVISyn","WCHGSyn")
 data$posPenFactor 1e4
 data$matFiles c("matAgeLen.csv")
 data$wtLenFile c("wtLen.csv")
@@ -67,7 +67,7 @@ hypo$sigmaSelDevs 0.1
 hypo$cvxSel 0.05
 hypo$initFished c(Dover=0,English=1,Rock=1,Petrale=1,Arrowtooth=0)
 hypo$tvqFleets c("comm.hist","comm.mod","HSAss")
-hypo$tvq FALSE
+hypo$tvq TRUE
 hypo$sigmaqdevs .2
 hypo$mq .5
 hypo$sdq 1
