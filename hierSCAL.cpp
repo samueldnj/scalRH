@@ -602,8 +602,8 @@ Type objective_function<Type>::operator() ()
   for( int pIdx = 0; pIdx < nP; pIdx++ )
   {
     B0_sp.col(pIdx)      = exp(lnB0_sp.col(pIdx));
-    h_sp.col(pIdx)       = .2 + 0.8 / ( Type(1.0) + exp( -1 * (logitSteep + sigmah * epsSteep_s + sigmah_s * epsSteep_sp.col(pIdx) ) ) );
-    M_sp.col(pIdx)       = exp(lnM) * exp(sigmaM * epsM_s) * exp(sigmaM_s * epsM_sp.col(pIdx) );
+    h_sp.col(pIdx)       = .2 + 0.78 / ( Type(1.0) + exp( -1 * (logitSteep + sigmah * epsSteep_s + sigmah_s * epsSteep_sp.col(pIdx) ) ) );
+    M_sp.col(pIdx)       = exp(lnM) * exp( sigmaM * epsM_s + sigmaM_s * epsM_sp.col(pIdx) );
     L1_sp.col(pIdx)      = L1_s;
     L2_sp.col(pIdx)      = L2_s * exp(sigmaL2_s * deltaL2_sp.col(pIdx));
     vonK_sp.col(pIdx)    = vonK_s * exp(sigmavonK_s * deltaVonK_sp.col(pIdx));

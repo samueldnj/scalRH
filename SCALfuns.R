@@ -1137,11 +1137,7 @@ TMBphase <- function( data,
                               random = NULL,
                               DLL = DLL_use,
                               map = map_use,
-                              silent = silent )  
-
-      browser()
-
-
+                              silent = silent ) 
       mcmc <- tmbstan(  obj, 
                         init = "last.par.best", 
                         iter = mcChainLength,

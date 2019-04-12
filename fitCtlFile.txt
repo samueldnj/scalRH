@@ -11,7 +11,7 @@ ctrl$calcSD FALSE
 ctrl$calcRefPts TRUE
 ctrl$plots FALSE
 ctrl$parBen TRUE
-ctrl$intMethod "phaseMCMC"
+ctrl$intMethod "None"
 ctrl$mcChainLength 200
 ctrl$mcChains 1
 ctrl$nBaranovIter 6
@@ -92,8 +92,8 @@ hypo$fleetGroups list(comm=c("comm.hist","comm.mod"),Ass=c("HSAss"),Syn=c("WCHGS
 hypo$RE c("omegaR_vec","omegaRinit_vec")
 hypo$sigmaL2 .2
 hypo$sigmavonK .2
-phases$lnB0_sp 5
-phases$logitSteep 4
+phases$lnB0_sp 2
+phases$logitSteep 3
 phases$lnM 3
 phases$lnL2step_s 5
 phases$lnvonK_s 5
@@ -112,7 +112,7 @@ phases$epsxSel50_spf 8
 phases$epsxSelStep_spf 8
 phases$epsxSel50_vec 12
 phases$epsxSelStep_vec 12
-phases$omegaR_vec 10
+phases$omegaR_vec 3
 phases$omegaRinit_vec 10
 phases$muxSel50_sg -1
 phases$muxSel95_sg -1
@@ -122,7 +122,7 @@ phases$lnqbarSyn_s -1
 phases$lntauqSyn_s -1
 phases$lnqbarSyn -1
 phases$lntauqSyn -1
-phases$lntauObs_spf 2
+phases$lntauObs_spf 10
 phases$epsSteep_s 10
 phases$epsM_s 10
 phases$epsSteep_sp 11
