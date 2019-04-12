@@ -209,7 +209,7 @@ array<Type> solveBaranov_spf( int   nIter,
   array<Type> newZ_aspx(nA,nS,nP,nX);       // Updated Z
   array<Type> tmpZ_aspx(nA,nS,nP,nX);       // Updated Z
   array<Type> tmp_spf(nS,nP,nF);            // predicted catch given F
-  array<Type> tmp_axspf(nA,nX,nS,nP,nF);    // predicted catch-at-age/sex given F
+  array<Type> tmp_xaspf(nX,nA,nS,nP,nF);    // predicted catch-at-age/sex given F
   array<Type> F_aspfx(nA,nS,nP,nF,nX);      // Fishing mortality at age/sex
 
   F_aspfx.setZero();
@@ -218,7 +218,7 @@ array<Type> solveBaranov_spf( int   nIter,
   f_spf.setZero();
   J_spf.setZero();
   tmp_spf.setZero();
-  tmp_axspf.setZero();
+  tmp_xaspf.setZero();
 
 
   
@@ -267,8 +267,10 @@ array<Type> solveBaranov_spf( int   nIter,
 
             for(int f = 0; f < nF; f++ )  
             {             
-              tmp_spf(s,p,f) += B_aspx(a,s,p,x) * (1 - exp(-newZ_aspx(a,s,p,x)) ) * sel_aspfx(a,s,p,f,x) *  F_spf(s,p,f) / newZ_aspx(a,s,p,x);
+              tmp_xaspf(x,a,s,p,f) += B_aspx(a,s,p,x) * (1 - exp(-newZ_aspx(a,s,p,x)) ) * sel_aspfx(a,s,p,f,x) *  F_spf(s,p,f) / newZ_aspx(a,s,p,x);
+              tmp_spf(s,p,f) += tmp_xaspf(x,a,s,p,f);
 
+              // Calculate jacobian
               Type tmpJ1  = vB_aspfx(a,s,p,f,x) / newZ_aspx(a,s,p,x);
               Type tmpJ2  = F_spf(s,p,f) * sel_aspfx(a,s,p,f,x) * exp( - newZ_aspx(a,s,p,x));
               Type tmpJ3  = (1 - exp( -newZ_aspx(a,s,p,x)));
@@ -304,7 +306,7 @@ array<Type> solveBaranov_spf( int   nIter,
   // Now save the tmpZ_aspx array out to the Z_aspx input
   Z_aspx = newZ_aspx;
 
-  return( J_spf );
+  return( tmp_xaspf );
 
 }  // end solveBaranov_spfx()
 
@@ -760,15 +762,20 @@ Type objective_function<Type>::operator() ()
     {
       for( int t = tFirstRecDev_s(s); t <= tLastRecDev_s(s); t++ )
       {
-        omegaR_spt(s,p,t) = -5. + 10. / (1. + exp(-omegaR_vec(devVecIdx)));
+        omegaR_spt(s,p,t) = omegaR_vec(devVecIdx);
         // And fill the matrix of deviations
-        omegaRmat_spt( s*nP + p, t ) = -5. + 10. / (1. + exp(-omegaR_vec(devVecIdx)));
+        omegaRmat_spt( s*nP + p, t ) = sigmaR_sp(s,p) * omegaR_vec(devVecIdx);
+
+        // omegaR_spt(s,p,t) = -5. + 10. / (1. + exp(-omegaR_vec(devVecIdx)));
+        // And fill the matrix of deviations
+        // omegaRmat_spt( s*nP + p, t ) = -5. + 10. / (1. + exp(-omegaR_vec(devVecIdx)));
         devVecIdx++;
       }
       if(swRinit_s(s) == 1)
         for( int a = 0; a < A_s(s); a++ )
         {
-          omegaRinit_asp(a,s,p) = -5. + 10./( 1 + exp(-omegaRinit_vec(initVecIdx) ));
+          omegaRinit_asp(a,s,p) = sigmaR_sp(s,p) * omegaRinit_vec(initVecIdx) ;
+          // omegaRinit_asp(a,s,p) = -5. + 10./( 1 + exp(-omegaRinit_vec(initVecIdx) ));
           initVecIdx++;
         }
     }
@@ -1006,7 +1013,7 @@ Type objective_function<Type>::operator() ()
             // Generate recruitment
             Type SBt = SB_spt(s,p,t-1);
             N_asptx(0,s,p,t,x) = reca_sp(s,p) * SBt / (1 + recb_sp(s,p) * SBt)/nX;
-            N_asptx(0,s,p,t,x) *= exp( omegaR_spt(s,p,t) );
+            N_asptx(0,s,p,t,x) *= exp( omegaR_spt(s,p,t) - 0.5 * pow(sigmaR_sp(s,p),2) );
 
             // Now loop over ages and apply fishing mortality (no discarding yet)
             for( int a = 1; a < A; a ++ )
@@ -1087,21 +1094,18 @@ Type objective_function<Type>::operator() ()
     tmpF_spf = F_spft.col(t);
 
     // Switch Baranov solver to return predicted catch
-    // Cw_aspftx
-
-    // Apply Baranov solver
-    J_spft.col(t) = solveBaranov_spf( nBaranovIter,
-                                      lambdaBaranovStep,
-                                      A_s,
-                                      C_spft.col(t),
-                                      M_spx,
-                                      B_aspxt.col(t),
-                                      vB_aspfxt.col(t),
-                                      vB_spfxt.col(t),
-                                      vB_spft.col(t),
-                                      sel_aspfxt.col(t),
-                                      tmpZ_aspx,
-                                      tmpF_spf);
+    Cw_aspftx.rotate(1).col(t) = solveBaranov_spf(  nBaranovIter,
+                                                    lambdaBaranovStep,
+                                                    A_s,
+                                                    C_spft.col(t),
+                                                    M_spx,
+                                                    B_aspxt.col(t),
+                                                    vB_aspfxt.col(t),
+                                                    vB_spfxt.col(t),
+                                                    vB_spft.col(t),
+                                                    sel_aspfxt.col(t),
+                                                    tmpZ_aspx,
+                                                    tmpF_spf);
 
     Z_aspxt.col(t) += tmpZ_aspx;
     F_spft.col(t)  += tmpF_spf;
@@ -1115,16 +1119,10 @@ Type objective_function<Type>::operator() ()
           for( int x = 0; x < nX; x++ )
             for( int a = 0; a < A_s(s); a++)
             {
-              F_aspftx(a,s,p,f,t,x)   = sel_afsptx(a,f,s,p,t,x) * F_spft(s,p,f,t);
-              C_aspftx(a,s,p,f,t,x)   = N_asptx(a,s,p,t,x);
-              C_aspftx(a,s,p,f,t,x)  *= (1.  - exp( -1. * Z_aspxt(a,s,p,x,t))); 
-              C_aspftx(a,s,p,f,t,x)  *= F_aspftx(a,s,p,f,t,x); 
-              C_aspftx(a,s,p,f,t,x)  /= Z_aspxt(a,s,p,x,t);  
-              Cw_aspftx(a,s,p,f,t,x) = C_aspftx(a,s,p,f,t,x) * meanWtAge_aspx(a,s,p,x);
+              C_aspftx(a,s,p,f,t,x)  = Cw_aspftx(a,s,p,f,t,x) / meanWtAge_aspx(a,s,p,x);  
               // Generate predicted total catch in weight and numbers
               predCw_spft(s,p,f,t) += Cw_aspftx(a,s,p,f,t,x);
               predC_spft(s,p,f,t)  += C_aspftx(a,s,p,f,t,x);
-
             }
           
         }
@@ -1208,20 +1206,9 @@ Type objective_function<Type>::operator() ()
   // Process model likelihood //
   // Recruitment deviations (initial and ongoing) - add correlation later
   // both auto-correlation and between-pop correlation can be added.
-  array<Type> recnll_sp(nS,nP);
-  recnll_sp.setZero();
-  for( int s = 0; s < nS; s++ )
-    for( int p = 0; p < nP; p++ )
-    {
-      // First initialisation deviations  
-      vector<Type> initRecDevVec = omegaRinit_asp.col(p).col(s);
-      recnll_sp(s,p) -= dnorm( initRecDevVec,Type(0), sigmaR_sp(s,p),true).sum();
-
-       // then yearly recruitment deviations
-      for( int t = 0; t < nT; t++)
-        recnll_sp(s,p) -= dnorm( omegaR_spt(s,p,t), Type(0.), sigmaR_sp(s,p),true);
-        
-    }
+  Type recnll = 0;
+  recnll -= dnorm( omegaRinit_vec,Type(0), Type(1), true).sum();
+  recnll -= dnorm( omegaR_vec,Type(0), Type(1), true).sum();
 
   // vonB growth model likelihood //
   // Currently has lengths binned the same as the integration above, 
@@ -1637,7 +1624,6 @@ Type objective_function<Type>::operator() ()
   array<Type> B0nlp_sp(nS,nP);
   B0nlp_sp.setZero();
   B0nlp_sp += lambdaB0 * ( log( B_spt.col(0) ) );
-  B0nlp_sp += lambdaB0 * ( B_spt.col(0) / B0_sp );
     
   
 
@@ -1656,7 +1642,7 @@ Type objective_function<Type>::operator() ()
   f += growthLikeWt * ( L2nlp_p.sum() + vonKnlp_p.sum());
   f += growthLikeWt * ( L2nlp + vonKnlp );
   // Recruitment errors
-  f += recnll_sp.sum();      // recruitment process errors
+  f += recnll;      // recruitment process errors
   // q groups
   f += qnlpSurv + qnlpSyn_s.sum() + qnlpSyn + qnlp_tv;
   
@@ -1713,8 +1699,6 @@ Type objective_function<Type>::operator() ()
   REPORT( B_asptx );
   REPORT( N_asptx );
   REPORT( R_spt );
-  REPORT( F_aspftx );
-  REPORT( Z_aspxt );
   REPORT( C_aspftx );
   REPORT( Cw_aspftx );
   REPORT( predCw_spft );
@@ -1798,7 +1782,7 @@ Type objective_function<Type>::operator() ()
 
   // Likelihood values
   REPORT( joint_nlp );
-  REPORT( recnll_sp );
+  REPORT( recnll );
   REPORT( vonBnll_spf );
   REPORT( CPUEnll_spf );
   REPORT( tau2Obs_spf );

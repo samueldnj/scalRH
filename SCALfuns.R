@@ -639,7 +639,7 @@ rerunPlots <- function( fitID = 1 )
                       age = A2_s[useSpecies],
                       fleets = growthFleets[growthFleets %in% useFleets]  )
 
-  data <- .loadData( ctlList = obj )
+  # data <- .loadData( ctlList = obj )
 
 
 
@@ -974,8 +974,15 @@ TMBphase <- function( data,
 
 
   # Make a data.frame that will hold the phase info
-  fitReport <- matrix(NA, nrow = maxPhase + 1, ncol = 7 )
-  colnames(fitReport) <- c("phase","objFun","maxGrad","nPar","convCode","convMsg", "time")
+  fitReport <- matrix(NA, nrow = maxPhase + 1, ncol = 8 )
+  colnames(fitReport) <- c( "phase",
+                            "objFun",
+                            "maxGrad",
+                            "nPar",
+                            "convCode",
+                            "convMsg",
+                            "time",
+                            "mcmcTime" )
   fitReport <- as.data.frame(fitReport)
 
   fitReport$phase <- c(1:maxPhase,"RE")
@@ -1118,8 +1125,37 @@ TMBphase <- function( data,
           opt$convergence, " and following message:\n", sep = "" )
     cat("\n", opt$message, "\n\n", sep = "" )
     
-    # close phase loop
-  }
+
+    # Want to test MCMC performance, so let's MCMC every phase!
+    if( intMethod == "phaseMCMC" & class(opt) != "try-error" )
+    {
+      tBegin      <- proc.time()[3]
+      params_use  <- obj$env$parList( opt$par )
+
+      obj <- TMB::MakeADFun(  data = data,
+                              parameters = params_use,
+                              random = NULL,
+                              DLL = DLL_use,
+                              map = map_use,
+                              silent = silent )  
+
+      browser()
+
+
+      mcmc <- tmbstan(  obj, 
+                        init = "last.par.best", 
+                        iter = mcChainLength,
+                        chains = mcChains )
+
+      phaseReports[[phase_cur]]$mcmc <- mcmc
+
+      mcmcTime <- (proc.time()[3] - tBegin)/60
+
+      fitReport[phase_cur,]$mcmcTime <- mcmcTime
+
+    } # END phaseMCMC
+
+  } # close phase loop
 
   # Fit the model
   if( intMethod == "RE" & !is.null(random) &  class(opt) != "try-error" )
@@ -1178,9 +1214,11 @@ TMBphase <- function( data,
     obj <- TMB::MakeADFun(  data = data,
                             parameters = params_use,
                             random = NULL,
-                            DLL= DLL_use,
-                            map= map_use,
-                            silent = silent )  
+                            DLL = DLL_use,
+                            map = map_use,
+                            silent = silent ) 
+
+
     mcmc <- tmbstan(  obj, 
                       init = "last.par.best", 
                       iter = mcChainLength,
