@@ -1842,13 +1842,13 @@ Type objective_function<Type>::operator() ()
   REPORT( L2nlp );
   REPORT( vonKnlp );
 
-  // Data
-  REPORT( I_spft );
-  REPORT( C_spft );
-  REPORT( D_spft );
-  REPORT( ALK_spalftx );
-  REPORT( age_aspftx );
-  REPORT( len_lspftx );
+  // Data - commented since it's massive
+  // REPORT( I_spft );
+  // REPORT( C_spft );
+  // REPORT( D_spft );
+  // REPORT( ALK_spalftx );
+  // REPORT( age_aspftx );
+  // REPORT( len_lspftx );
   REPORT( group_f );
   REPORT( A_s );
   REPORT( minA_s );

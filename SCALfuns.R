@@ -26,6 +26,9 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt", folder=NULL, quiet=TRUE )
   controlList <- .readParFile ( ctlFile )
   controlList <- .createList  ( controlList )
 
+  # Load hierSCAL object
+  dyn.load(dynlib("hierSCAL"))
+
   # Run simEst Procedure
   reports <- .runHierSCAL( obj = controlList )
   # save output to project folder
@@ -53,7 +56,12 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt", folder=NULL, quiet=TRUE )
 
   # Copy control file to sim folder for posterity
   file.copy(from=ctlFile,to=file.path(path,"fitCtlFile.txt"))
+  # Copy model files, so we can recreate report objects later.
   file.copy(from="hierSCAL.cpp",to=file.path(path,"hierSCAL.cpp"))
+  file.copy(from="hierSCAL.so",to=file.path(path,"hierSCAL.so"))
+  file.copy(from="hierSCAL.o",to=file.path(path,"hierSCAL.o"))
+
+  dyn.unload(dynlib("hierSCAL"))
 
   # Save plots?
   if(controlList$ctrl$plots)
@@ -85,10 +93,13 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt", folder=NULL, quiet=TRUE )
   reportsPath <- file.path(fitFolder,folder,reportsFileName)
   load ( file = reportsPath )
 
+  # Update the path object - not sure if this is necessary
   reports$path <- file.path(fitFolder, folder) 
 
+  # Assign to global environment
   assign( "reports",reports,pos=1 )
-  cat("MSG (loadFit) Reports in ", folder, " loaded from", fitFolder, "\n", sep="" )
+
+  message("(.loadFit) Reports in ", folder, " loaded from", fitFolder, "\n", sep="" )
 
   return( file.path(fitFolder, folder) )
 }
@@ -139,19 +150,10 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt", folder=NULL, quiet=TRUE )
 # rerunPlots()
 # Function to redo all plots from a given
 # fit report object
-rerunPlots <- function( fitID = 1, rep = "FE" )
+rerunPlots <- function( fitID = 1 )
 {
   # Load the fit object
   .loadFit(fitID)
-
-  if(!is.null(reports$repFE))
-    reports$repFE <- renameReportArrays( reports$repFE, reports$data )
-
-  if(!is.null(reports$repInit))
-    reports$repInit <- renameReportArrays( reports$repInit, reports$data )
-
-  if(!is.null(reports$repRE))
-    reports$repRE <- renameReportArrays( reports$repRE, reports$data )
 
   if(!is.null(reports$repOpt))
     reports$repOpt <- renameReportArrays( reports$repOpt, reports$data )
@@ -221,7 +223,31 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   idxFleets    <- dataObj$idxFleets
 
   # Load data
-  cat("Loading data for assessment\n")
+  message("Loading data for assessment\n")
+
+  .loadData <- function( ctlList )
+  {
+    # Get data scenario and model hypothesis control lists
+    dataObj <- obj$data
+    hypoObj <- obj$hypo
+    ctrlObj <- obj$ctrl
+    phases  <- obj$phases
+
+    # Get model dimensions
+    nA_s      <- dataObj$nA_s
+    minA_s    <- dataObj$minA_s
+    A1_s      <- dataObj$A1_s
+    A2_s      <- dataObj$A2_s
+    nL_s      <- dataObj$nL_s
+    minL_s    <- dataObj$minL_s
+    fYear     <- dataObj$fYearData
+    lYear     <- dataObj$lYearData
+    fYearIdx  <- dataObj$fYearIdx
+    lYearIdx  <- dataObj$lYearIdx
+    nT        <- lYear - fYear + 1
+    years     <- fYear:lYear
+    yrChar    <- as.character(years)
+  }
 
   # Load index data
   idxDataFiles <- dataObj$idxFiles
@@ -613,6 +639,10 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                       age = A2_s[useSpecies],
                       fleets = growthFleets[growthFleets %in% useFleets]  )
 
+  data <- .loadData( ctlList = obj )
+
+
+
 
   # Generate the data list
   data <- list( I_spft            = I_spft,
@@ -872,6 +902,8 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
   {
     repOpt <- calcRefPts( phaseList$repOpt )
   }
+
+  phaseList$repOpt <- NULL
   
 
   # Update names on report objects
@@ -885,7 +917,8 @@ rerunPlots <- function( fitID = 1, rep = "FE" )
                     stocks = useStocks,
                     map = phaseList$map,
                     data = data,
-                    pars = pars,
+                    optPars = phaseList$optPars,
+                    initPars = pars,
                     phaseList = phaseList,
                     ctlList = obj )
 
@@ -1062,11 +1095,10 @@ TMBphase <- function( data,
     # output
     if(savePhases)
     {
-      phaseReports[[phase_cur]]$report  <- obj$report()
+      phaseReports[[phase_cur]]$pars    <- obj$env$parList(opt$par)
       phaseReports[[phase_cur]]$opt     <- opt
       phaseReports[[phase_cur]]$success <- TRUE
       phaseReports[[phase_cur]]$map     <- map_use
-      phaseReports[[phase_cur]]$hess    <- obj$he()
     }
 
     # Update fitReport
@@ -1121,6 +1153,7 @@ TMBphase <- function( data,
 
     randEffList$spHess  <- obj$env$spHess(random = TRUE)
     randEffList$opt     <- opt
+    randEffList$par     <- obj$eng$parList( opt$par )
 
     # Update fitReports
     if(class(opt) != "try-error")
@@ -1164,8 +1197,14 @@ TMBphase <- function( data,
     outList$phaseReports      <- phaseReports
 
   if(outList$success)
+  {
     outList$repOpt            <- obj$report()
-  else outList$repOpt         <- repInit
+    outList$optPar            <- obj$env$parList( opt$par )
+  }
+  else {
+    outList$optPar         <- params_use
+    outList$repOpt         <- repInit
+  }
 
   outList$objfun            <- obj$fn()
   outList$optOutput         <- opt
@@ -1341,7 +1380,7 @@ savePlots <- function(  fitObj = reports,
   fYear <- fitObj$fYear
   lYear <- fitObj$lYear
 
-  report   <- fitObj$repOpt
+  report   <- c(fitObj$repOpt,fitObj$data)
 
   specNames   <- fitObj$species
   stockNames  <- fitObj$stocks

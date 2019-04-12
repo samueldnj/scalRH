@@ -58,6 +58,5 @@ if(!dir.exists("Outputs"))
 
 # compile and load scalRH objective function.
 compile ("hierSCAL.cpp")
-dyn.load(dynlib("hierSCAL"))
 
 
