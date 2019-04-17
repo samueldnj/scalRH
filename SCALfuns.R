@@ -537,7 +537,14 @@ rerunPlots <- function( fitID = 1 )
   fleetGroups <- hypoObj$fleetGroups
   nGroups     <- length(fleetGroups)
   
-  group_f     <- c(rep(0,nComm),1,rep(2,nSurv-1))
+  group_f     <- integer(length = nF)
+  for( f in 1:nF )
+    for( g in 1:nGroups)
+      if( useFleets[f] %in% fleetGroups[[g]] )
+      {
+        group_f[f] <- g
+        break
+      }
   
 
   if( hypoObj$selX == "length")
@@ -612,24 +619,33 @@ rerunPlots <- function( fitID = 1 )
   lnxSelStep_sg <- array(log(xSelStep_sg),dim = c(nS,nGroups))
 
   calcStockSelDevs_spf <- array(0, dim = c(nS,nP,nF)) 
+  calcStockQDevs_spf <- array(0, dim = c(nS,nP,nF)) 
 
   # Map selectivity at length
   nStockSelDevs <- 0
+  nStockqDevs <- 0
   # Make unique initially
   for(s in 1:nS)
     for( f in 1:nF)
     {
       # Count number of fleets in the group, skip if == 1
-      gp <- group_f(f)
+      gp <- group_f[f]
       nFleetsInGp <- length(fleetGroups[[gp]])
       if( nFleetsInGp == 1 ) next
 
       for(p in 1:nP)  
+      {
         if( any(age_aspftx[,s,p,f,,] > 0) | any(len_lspftx[,s,p,f,,] > 0) )
         {
           nStockSelDevs <- nStockSelDevs + 1
-          calcStockSelDevs[s,p,f] <- 1
+          calcStockSelDevs_spf[s,p,f] <- 1
         }
+        if( calcIndex_spf[s,p,f] == 1 )
+        {
+          nStockqDevs <- nStockqDevs + 1
+          calcStockQDevs_spf[s,p,f] <- 1
+        }
+      }
     }
 
 
@@ -702,7 +718,7 @@ rerunPlots <- function( fitID = 1 )
                 ALK_spalftx           = ALFreq_spalftx,
                 age_aspftx            = age_aspftx,
                 len_lspftx            = len_lspftx,
-                group_f               = as.integer(group_f),
+                group_f               = as.integer(group_f - 1),
                 A_s                   = as.integer(nA_s[useSpecies]),
                 minA_s                = as.integer(minA_s[useSpecies]),
                 L_s                   = as.integer(nL_s[useSpecies]),
@@ -733,114 +749,112 @@ rerunPlots <- function( fitID = 1 )
                 A1_s                  = A1_s[useSpecies],
                 A2_s                  = A2_s[useSpecies],
                 calcStockGrowth_sp    = calcStockGrowth,
-                calcStockSelDevs_spf  = calcStockSelDevs_spf, )
+                calcStockSelDevs_spf  = calcStockSelDevs_spf,
+                calcStockQDevs_spf    = calcStockQDevs_spf   )
 
 
   # Generate parameter list
   pars <- list( ## Leading biological pars ##
-                lnB0_sp           = log(sumCat_sp),
-                logitSteep        = log((mh - .2)/(1 - mh)),
-                lnM               = log(mM),
-                lnL2step_s        = log(initL2_s - initL1_s),
-                lnvonK_s          = log(hypoObj$initVonK[useSpecies]),
-                lnL1_s            = log(initL1_s),
+                lnB0_sp             = log(sumCat_sp),
+                logitSteep          = log((mh - .2)/(1 - mh)),
+                lnM                 = log(mM),
+                lnL2step_s          = log(initL2_s - initL1_s),
+                lnvonK_s            = log(hypoObj$initVonK[useSpecies]),
+                lnL1_s              = log(initL1_s),
                 # Stock specific growth pars
-                deltaL2sp_vec     = rep(0,sum(calcStockGrowth)),
-                lnsigmaL2_s       = rep(log(hypoObj$sigmaL2),nS),
-                deltaVonKsp_vec   = rep(0,sum(calcStockGrowth)),
-                lnsigmavonK_s     = rep(log(hypoObj$sigmavonK),nS),
-                deltaL2_sx        = array(0,dim = c(nS,nX)),
-                deltaVonK_sx      = array(0,dim = c(nS,nX)),
-                lnsigmaL2         = log(hypoObj$sigmaL2),
-                lnsigmavonK       = log(hypoObj$sigmavonK),
+                deltaL2sp_vec       = rep(0,sum(calcStockGrowth)),
+                lnsigmaL2_s         = rep(log(hypoObj$sigmaL2),nS),
+                deltaVonKsp_vec     = rep(0,sum(calcStockGrowth)),
+                lnsigmavonK_s       = rep(log(hypoObj$sigmavonK),nS),
+                deltaL2_sx          = array(0,dim = c(nS,nX)),
+                deltaVonK_sx        = array(0,dim = c(nS,nX)),
+                lnsigmaL2           = log(hypoObj$sigmaL2),
+                lnsigmavonK         = log(hypoObj$sigmavonK),
                 # process error in growth model
-                lnsigmaLa_s       = log(sigmaLa_s),
-                sigmaLb_s         = sigmaLb_s,
+                lnsigmaLa_s         = log(sigmaLa_s),
+                sigmaLb_s           = sigmaLb_s,
                 # L-W conversion
-                LWa_s             = LWa_s,
-                LWb_s             = LWb_s,
+                LWa_s               = LWa_s,
+                LWb_s               = LWb_s,
                 # Maturity
-                xMat50_s          = xMat50,
-                xMat95_s          = xMat95,
+                xMat50_s            = xMat50,
+                xMat95_s            = xMat95,
                 ## Observation models ##
                 # fleet catchability and obs idx SD
-                lnq_spf           = array(0,dim =c(nS,nP,nF)),
-                lntauObs_spf      = array(-1,dim = c(nS,nP,nF)),
+                lnq_g               = rep(0,max(group_f)),
+                lntauObs_spf        = array(-1,dim = c(nS,nP,nF)),
                 # Selectivity
-                lnxSel50_sg       = lnxSel50_sg,
-                lnxSelStep_sg     = lnxSelStep_sg,
-                epsxSel50spf_vec  = rep(0,nStockSelDevs),
-                epsxSelStep_spf   = rep(0,nStockSelDevs),
+                lnxSel50_sg         = lnxSel50_sg,
+                lnxSelStep_sg       = lnxSelStep_sg,
+                epsxSel50spf_vec    = rep(0,nStockSelDevs),
+                epsxSelStepspf_vec  = rep(0,nStockSelDevs),
                 # discards obs SD
-                lntauD_f          = rep(log(0.01),nF),
+                lntauD_f            = rep(log(0.01),nF),
                 ## Multilevel priors ##
                 # Selectivity
-                lnsigmaxSel50_sg    = array(log(cvxSel), dim = c(nS,3)),
-                lnsigmaxSelStep_sg  = array(log(cvxSel), dim = c(nS,3)),
+                lnsigmaxSel50_sg    = array(log(hypoObj$cvxSel), dim = c(nS,nGroups)),
+                lnsigmaxSelStep_sg  = array(log(hypoObj$cvxSel), dim = c(nS,nGroups)),
                 # Catchability
-                lnqbarSyn_s       = rep(log(hypoObj$mq),nS),
-                lntauqSyn_s       = rep(log(hypoObj$tauqSyn),nS),
-                lnqbarSyn         = log(hypoObj$mq),
-                lntauqSyn         = log(hypoObj$tauqSyn),
-                mqSurveys         = hypoObj$mq,
-                sdqSurveys        = hypoObj$sdq,
+                deltaq_sg           = array(0,dim=c(nS,nGroups)),
+                lntauq_g            = rep(log(hypoObj$sdq_g)),
+                deltaqspf_vec       = rep(0, nStockqDevs),
+                lntauq_sg           = array(log(hypoObj$sdq_g),dim =c(nS,nGroups)),
+                mq_g                = hypoObj$mq_g,
+                sdq_g               = hypoObj$sdq_g,
                 # Steepness
-                lnsigmah_s        = rep(log(sdh),nS),
-                logit_muSteep     = log((mh - .2)/(1 - mh)),
-                lnsigmah          = log(sdh),
+                lnsigmah_s          = rep(log(sdh),nS),
+                logit_muSteep       = log((mh - .2)/(1 - mh)),
+                lnsigmah            = log(sdh),
                 # Mortality
-                lnsigmaM_s        = rep( log(sdM), nS ),
-                ln_muM            = log(mM),
-                lnsigmaM          = log(sdM),
+                lnsigmaM_s          = rep( log(sdM), nS ),
+                ln_muM              = log(mM),
+                lnsigmaM            = log(sdM),
                 # IG Prior on obs error SD
-                IGatau_f          = tau2ObsIGa,
-                IGbtau_f          = tau2ObsIGb,
+                IGatau_f            = tau2ObsIGa,
+                IGbtau_f            = tau2ObsIGb,
                 # Species effect on steepness
-                epsSteep_s        = rep(0,nS),
+                epsSteep_s          = rep(0,nS),
                 # Species effect on M
-                epsM_s            = rep(0,nS),
+                epsM_s              = rep(0,nS),
                 # Species/stock effect on steepness
-                epsSteep_sp       = array(0, dim = c(nS,nP)),
+                epsSteep_sp         = array(0, dim = c(nS,nP)),
                 # Species/stock effect on M
-                epsM_sp           = array(0, dim = c(nS,nP)),
-                epsM_sx           = array(0, dim = c(nS,nX)),
+                epsM_sp             = array(0, dim = c(nS,nP)),
+                epsM_sx             = array(0, dim = c(nS,nX)),
                 # Recruitment resids
-                omegaR_vec        = rep( 0, nRecDevs),
-                omegaRinit_vec    = rep( 0, nInitDevs ),
-                lnsigmaR_sp       = array( log(hypoObj$sigmaR), dim = c(nS,nP)),
+                omegaR_vec          = rep( 0, nRecDevs),
+                omegaRinit_vec      = rep( 0, nInitDevs ),
+                lnsigmaR_sp         = array( log(hypoObj$sigmaR), dim = c(nS,nP)),
                 # Correlation in recruitment resids
-                logitRCorr_chol   = rep(0, nS * nP),
-                logitRgamma_sp    = array( 0, dim = c(nS,nP)),
+                logitRCorr_chol     = rep(0, nS * nP),
+                logitRgamma_sp      = array( 0, dim = c(nS,nP)),
                 # Time-varying selectivity
-                epsxSel50_vec     = rep( 0, nSelDevs ),
-                epsxSelStep_vec   = rep( 0, nSelDevs ),
-                lnsigmaSel        = log( hypoObj$sigmaSelDevs ),
+                epsxSel50_vec       = rep( 0, nSelDevs ),
+                epsxSelStep_vec     = rep( 0, nSelDevs ),
+                lnsigmaSel          = log( hypoObj$sigmaSelDevs ),
                 # Time-varying catchability
-                epslnq_vec        = rep( 0, nqDevs ),
-                lnsigmaepslnq     = log( hypoObj$sigmaqdevs ),
+                epslnq_vec          = rep( 0, nqDevs ),
+                lnsigmaepslnq       = log( hypoObj$sigmaqdevs ),
                 ## Single-level priors ##
                 # Priors on selectivity
-                pmlnxSel50_sg     = lnxSel50_sg,
-                pmlnxSelStep_sg   = lnxSelStep_sg,
-                cvxSel            = hypoObj$cvxSel,
-                pmlnL2_s          = log(initL2_s),
-                pmlnL1_s          = log(initL1_s),
-                cvL2              = .1,
-                cvL1              = .1,
-                pmlnVonK          = log(.3),
-                cvVonK            = .1,
-                mF                = hypoObj$mF,
-                sdF               = hypoObj$sdF )
+                pmlnxSel50_sg       = lnxSel50_sg,
+                pmlnxSelStep_sg     = lnxSelStep_sg,
+                cvxSel              = hypoObj$cvxSel,
+                pmlnL2_s            = log(initL2_s),
+                pmlnL1_s            = log(initL1_s),
+                cvL2                = .1,
+                cvL1                = .1,
+                pmlnVonK            = log(.3),
+                cvVonK              = .1,
+                sdF                 = hypoObj$sdF )
 
 
 
   # Generate special entries for the 
   # base map list that are sensitive to useFleetsIdx
-  qmap_spf <- array(  1 + 1:(nS*nP*nF),
+  taumap_spf <- array(  1 + 1:(nS*nP*nF),
                       dim = c(nS,nP,nF) )
-  qmap_spf[calcIndex_spf == 0] <- NA
-
-  taumap_spf <- qmap_spf + 1e3
+  taumap_spf[calcIndex_spf == 0] <- NA
 
 
   if( hypoObj$identSel )
@@ -857,10 +871,7 @@ rerunPlots <- function( fitID = 1 )
   }
 
   # generate base map for TMBphase()
-  map <- list(  lnq_spf           = factor(qmap_spf),
-                lntauObs_spf      = factor(taumap_spf),
-                epsxSel50_spf     = factor(selMap_spf),
-                epsxSelStep_spf   = factor(selMap_spf + 105))
+  map <- list(  lntauObs_spf      = factor(taumap_spf))
 
   # Turn off tv sel deviations if not being used
   if( !hypoObj$tvSel | nSelDevs == 0 )
@@ -875,12 +886,12 @@ rerunPlots <- function( fitID = 1 )
 
   if( nP == 1)
   {
-    phases$epsxSel50_spf    <- -1
-    phases$epsxSelStep_spf  <- -1
-    phases$epsM_sp          <- -1
-    phases$epsSteep_sp      <- -1
-    phases$deltaL2_sp       <- -1
-    phases$deltaVonK_sp     <- -1
+    phases$epsxSel50spf_vec   <- -1
+    phases$epsxSelStepspf_vec <- -1
+    phases$epsM_sp            <- -1
+    phases$epsSteep_sp        <- -1
+    phases$deltaL2_sp         <- -1
+    phases$deltaVonK_sp       <- -1
   }
 
   if( nS == 1 )
@@ -1324,7 +1335,6 @@ renameReportArrays <- function( repObj = repInit, datObj = data )
   dimnames(repObj$predCw_spft) <- dimnames(datObj$age_aspftx)[c(2:5)]
   dimnames(repObj$C_aspftx) <- dimnames(datObj$age_aspftx)[c(1:5)]
   dimnames(repObj$Cw_aspftx) <- dimnames(datObj$age_aspftx)[c(1:5)]
-  dimnames(repObj$F_aspftx) <- dimnames(datObj$age_aspftx)[c(1:5)]
   dimnames(repObj$F_spft) <- dimnames(datObj$age_aspftx)[c(2:5)]
   dimnames(repObj$Z_aspxt) <- dimnames(datObj$age_aspftx)[c(1:3,6,5)]
   # Biological parameters
