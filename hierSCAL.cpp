@@ -365,7 +365,8 @@ Type objective_function<Type>::operator() ()
   DATA_ARRAY(minTimeIdx_spf);           // array of earliest times for each index
   DATA_INTEGER(nBaranovIter);           // number of baranov steps
   DATA_SCALAR(lambdaBaranovStep);       // fractional step size for Newton-Rhapson Baranov iteration
-  DATA_ARRAY(calcStockGrowth);          // Switch for calculating stock-specific growth parameters
+  DATA_ARRAY(calcStockGrowth_sp);       // Switch for calculating stock-specific growth parameters
+  DATA_ARRAY(calcStockSelDevs_spf);     // Switch for calculating stock-specific growth parameters
   // DATA_STRING(recruitVariance);         // Character-switch for recruitment variance model
   // DATA_INTEGER(debugMode);              // Turn on debug mode (will return more in the report object and calculate quantities)
 
@@ -406,26 +407,20 @@ Type objective_function<Type>::operator() ()
   PARAMETER_ARRAY(lnxSel50_sg);         // Selectivity Alpha parameter by species/fleetgroup
   PARAMETER_ARRAY(lnxSelStep_sg);       // Selectivity Beta parameter by species/fleetgroup
   // Now use deviations to get the fleet/stock specific values
-  PARAMETER_ARRAY(lnxSel50_sf);         // Selectivity Alpha parameter by species/fleet
-  PARAMETER_ARRAY(lnxSelStep_sf);       // Selectivity Beta parameter by species/fleet
-  PARAMETER_ARRAY(epsxSel50_spf);       // Selectivivity devs for stocks
-  PARAMETER_ARRAY(epsxSelStep_spf);     // Selectivivity devs for stocks
+  PARAMETER_VECTOR(epsxSel50spf_vec);   // Selectivivity devs for stocks
+  PARAMETER_VECTOR(epsxSelStepspf_vec); // Selectivivity devs for stocks
 
   // Count fleet groups
   int nGroups = lnxSel50_sg.dim(1);
 
   // Fishing mortality
-  PARAMETER_VECTOR(lntauC_f);           // Catch observation SD by fleet
   PARAMETER_VECTOR(lntauD_f);           // Discards observation SD by fleet
 
   // Priors
   // selectivity //
-  PARAMETER_ARRAY(muxSel50_sg);         // mean length at 50% selectivity by fleet group
-  PARAMETER_ARRAY(muxSel95_sg);         // mean selectivity-at-length step by fleet group 
-  PARAMETER_ARRAY(sigmaxSel50_sg);      // SD in length at 50% selectivity by fleet group
-  PARAMETER_ARRAY(sigmaxSel95_sg);      // SD in length at 95% selectivity by fleet group
+  PARAMETER_ARRAY(lnsigmaxSel50_sg);      // SD in x-at-50% selectivity by fleet group
+  PARAMETER_ARRAY(lnsigmaxSelStep_sg);    // SD in step from x-at-50% to x-at-85% selectivity by fleet group
 
-  
 
   // catchability //
   PARAMETER_VECTOR(lnqbarSyn_s);        // Synoptic survey q by species (each leg surveys one stock)
@@ -468,8 +463,8 @@ Type objective_function<Type>::operator() ()
 
 
   // Priors on growth and selectivity
-  PARAMETER_ARRAY(pmlnxSel50_sf);       // Prior mean x-at-50% sel
-  PARAMETER_ARRAY(pmlnxSelStep_sf);     // Prior mean xSelStep from 50% to 95% selectivity
+  PARAMETER_ARRAY(pmlnxSel50_sg);       // Prior mean x-at-50% sel
+  PARAMETER_ARRAY(pmlnxSelStep_sg);     // Prior mean xSelStep from 50% to 95% selectivity
   PARAMETER(cvxSel);                    // CV on xSel50/xSelStep prior
   PARAMETER_VECTOR(pmlnL2_s);           // Prior mean L2 par
   PARAMETER_VECTOR(pmlnL1_s);           // Prior mean L1 par
@@ -477,7 +472,7 @@ Type objective_function<Type>::operator() ()
   PARAMETER(cvL1);                      // Prior CV on L1
   PARAMETER(pmlnVonK);                  // Prior complex vonK 
   PARAMETER(cvVonK);                    // Prior CV on VonK
-  PARAMETER(mF);                        // Prior mean value for mean F
+  // PARAMETER(mF);                        // Prior mean value for mean F
   PARAMETER(sdF);                       // Prior sd for meanF
 
   // mortality deviations //
@@ -519,17 +514,6 @@ Type objective_function<Type>::operator() ()
   deltaL2_sp.setZero();
   deltaVonK_sp.setZero();
 
-  int stockGrowthVecIdx=0;
-
-  for( int s = 0; s < nS; s++ )
-    for( int p = 0; p < nP; p++ )
-      if( calcStockGrowth(s,p) == 1 )
-      {
-        deltaL2_sp(s,p) = deltaL2sp_vec(stockGrowthVecIdx);
-        deltaVonK_sp(s,p) = deltaVonKsp_vec(stockGrowthVecIdx);
-        stockGrowthVecIdx++;
-      }
-
   // derived variables
   // Stock recruitment //
   array<Type>  R0_sp(nS,nP);            // eqbm recruitment
@@ -548,6 +532,89 @@ Type objective_function<Type>::operator() ()
   array<Type>   matAge_as(nA,nS);       // Proportion mature at age by species
   array<Type>   matAge_asp(nA,nS,nP);   // Proportion mature at age by population
   array<Type>   matLen_ls(nL,nS);       // Proportion mature at Length by species
+
+   // Observation model
+  array<Type>   q_spf(nS,nP,nF);
+  array<Type>   tauObs_spf(nS,nP,nF);
+  array<Type>   tau2Obs_spf(nS,nP,nF);
+  q_spf.setZero();
+  tauObs_spf.setZero();
+  tau2Obs_spf.setZero();
+
+  // Time-varying catchability
+  array<Type>   q_spft(nS,nP,nF,nT);
+  // Fishing mortality
+  array<Type>   F_spft(nS,nP,nF,nT);
+  array<Type>   Fbar_spf(nS,nP,nF);
+
+  // selectivity //
+  // Fleet/species
+  array<Type>   xSel50_sf(nS,nF);
+  array<Type>   xSelStep_sf(nS,nF);
+  array<Type>   xSel95_sf(nS,nF);
+  // species/fleet group
+  array<Type>   xSel50_sg(nS,nGroups);
+  array<Type>   xSelStep_sg(nS,nGroups);
+  array<Type>   xSel95_sg(nS,nGroups);
+  array<Type>   sigmaxSel50_sg(nS,nGroups);
+  array<Type>   sigmaxSelStep_sg(nS,nGroups);
+  // Fleet/species/Stock
+  array<Type>   xSel50_spf(nS,nP,nF);
+  array<Type>   xSelStep_spf(nS,nP,nF);
+  array<Type>   xSel95_spf(nS,nP,nF);
+  array<Type>   epsxSel50_spf(nS,nP,nF);
+  array<Type>   epsxSelStep_spf(nS,nP,nF);
+  // Now time-varying by stock
+  array<Type>   xSel50_spft(nS,nP,nF,nT);
+  array<Type>   xSelStep_spft(nS,nP,nF,nT);
+  array<Type>   xSel95_spft(nS,nP,nF,nT);
+  array<Type>   epsxSel50_spft(nS,nP,nF,nT);
+  array<Type>   epsxSelStep_spft(nS,nP,nF,nT);
+  array<Type>   epslnq_spft(nS,nP,nF,nT);
+  // Zero-initialise
+  xSel50_sg.setZero();
+  xSel95_sg.setZero();
+  xSelStep_sg.setZero();
+  xSel50_spf.setZero();
+  xSel95_spf.setZero();
+  xSelStep_spf.setZero();
+  xSel50_spft.setZero();
+  xSel95_spft.setZero();
+  xSelStep_spft.setZero();
+  epsxSel50_spft.setZero();
+  epsxSelStep_spft.setZero();
+  epslnq_spft.setZero();
+  F_spft.setZero();
+  Fbar_spf.setZero();
+
+  // Loop and fill stock specific deviations from hierarchical/multi-level
+  // prior group means
+
+  int stockGrowthVecIdx=0;
+  int stockSpecSelVecIdx=0;
+
+  for( int s = 0; s < nS; s++ )
+    for( int p = 0; p < nP; p++ )
+    {
+      // Stock specific growth pars
+      if( calcStockGrowth_sp(s,p) == 1 )
+      {
+        deltaL2_sp(s,p) = deltaL2sp_vec(stockGrowthVecIdx);
+        deltaVonK_sp(s,p) = deltaVonKsp_vec(stockGrowthVecIdx);
+        stockGrowthVecIdx++;
+      }
+      // Stock specific (not species/group) sel pars
+      for( int f = 0; f < nF; f++ )
+      {
+        if(calcStockSelDevs_spf(s,p,f) == 1)
+        {
+          epsxSel50_spf(s,p,f)    = epsxSel50spf_vec(stockSpecSelVecIdx);
+          epsxSelStep_spf(s,p,f)  = epsxSelStepspf_vec(stockSpecSelVecIdx);
+          stockSpecSelVecIdx++;
+        }
+      }
+    }
+
   
   // Make a vector of ages/lengths for use in 
   // age and length based quantities later
@@ -625,59 +692,15 @@ Type objective_function<Type>::operator() ()
   }
 
 
-  // Observation model
-  array<Type>   q_spf(nS,nP,nF);
-  array<Type>   tauObs_spf(nS,nP,nF);
-  array<Type>   tau2Obs_spf(nS,nP,nF);
-  q_spf.setZero();
-  tauObs_spf.setZero();
-  tau2Obs_spf.setZero();
 
-  // Time-varying catchability
-  array<Type>   q_spft(nS,nP,nF,nT);
-  // Fishing mortality
-  array<Type>   F_spft(nS,nP,nF,nT);
-  array<Type>   Fbar_spf(nS,nP,nF);
-
-  // selectivity //
-  // Fleet/species
-  array<Type>   xSel50_sf(nS,nF);
-  array<Type>   xSelStep_sf(nS,nF);
-  array<Type>   xSel95_sf(nS,nF);
-  array<Type>   xSel50_sg(nS,nGroups);
-  array<Type>   xSelStep_sg(nS,nGroups);
-  array<Type>   xSel95_sg(nS,nGroups);
-  // Fleet/species/Stock
-  array<Type>   xSel50_spf(nS,nP,nF);
-  array<Type>   xSelStep_spf(nS,nP,nF);
-  array<Type>   xSel95_spf(nS,nP,nF);
-  // Now time-varying by stock
-  array<Type>   xSel50_spft(nS,nP,nF,nT);
-  array<Type>   xSelStep_spft(nS,nP,nF,nT);
-  array<Type>   xSel95_spft(nS,nP,nF,nT);
-  array<Type>   epsxSel50_spft(nS,nP,nF,nT);
-  array<Type>   epsxSelStep_spft(nS,nP,nF,nT);
-  array<Type>   epslnq_spft(nS,nP,nF,nT);
-  // Zero-initialise
-  xSel50_sg.setZero();
-  xSel95_sg.setZero();
-  xSelStep_sg.setZero();
-  xSel50_spf.setZero();
-  xSel95_spf.setZero();
-  xSelStep_spf.setZero();
-  xSel50_spft.setZero();
-  xSel95_spft.setZero();
-  xSelStep_spft.setZero();
-  epsxSel50_spft.setZero();
-  epsxSelStep_spft.setZero();
-  epslnq_spft.setZero();
-  F_spft.setZero();
-  Fbar_spf.setZero();
-
-  // Exponential species/fleet sel
+  // Exponentiate species/fleetGroup sel
   xSel50_sg = exp(lnxSel50_sg);
   xSelStep_sg = exp(lnxSelStep_sg);
-  xSel95_sg = xSel50_sg + xSelStep_sg;
+  xSel95_sg = xSel50_sg + xSelStep_sg;  
+
+  // SDs for species/fleetgroup sel
+  sigmaxSel50_sg = exp(lnsigmaxSel50_sg);
+  sigmaxSelStep_sg = exp(lnsigmaxSelStep_sg);
 
   // Loop over gears, species, stocks and time steps, create a matrix
   // of deviations in selectivity pars and calculate the pars
@@ -691,8 +714,10 @@ Type objective_function<Type>::operator() ()
     xSel95_sf.col(f) = xSel95_sg.col(group_f(f));
     for( int p = 0; p < nP; p++ )
     {
-      xSel50_spf.col(f).col(p)    = exp(lnxSel50_sg.col(group_f(f)) + epsxSel50_spf.col(f).col(p));
-      xSelStep_spf.col(f).col(p)  = exp(lnxSelStep_sg.col(group_f(f)) + epsxSelStep_spf.col(f).col(p));
+
+
+      xSel50_spf.col(f).col(p)    = exp(lnxSel50_sg.col(group_f(f)) + sigmaxSel50_sg(group_f(f)) * epsxSel50_spf.col(f).col(p));
+      xSelStep_spf.col(f).col(p)  = exp(lnxSelStep_sg.col(group_f(f)) + sigmaxSelStep_sg(group_f(f)) * epsxSelStep_spf.col(f).col(p));
       xSel95_spf.col(f).col(p)    = xSel50_spf.col(f).col(p) + xSelStep_spf.col(f).col(p);
       for( int s = 0; s < nS; s++)
       {
@@ -723,8 +748,8 @@ Type objective_function<Type>::operator() ()
               if( ((age_aspftx(0,s,p,f,t,x) >= 0) & (ageLikeWt > 0)) |
                   ((len_lspftx(0,s,p,f,t,x) >= 0) & (lenLikeWt > 0)) )
               {
-                epsxSel50_spft(s,p,f,t)   += epsxSel50_vec(epsSelVecIdx);
-                epsxSelStep_spft(s,p,f,t) += epsxSelStep_vec(epsSelVecIdx);
+                epsxSel50_spft(s,p,f,t)   += sigmaSel * epsxSel50_vec(epsSelVecIdx);
+                epsxSelStep_spft(s,p,f,t) += sigmaSel * epsxSelStep_vec(epsSelVecIdx);
                 epsSelVecIdx++;
                 break;
               }
@@ -793,7 +818,6 @@ Type objective_function<Type>::operator() ()
 
   
   // Probably concentrate these out later....
-  vector<Type>  tauC_f        = exp(lntauC_f);    
   vector<Type>  tauD_f        = exp(lntauD_f);    
   
   // Set up model state arrays
@@ -923,20 +947,29 @@ Type objective_function<Type>::operator() ()
           {
             sel_lfspt.col(t).col(p).col(s).col(f).fill(1.);
             sel_lfspt.col(t).col(p).col(s).col(f) /= ( 1 + exp( - log(Type(19.)) * ( len - xSel50_spft(s,p,f,t) ) / xSelStep_spft(s,p,f,t)  ) );
+            // reduce selectivity below min L to 0
+            sel_lfspt.col(t).col(p).col(s).col(f).segment(0,minL_s(s)).fill(0);
             // convert selectivity-at-length to selectivity-at-age using probability matrix
             for( int x = 0; x < nX; x++)
+            {
               for( int a = 0; a < A_s(s); a++ )
               {
                 vector<Type> probLenAgea_l(nL) ;
                 probLenAgea_l.setZero();
                 probLenAgea_l = probLenAge_laspx.col(x).col(p).col(s).col(a);
                 sel_afsptx(a,f,s,p,t,x) = (probLenAgea_l*sel_lfspt.col(t).col(p).col(s).col(f)).sum();
-
-              } 
+              }
+              // Reduce selectivity below minA to 0
+              sel_afsptx.col(x).col(t).col(p).col(s).col(f).segment(0,minA_s(s)).fill(0);
+            } 
           }
           if( selX == "age" )
             for( int x = 0; x < nX; x++)
+            {
               sel_afsptx.col(x).col(t).col(p).col(s).col(f) = 1/( 1 + exp( - log(Type(19.)) * ( age - xSel50_spft(s,p,f,t) ) / xSelStep_spft(s,p,f,t)  ) );
+              // Reduce selectivity below minA to 0
+              sel_afsptx.col(x).col(t).col(p).col(s).col(f).segment(0,minA_s(s)).fill(0);
+            }
 
 
         }
@@ -1603,22 +1636,21 @@ Type objective_function<Type>::operator() ()
   vonKnlp         -= dnorm( deltaVonKbar_p, Type(0.), sigmavonK, true).sum();
 
   // Add time-varying selectivity deviations
-  sel_nlp -= dnorm( epsxSel50_vec, Type(0), sigmaSel, true).sum();
-  sel_nlp -= dnorm( epsxSelStep_vec, Type(0), sigmaSel, true).sum();
+  sel_nlp -= dnorm( epsxSel50_vec, Type(0), 1., true).sum();
+  sel_nlp -= dnorm( epsxSelStep_vec, Type(0), 1., true).sum();
+  // Stock specific sel deviations
+  sel_nlp -= dnorm( epsxSel50spf_vec, Type(0), Type(1), true).sum();
+  sel_nlp -= dnorm( epsxSelStepspf_vec, Type(0), Type(1), true).sum();  
+
   // Prior on xSel95_sf
   for(int s = 0; s < nS; s++)
-    for( int f = 0; f < nF; f++)
+  {
+    for( int g = 0; g < nGroups; g++ )
     {
-      sel_nlp -= dnorm( lnxSel50_sf(s,f), pmlnxSel50_sf(s,f), cvxSel, true);
-      sel_nlp -= dnorm( lnxSelStep_sf(s,f), pmlnxSelStep_sf(s,f), cvxSel, true);
-
-      for( int p = 0; p < nP; p++)
-      {
-        sel_nlp -= dnorm( epsxSel50_spf(s,p,f), Type(0), cvxSel, true);
-        sel_nlp -= dnorm( epsxSelStep_spf(s,p,f), Type(0), cvxSel, true);  
-      }
-      
+      sel_nlp -= dnorm( lnxSel50_sg(s,g), pmlnxSel50_sg(s,g), cvxSel, true);
+      sel_nlp -= dnorm( lnxSelStep_sg(s,g), pmlnxSelStep_sg(s,g), cvxSel, true);
     }
+  }
   
 
   // VonB priors
@@ -1703,8 +1735,10 @@ Type objective_function<Type>::operator() ()
   REPORT( sel_lfspt );      // Selectivity at length
   REPORT( sel_afsptx );      // Selectivity at age
   REPORT( Fbar_spf );       // Average fishing mortality
-  REPORT( tauC_f );
   REPORT( tauD_f );
+  REPORT( sigmaxSel50_sg );
+  REPORT( sigmaxSelStep_sg );
+
 
   // Model states
   REPORT( B_asptx );
@@ -1765,15 +1799,11 @@ Type objective_function<Type>::operator() ()
   REPORT( tauqSyn_s );
 
   // Echo input priors
-  REPORT( pmlnxSel50_sf );
-  REPORT( pmlnxSelStep_sf );
+  REPORT( pmlnxSel50_sg );
+  REPORT( pmlnxSelStep_sg );
   REPORT( pmlnL1_s );
   REPORT( pmlnL2_s );
   REPORT( pmlnVonK );
-  REPORT( muxSel50_sg );
-  REPORT( muxSel95_sg );
-  REPORT( sigmaxSel50_sg );
-  REPORT( sigmaxSel95_sg );
 
   // Random effects
   REPORT( epsxSel50_spft );

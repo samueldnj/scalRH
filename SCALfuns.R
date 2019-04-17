@@ -611,8 +611,31 @@ rerunPlots <- function( fitID = 1 )
   lnxSel50_sg <- array(log(xSel50_sg),dim = c(nS,nGroups))
   lnxSelStep_sg <- array(log(xSelStep_sg),dim = c(nS,nGroups))
 
+  calcStockSelDevs_spf <- array(0, dim = c(nS,nP,nF)) 
+
+  # Map selectivity at length
+  nStockSelDevs <- 0
+  # Make unique initially
+  for(s in 1:nS)
+    for( f in 1:nF)
+    {
+      # Count number of fleets in the group, skip if == 1
+      gp <- group_f(f)
+      nFleetsInGp <- length(fleetGroups[[gp]])
+      if( nFleetsInGp == 1 ) next
+
+      for(p in 1:nP)  
+        if( any(age_aspftx[,s,p,f,,] > 0) | any(len_lspftx[,s,p,f,,] > 0) )
+        {
+          nStockSelDevs <- nStockSelDevs + 1
+          calcStockSelDevs[s,p,f] <- 1
+        }
+    }
+
+
   # Use useSpec, useStocks, useFleets and yrChar to
-  # reduce the data arrays so that the fits are dynamic
+  # reduce the data arrays so that the fits are repsonsive
+  # to changing data scenarios and species complex structures
 
   # Pull prior mean values from hypoObj to keep pars list tidier
   mh    <- hypoObj$hPriorMean
@@ -673,43 +696,44 @@ rerunPlots <- function( fitID = 1 )
 
 
   # Generate the data list
-  data <- list( I_spft            = I_spft,
-                C_spft            = C_spft,
-                D_spft            = D_spft,
-                ALK_spalftx       = ALFreq_spalftx,
-                age_aspftx        = age_aspftx,
-                len_lspftx        = len_lspftx,
-                group_f           = as.integer(group_f),
-                A_s               = as.integer(nA_s[useSpecies]),
-                minA_s            = as.integer(minA_s[useSpecies]),
-                L_s               = as.integer(nL_s[useSpecies]),
-                minL_s            = as.integer(minL_s[useSpecies]),
-                lenD_s            = rep(0,nS),
-                swRinit_s         = as.integer(initFished_s[useSpecies]),
-                parSwitch         = 0,
-                calcIndex_spf     = calcIndex_spf,
-                tvSelFleets       = tvSelFleets,
-                tvqFleets         = tvqFleets,
-                regFfleets        = regFfleets,
-                idxLikeWt         = dataObj$idxLikeWt,
-                ageLikeWt         = dataObj$ageLikeWt,
-                lenLikeWt         = dataObj$lenLikeWt,
-                growthLikeWt      = dataObj$growthLikeWt,
-                tFirstRecDev_s    = as.integer(tFirstRecDev_s),
-                tLastRecDev_s     = as.integer(tLastRecDev_s),
-                minAgeProp        = dataObj$minAgeProp,
-                minLenProp        = dataObj$minLenProp,
-                minPAAL           = dataObj$minPAAL,
-                matX              = hypoObj$matX,
-                selX              = hypoObj$selX,
-                lenComps          = hypoObj$lenCompMethod,
-                lambdaB0          = dataObj$lambdaB0,
-                minTimeIdx_spf    = minTimeIdx_spf,
-                nBaranovIter      = ctrlObj$nBaranovIter,
-                lambdaBaranovStep = ctrlObj$lambdaBaranovStep,
-                A1_s              = A1_s[useSpecies],
-                A2_s              = A2_s[useSpecies],
-                calcStockGrowth   = calcStockGrowth )
+  data <- list( I_spft                = I_spft,
+                C_spft                = C_spft,
+                D_spft                = D_spft,
+                ALK_spalftx           = ALFreq_spalftx,
+                age_aspftx            = age_aspftx,
+                len_lspftx            = len_lspftx,
+                group_f               = as.integer(group_f),
+                A_s                   = as.integer(nA_s[useSpecies]),
+                minA_s                = as.integer(minA_s[useSpecies]),
+                L_s                   = as.integer(nL_s[useSpecies]),
+                minL_s                = as.integer(minL_s[useSpecies]),
+                lenD_s                = rep(0,nS),
+                swRinit_s             = as.integer(initFished_s[useSpecies]),
+                parSwitch             = 0,
+                calcIndex_spf         = calcIndex_spf,
+                tvSelFleets           = tvSelFleets,
+                tvqFleets             = tvqFleets,
+                regFfleets            = regFfleets,
+                idxLikeWt             = dataObj$idxLikeWt,
+                ageLikeWt             = dataObj$ageLikeWt,
+                lenLikeWt             = dataObj$lenLikeWt,
+                growthLikeWt          = dataObj$growthLikeWt,
+                tFirstRecDev_s        = as.integer(tFirstRecDev_s),
+                tLastRecDev_s         = as.integer(tLastRecDev_s),
+                minAgeProp            = dataObj$minAgeProp,
+                minLenProp            = dataObj$minLenProp,
+                minPAAL               = dataObj$minPAAL,
+                matX                  = hypoObj$matX,
+                selX                  = hypoObj$selX,
+                lenComps              = hypoObj$lenCompMethod,
+                lambdaB0              = dataObj$lambdaB0,
+                minTimeIdx_spf        = minTimeIdx_spf,
+                nBaranovIter          = ctrlObj$nBaranovIter,
+                lambdaBaranovStep     = ctrlObj$lambdaBaranovStep,
+                A1_s                  = A1_s[useSpecies],
+                A2_s                  = A2_s[useSpecies],
+                calcStockGrowth_sp    = calcStockGrowth,
+                calcStockSelDevs_spf  = calcStockSelDevs_spf, )
 
 
   # Generate parameter list
@@ -745,19 +769,14 @@ rerunPlots <- function( fitID = 1 )
                 # Selectivity
                 lnxSel50_sg       = lnxSel50_sg,
                 lnxSelStep_sg     = lnxSelStep_sg,
-                epsxSel50_spf     = array(0,dim = c(nS,nP,nF)),
-                epsxSelStep_spf   = array(0,dim = c(nS,nP,nF)),
-                # Fishing mortality
-                # lnF_spft          = rep(-1,length = nPosCatch),
-                # Catch and discards obs SD
-                lntauC_f          = rep(log(0.01),nF),
+                epsxSel50spf_vec  = rep(0,nStockSelDevs),
+                epsxSelStep_spf   = rep(0,nStockSelDevs),
+                # discards obs SD
                 lntauD_f          = rep(log(0.01),nF),
                 ## Multilevel priors ##
                 # Selectivity
-                muxSel50_sg       = array(3.4, dim = c(nS,3)),
-                muxSel95_sg       = array(4.2, dim = c(nS,3)),
-                sigmaxSel50_sg    = array(.2, dim = c(nS,3)),
-                sigmaxSel95_sg    = array(.2, dim = c(nS,3)),
+                lnsigmaxSel50_sg    = array(log(cvxSel), dim = c(nS,3)),
+                lnsigmaxSelStep_sg  = array(log(cvxSel), dim = c(nS,3)),
                 # Catchability
                 lnqbarSyn_s       = rep(log(hypoObj$mq),nS),
                 lntauqSyn_s       = rep(log(hypoObj$tauqSyn),nS),
@@ -801,8 +820,8 @@ rerunPlots <- function( fitID = 1 )
                 lnsigmaepslnq     = log( hypoObj$sigmaqdevs ),
                 ## Single-level priors ##
                 # Priors on selectivity
-                pmlnxSel50_sf     = array(log(xSel50_sf),dim = c(nS,nF) ),
-                pmlnxSelStep_sf   = array(log(xSelStep_sf),dim = c(nS,nF) ),
+                pmlnxSel50_sg     = lnxSel50_sg,
+                pmlnxSelStep_sg   = lnxSelStep_sg,
                 cvxSel            = hypoObj$cvxSel,
                 pmlnL2_s          = log(initL2_s),
                 pmlnL1_s          = log(initL1_s),
@@ -823,22 +842,6 @@ rerunPlots <- function( fitID = 1 )
 
   taumap_spf <- qmap_spf + 1e3
 
-  # Map selectivity at length
-  selMap_spf <- array(NA, dim = c(nS,nP,nF) )
-  # Make unique initially
-  for(s in 1:nS)
-    for( f in 1:nF)
-    {
-      for(p in 1:nP)  
-        if( any(age_aspftx[,s,p,f,,] > 0) | any(len_lspftx[,s,p,f,,] > 0) )
-          selMap_spf[s,p,f] <- 2e3 + s * (nF - 1) * (nP - 1) + f * (nP - 1) + p
-    }
-
-  # Collapse to species/fleet
-  selMap_sf <- apply( X = selMap_spf, 
-                      FUN = sum, MARGIN =c(1,3),
-                      na.rm = T )
-  selMap_sf[ selMap_sf == 0 ] <- NA
 
   if( hypoObj$identSel )
   {
@@ -857,9 +860,7 @@ rerunPlots <- function( fitID = 1 )
   map <- list(  lnq_spf           = factor(qmap_spf),
                 lntauObs_spf      = factor(taumap_spf),
                 epsxSel50_spf     = factor(selMap_spf),
-                epsxSelStep_spf   = factor(selMap_spf + 105),
-                lnxSel50_sf       = factor(selMap_sf + 50),
-                lnxSelStep_sf     = factor(selMap_sf + 100) )
+                epsxSelStep_spf   = factor(selMap_spf + 105))
 
   # Turn off tv sel deviations if not being used
   if( !hypoObj$tvSel | nSelDevs == 0 )
