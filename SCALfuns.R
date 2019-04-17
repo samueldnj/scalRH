@@ -530,13 +530,25 @@ rerunPlots <- function( fitID = 1 )
         if( any(I_spft[s,p,f,] > 0) )
           calcIndex_spf[s,p,f] <- 1
 
+  # Count commercial and fishery indep fleets
+  nComm       <- length(dataObj$commNames_g)
+  nSurv       <- length(dataObj$survNames_g)
+  # Group fleets
+  fleetGroups <- hypoObj$fleetGroups
+  nGroups     <- length(fleetGroups)
+  
+  group_f     <- c(rep(0,nComm),1,rep(2,nSurv-1))
+  
+
   if( hypoObj$selX == "length")
   {
+
     # length at Sel50_sf initial value
     xSel50_sf <- matrix(  25, 
                           nrow = length(allSpecies),
                           ncol = length(allFleets), 
                           byrow = TRUE )
+
 
     xSel50_sf <- xSel50_sf[useSpecIdx,useFleetsIdx]
 
@@ -547,6 +559,19 @@ rerunPlots <- function( fitID = 1 )
                             byrow = TRUE )
 
     xSelStep_sf <- xSelStep_sf[useSpecIdx,useFleetsIdx,drop = FALSE]
+
+
+
+    # Selectivity by group
+    xSel50_sg <- matrix(  25, 
+                          nrow = length(allSpecies),
+                          ncol = nGroups, 
+                          byrow = TRUE )
+    xSelStep_sg <- matrix(  3, 
+                            nrow = length(allSpecies),
+                            ncol = nGroups, 
+                            byrow = TRUE )
+
   }
 
   if( hypoObj$selX == "age")
@@ -574,10 +599,17 @@ rerunPlots <- function( fitID = 1 )
                                   byrow = TRUE )
 
     xSelStep_sf <- xSelStep_sf[useSpecIdx,useFleetsIdx,drop = FALSE]
+
+
   }
 
   lnxSel50_sf <- array(log(xSel50_sf),dim = c(nS,nF))
   lnxSelStep_sf <- array(log(xSelStep_sf),dim = c(nS,nF))
+
+
+
+  lnxSel50_sg <- array(log(xSel50_sg),dim = c(nS,nGroups))
+  lnxSelStep_sg <- array(log(xSelStep_sg),dim = c(nS,nGroups))
 
   # Use useSpec, useStocks, useFleets and yrChar to
   # reduce the data arrays so that the fits are dynamic
@@ -594,10 +626,6 @@ rerunPlots <- function( fitID = 1 )
   tau2ObsIGa  <- hypoObj$tau2ObsIGa[useFleetsIdx]
   tau2ObsMode <- hypoObj$tau2ObsPriorMode[useFleetsIdx]
   tau2ObsIGb  <- (tau2ObsIGa + 1) * tau2ObsMode
-
-  nComm       <- length(dataObj$commNames_g)
-  nSurv       <- length(dataObj$survNames_g)
-  group_f     <- c(rep(0,nComm),1,rep(2,nSurv-1))
 
   # Generate initial L1 and L2 values
   initL1_s    <- numeric( length = nS )
@@ -715,8 +743,8 @@ rerunPlots <- function( fitID = 1 )
                 lnq_spf           = array(0,dim =c(nS,nP,nF)),
                 lntauObs_spf      = array(-1,dim = c(nS,nP,nF)),
                 # Selectivity
-                lnxSel50_sf       = lnxSel50_sf,
-                lnxSelStep_sf     = lnxSelStep_sf,
+                lnxSel50_sg       = lnxSel50_sg,
+                lnxSelStep_sg     = lnxSelStep_sg,
                 epsxSel50_spf     = array(0,dim = c(nS,nP,nF)),
                 epsxSelStep_spf   = array(0,dim = c(nS,nP,nF)),
                 # Fishing mortality

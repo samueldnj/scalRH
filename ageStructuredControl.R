@@ -6,7 +6,7 @@
 # 
 # Model features:
 #   - Multistock and multispecies (DERPA)
-#   - Single sex? Or split sex?
+#   - Sex structured
 #   - Multi-level RH priors on:
 #       - Growth (vonB )
 #       - Fishing mortality (correlation in REs if estimated)
@@ -14,7 +14,7 @@
 #       - Selectivity
 #       - Catchability for survey biomass - comm in kg/hr
 #       - S-R Steepness
-#   - Length composition observation model (used in years where ages unavailable)
+#   - Length composition observation model
 #   - Age composition observation model (used when ages available)
 #   - Integrated growth model to predict length dist
 #   - Discarding - takes a grading length

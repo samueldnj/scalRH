@@ -1,0 +1,5 @@
+# Files ignored by git tracker
+
+# Temporary files from R
+*.Rapp.history
+*.DS_Store

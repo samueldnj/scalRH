@@ -402,11 +402,17 @@ Type objective_function<Type>::operator() ()
   PARAMETER_ARRAY(lnq_spf);             // fleet-species-stock specific catchability
   PARAMETER_ARRAY(lntauObs_spf);        // fleet-species-stock specific observation error variance
   // Fishery model
-  // selectivity by fleet/species //
+  // selectivity by fleet/species /
+  PARAMETER_ARRAY(lnxSel50_sg);         // Selectivity Alpha parameter by species/fleetgroup
+  PARAMETER_ARRAY(lnxSelStep_sg);       // Selectivity Beta parameter by species/fleetgroup
+  // Now use deviations to get the fleet/stock specific values
   PARAMETER_ARRAY(lnxSel50_sf);         // Selectivity Alpha parameter by species/fleet
   PARAMETER_ARRAY(lnxSelStep_sf);       // Selectivity Beta parameter by species/fleet
   PARAMETER_ARRAY(epsxSel50_spf);       // Selectivivity devs for stocks
   PARAMETER_ARRAY(epsxSelStep_spf);     // Selectivivity devs for stocks
+
+  // Count fleet groups
+  int nGroups = lnxSel50_sg.dim(1);
 
   // Fishing mortality
   PARAMETER_VECTOR(lntauC_f);           // Catch observation SD by fleet
@@ -419,8 +425,7 @@ Type objective_function<Type>::operator() ()
   PARAMETER_ARRAY(sigmaxSel50_sg);      // SD in length at 50% selectivity by fleet group
   PARAMETER_ARRAY(sigmaxSel95_sg);      // SD in length at 95% selectivity by fleet group
 
-  // Count fleet groups
-  int nGroups = muxSel95_sg.dim(1);
+  
 
   // catchability //
   PARAMETER_VECTOR(lnqbarSyn_s);        // Synoptic survey q by species (each leg surveys one stock)
@@ -639,6 +644,9 @@ Type objective_function<Type>::operator() ()
   array<Type>   xSel50_sf(nS,nF);
   array<Type>   xSelStep_sf(nS,nF);
   array<Type>   xSel95_sf(nS,nF);
+  array<Type>   xSel50_sg(nS,nGroups);
+  array<Type>   xSelStep_sg(nS,nGroups);
+  array<Type>   xSel95_sg(nS,nGroups);
   // Fleet/species/Stock
   array<Type>   xSel50_spf(nS,nP,nF);
   array<Type>   xSelStep_spf(nS,nP,nF);
@@ -651,9 +659,9 @@ Type objective_function<Type>::operator() ()
   array<Type>   epsxSelStep_spft(nS,nP,nF,nT);
   array<Type>   epslnq_spft(nS,nP,nF,nT);
   // Zero-initialise
-  xSel50_sf.setZero();
-  xSel95_sf.setZero();
-  xSelStep_sf.setZero();
+  xSel50_sg.setZero();
+  xSel95_sg.setZero();
+  xSelStep_sg.setZero();
   xSel50_spf.setZero();
   xSel95_spf.setZero();
   xSelStep_spf.setZero();
@@ -667,9 +675,9 @@ Type objective_function<Type>::operator() ()
   Fbar_spf.setZero();
 
   // Exponential species/fleet sel
-  xSel50_sf = exp(lnxSel50_sf);
-  xSelStep_sf = exp(lnxSelStep_sf);
-  xSel95_sf = xSel50_sf + xSelStep_sf;
+  xSel50_sg = exp(lnxSel50_sg);
+  xSelStep_sg = exp(lnxSelStep_sg);
+  xSel95_sg = xSel50_sg + xSelStep_sg;
 
   // Loop over gears, species, stocks and time steps, create a matrix
   // of deviations in selectivity pars and calculate the pars
@@ -678,10 +686,13 @@ Type objective_function<Type>::operator() ()
   int epslnqVecIdx = 0;
   for(int f = 0; f < nF; f++ )
   {
+    xSel50_sf.col(f) = xSel50_sg.col(group_f(f));
+    xSelStep_sf.col(f) = xSelStep_sg.col(group_f(f));
+    xSel95_sf.col(f) = xSel95_sg.col(group_f(f));
     for( int p = 0; p < nP; p++ )
     {
-      xSel50_spf.col(f).col(p)    = exp(lnxSel50_sf.col(f) + epsxSel50_spf.col(f).col(p));
-      xSelStep_spf.col(f).col(p)  = exp(lnxSelStep_sf.col(f) + epsxSelStep_spf.col(f).col(p));
+      xSel50_spf.col(f).col(p)    = exp(lnxSel50_sg.col(group_f(f)) + epsxSel50_spf.col(f).col(p));
+      xSelStep_spf.col(f).col(p)  = exp(lnxSelStep_sg.col(group_f(f)) + epsxSelStep_spf.col(f).col(p));
       xSel95_spf.col(f).col(p)    = xSel50_spf.col(f).col(p) + xSelStep_spf.col(f).col(p);
       for( int s = 0; s < nS; s++)
       {
@@ -723,7 +734,7 @@ Type objective_function<Type>::operator() ()
           if( tvqFleets(f) == 1 )
             if( I_spft(s,p,f,t) > 0 & t > minTimeIdx_spf(s,p,f) )
             {
-              epslnq_spft(s,p,f,t) += epslnq_vec(epslnqVecIdx);
+              epslnq_spft(s,p,f,t) += sigmalnq * epslnq_vec(epslnqVecIdx);
               epslnqVecIdx++;
             }
           // Now update xSel50 and xSelStep - can happen
@@ -1483,7 +1494,7 @@ Type objective_function<Type>::operator() ()
   
   // time-varying catchability
   Type qnlp_tv = 0;
-  qnlp_tv -= dnorm( epslnq_vec, 0, sigmalnq, true).sum();
+  qnlp_tv -= dnorm( epslnq_vec, 0, 1., true).sum();
 
 
   // Steepness
