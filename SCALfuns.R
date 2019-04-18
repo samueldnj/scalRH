@@ -472,7 +472,7 @@ rerunPlots <- function( fitID = 1 )
 
   # Load maturity ogives
   matOgives <- read.csv(file.path("./Data/Proc",dataObj$matFiles))
-  wtLen     <- read.csv(file.path("./Data/Proc",dataObj$wtLen))
+  wtLen     <- read.csv(file.path("./Data/Proc",dataObj$wtLenFile))
 
   # Get growth and maturity info
   # Vectors to hold
@@ -654,17 +654,29 @@ rerunPlots <- function( fitID = 1 )
   # to changing data scenarios and species complex structures
 
   # Pull prior mean values from hypoObj to keep pars list tidier
-  mh    <- hypoObj$hPriorMean
-  sdh   <- hypoObj$hPriorSD
-  mq    <- hypoObj$mq
-  sdq   <- hypoObj$sdq
-  mM    <- hypoObj$mM
-  sdM   <- hypoObj$sdM
+  mh      <- hypoObj$hPriorMean
+  sdh     <- hypoObj$hPriorSD
+  mq_g    <- hypoObj$mq_g
+  sdq_g   <- hypoObj$sdq_g
+  mM      <- hypoObj$mM
+  sdM     <- hypoObj$sdM
 
   # Observation errors
   tau2ObsIGa  <- hypoObj$tau2ObsIGa[useFleetsIdx]
   tau2ObsMode <- hypoObj$tau2ObsPriorMode[useFleetsIdx]
   tau2ObsIGb  <- (tau2ObsIGa + 1) * tau2ObsMode
+
+  # Selectivity hierarchical prior SD mode
+  sigma2xSelVarMode   <- (hypoObj$sigmaSelMode_g)^2
+  sigmaxSelIGb_g      <- (hypoObj$sigmaxSelIGa_g + 1) * sigma2xSelVarMode
+
+  # Catchability group level SD IG prior
+  tau2qMode_g         <- (hypoObj$tauqMode_g)^2
+  IGbtauq_g           <- (hypoObj$IGatauq_g + 1) * tau2qMode_g
+
+  # IG Prior on recruitment variance
+  sigma2R_mode        <- (hypoObj$IGsigmaRmode)^2
+  IGbsigmaR           <- (hypoObj$IGasigmaR + 1) * sigma2R_mode
 
   # Generate initial L1 and L2 values
   initL1_s    <- numeric( length = nS )
@@ -783,7 +795,7 @@ rerunPlots <- function( fitID = 1 )
                 # fleet catchability and obs idx SD
                 lnq_g               = rep(0,max(group_f)),
                 lntauObs_spf        = array(-1,dim = c(nS,nP,nF)),
-                # Selectivity
+                # Selectivity top level means and deviations for fleets/stocks
                 lnxSel50_sg         = lnxSel50_sg,
                 lnxSelStep_sg       = lnxSelStep_sg,
                 epsxSel50spf_vec    = rep(0,nStockSelDevs),
@@ -791,16 +803,20 @@ rerunPlots <- function( fitID = 1 )
                 # discards obs SD
                 lntauD_f            = rep(log(0.01),nF),
                 ## Multilevel priors ##
-                # Selectivity
+                # Selectivity SDs
                 lnsigmaxSel50_sg    = array(log(hypoObj$cvxSel), dim = c(nS,nGroups)),
                 lnsigmaxSelStep_sg  = array(log(hypoObj$cvxSel), dim = c(nS,nGroups)),
-                # Catchability
+                IGasigmaSel_g       = hypoObj$sigmaxSelIGa_g,
+                IGbsigmaSel_g       = sigmaxSelIGb_g,
+                # Catchability deviations and SDs
                 deltaq_sg           = array(0,dim=c(nS,nGroups)),
-                lntauq_g            = rep(log(hypoObj$sdq_g)),
+                lntauq_g            = rep(log(sdq_g)),
                 deltaqspf_vec       = rep(0, nStockqDevs),
-                lntauq_sg           = array(log(hypoObj$sdq_g),dim =c(nS,nGroups)),
-                mq_g                = hypoObj$mq_g,
-                sdq_g               = hypoObj$sdq_g,
+                lntauq_sg           = array(log(sdq_g),dim =c(nS,nGroups)),
+                mq_g                = mq_g,
+                sdq_g               = sdq_g,
+                IGatauq_g           = hypoObj$IGatauq_g ,
+                IGbtauq_g           = IGbtauq_g,
                 # Steepness
                 lnsigmah_s          = rep(log(sdh),nS),
                 logit_muSteep       = log((mh - .2)/(1 - mh)),
@@ -825,6 +841,8 @@ rerunPlots <- function( fitID = 1 )
                 omegaR_vec          = rep( 0, nRecDevs),
                 omegaRinit_vec      = rep( 0, nInitDevs ),
                 lnsigmaR_sp         = array( log(hypoObj$sigmaR), dim = c(nS,nP)),
+                IGasigmaR           = hypoObj$IGasigmaR,
+                IGbsigmaR           = IGbsigmaR,
                 # Correlation in recruitment resids
                 logitRCorr_chol     = rep(0, nS * nP),
                 logitRgamma_sp      = array( 0, dim = c(nS,nP)),
@@ -836,7 +854,7 @@ rerunPlots <- function( fitID = 1 )
                 epslnq_vec          = rep( 0, nqDevs ),
                 lnsigmaepslnq       = log( hypoObj$sigmaqdevs ),
                 ## Single-level priors ##
-                # Priors on selectivity
+                # Priors on top level selectivity
                 pmlnxSel50_sg       = lnxSel50_sg,
                 pmlnxSelStep_sg     = lnxSelStep_sg,
                 cvxSel              = hypoObj$cvxSel,
@@ -846,6 +864,7 @@ rerunPlots <- function( fitID = 1 )
                 cvL1                = .1,
                 pmlnVonK            = log(.3),
                 cvVonK              = .1,
+                mF                  = hypoObj$mF,
                 sdF                 = hypoObj$sdF )
 
 
@@ -886,18 +905,24 @@ rerunPlots <- function( fitID = 1 )
 
   if( nP == 1)
   {
-    phases$epsxSel50spf_vec   <- -1
-    phases$epsxSelStepspf_vec <- -1
-    phases$epsM_sp            <- -1
     phases$epsSteep_sp        <- -1
-    phases$deltaL2_sp         <- -1
-    phases$deltaVonK_sp       <- -1
+    phases$epsM_sp            <- -1
+    phases$deltaL2sp_vec      <- -1
+    phases$deltaVonKsp_vec    <- -1
   }
 
   if( nS == 1 )
   {
     phases$epsSteep_s       <- -1
     phases$epsM_s           <- -1
+    phases$deltaq_sg        <- -1     
+  }
+
+  if( nX == 1 )
+  {
+    phases$deltaL2_sx       <- -1
+    phases$deltaVonK_sx     <- -1
+    phases$epsM_sx          <- -1
   }
 
   checkDat <- lapply( X = data, FUN = .checkNA )
@@ -1334,7 +1359,7 @@ renameReportArrays <- function( repObj = repInit, datObj = data )
   dimnames(repObj$predC_spft) <- dimnames(datObj$age_aspftx)[c(2:5)]
   dimnames(repObj$predCw_spft) <- dimnames(datObj$age_aspftx)[c(2:5)]
   dimnames(repObj$C_aspftx) <- dimnames(datObj$age_aspftx)[c(1:5)]
-  dimnames(repObj$Cw_aspftx) <- dimnames(datObj$age_aspftx)[c(1:5)]
+  dimnames(repObj$Cw_xaspft) <- dimnames(datObj$age_aspftx)[c(6,1:5)]
   dimnames(repObj$F_spft) <- dimnames(datObj$age_aspftx)[c(2:5)]
   dimnames(repObj$Z_aspxt) <- dimnames(datObj$age_aspftx)[c(1:3,6,5)]
   # Biological parameters

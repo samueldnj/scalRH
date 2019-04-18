@@ -15,10 +15,6 @@
 // 
 // To Do:
 //  4. Consider correlation in the compositional likelihoods
-//  5. Hierarchical selectivity:
-//      a. Species/fleet for pooled compositions
-//      b. Species/fleet/stock for stock specific but pooled over years?
-//      c. Time-varying selectivity for species/fleet/stock/year
 //  6. Un-center hierarchical distributions
 // 
 // 
@@ -33,7 +29,7 @@
 //        but a random stock effect for each species/stock combo
 //        is added - could correlate if time-varying
 // - Multi-level RH priors on:
-//     - Growth (vonB or F-W undecided)
+//     - Growth (vonB)
 //     - Fishing mortality (correlation in REs if estimated)
 //     - Natural mortality (M0 prior and correlated deviations)
 //     - Selectivity
@@ -244,6 +240,7 @@ array<Type> solveBaranov_spf( int   nIter,
   {
     // Now reset newZ
     tmp_spf.setZero();
+    tmp_xaspf.setZero();
     J_spf.setZero();
     f_spf.setZero();
     tmpZ_aspx.setZero();
@@ -259,12 +256,8 @@ array<Type> solveBaranov_spf( int   nIter,
       {
         for( int x = 0; x < nX; x++ )
         {
-          // Fill newZ up with M
           for( int a = 0; a < A_s(s); a++ )
           {
-            // Overwrite newZ into Z array
-            // tmpZ_aspx(a,s,p,x)     += newZ_aspx(a,s,p,x);
-
             for(int f = 0; f < nF; f++ )  
             {             
               tmp_xaspf(x,a,s,p,f) += B_aspx(a,s,p,x) * (1 - exp(-newZ_aspx(a,s,p,x)) ) * sel_aspfx(a,s,p,f,x) *  F_spf(s,p,f) / newZ_aspx(a,s,p,x);
@@ -366,8 +359,8 @@ Type objective_function<Type>::operator() ()
   DATA_INTEGER(nBaranovIter);           // number of baranov steps
   DATA_SCALAR(lambdaBaranovStep);       // fractional step size for Newton-Rhapson Baranov iteration
   DATA_ARRAY(calcStockGrowth_sp);       // Switch for calculating stock-specific growth parameters
-  DATA_ARRAY(calcStockSelDevs_spf);     // Switch for calculating stock-specific growth parameters
-  DATA_ARRAY(calcStockQDevs_spf);     // Switch for calculating stock-specific growth parameters
+  DATA_ARRAY(calcStockSelDevs_spf);     // Switch for calculating stock-specific selectivity parameters
+  DATA_ARRAY(calcStockQDevs_spf);       // Switch for calculating stock-specific catchability parameters
   // DATA_STRING(recruitVariance);         // Character-switch for recruitment variance model
   // DATA_INTEGER(debugMode);              // Turn on debug mode (will return more in the report object and calculate quantities)
 
@@ -421,6 +414,8 @@ Type objective_function<Type>::operator() ()
   // selectivity //
   PARAMETER_ARRAY(lnsigmaxSel50_sg);      // SD in x-at-50% selectivity by fleet group
   PARAMETER_ARRAY(lnsigmaxSelStep_sg);    // SD in step from x-at-50% to x-at-85% selectivity by fleet group
+  PARAMETER_VECTOR(IGasigmaSel_g);        // IG a parameter for sigmaxSel50 and sigmaxSelStep prior
+  PARAMETER_VECTOR(IGbsigmaSel_g);        // IG b parameter for sigmaxSel50 and sigmaxSelStep prior
 
 
   // catchability //
@@ -430,6 +425,9 @@ Type objective_function<Type>::operator() ()
   PARAMETER_ARRAY(lntauq_sg);           // SD of Species-specific fleet group catchability dist
   PARAMETER_VECTOR(mq_g);               // prior mean fleet group q
   PARAMETER_VECTOR(sdq_g);              // Prior SD fleet group q (vague)
+  PARAMETER_VECTOR(IGatauq_g);          // IG a parameter for tau2q_g and tau2q_sg hyperprior
+  PARAMETER_VECTOR(IGbtauq_g);          // IG a parameter for tau2q_g and tau2q_sg hyperprior
+
   // steepness //
   PARAMETER_VECTOR(lnsigmah_s);         // species level steepness SD
   PARAMETER(logit_muSteep);             // complex steepness
@@ -444,17 +442,21 @@ Type objective_function<Type>::operator() ()
 
 
   // Random Effects
-  // recruitment //
+  // Steepness and mortality //
   PARAMETER_VECTOR(epsSteep_s);         // Species level steepness effect
   PARAMETER_VECTOR(epsM_s);             // Species level natural mortality effect
   PARAMETER_ARRAY(epsSteep_sp);         // stock level steepness effect
   PARAMETER_ARRAY(epsM_sp);             // stock level natural mortality effect
   PARAMETER_ARRAY(epsM_sx);             // sex specific natural mortality effect
+  // Recruitment //
   PARAMETER_VECTOR(omegaR_vec);         // species-stock specific recruitment errors 2:nT
   PARAMETER_VECTOR(omegaRinit_vec);     // stock-age specific recruitment initialisation errors
   PARAMETER_ARRAY(lnsigmaR_sp);         // stock recruitment errors sd (sqrt cov matrix diag)
   PARAMETER_VECTOR(logitRCorr_chol);    // stock recruitment errors corr chol factor off diag  
   PARAMETER_ARRAY(logitRgamma_sp);      // species-stock-specific AR1 auto-corr on year effect (omega)
+  PARAMETER(IGasigmaR);                 // IG a parameter for sigma2R prior
+  PARAMETER(IGbsigmaR);                 // IG b parameter for sigma2R prior
+  // Time varying selectivity and catchability //
   PARAMETER_VECTOR(epsxSel50_vec);      // random effect on length at 50% selectivity
   PARAMETER_VECTOR(epsxSelStep_vec);    // random effect on length at 95% selectivity
   PARAMETER(lnsigmaSel);                // SD on time varying random effect for selectivity
@@ -473,7 +475,7 @@ Type objective_function<Type>::operator() ()
   PARAMETER(cvL1);                      // Prior CV on L1
   PARAMETER(pmlnVonK);                  // Prior complex vonK 
   PARAMETER(cvVonK);                    // Prior CV on VonK
-  // PARAMETER(mF);                        // Prior mean value for mean F
+  PARAMETER(mF);                        // Prior mean value for mean F
   PARAMETER(sdF);                       // Prior sd for meanF
 
   // mortality deviations //
@@ -538,8 +540,10 @@ Type objective_function<Type>::operator() ()
   // Catchability and index observation errors
   vector<Type>  q_g(nGroups);
   vector<Type>  tauq_g(nGroups);
+  vector<Type>  tau2q_g(nGroups);
   array<Type>   q_sg(nS,nGroups);
   array<Type>   tauq_sg(nS,nGroups);
+  array<Type>   tau2q_sg(nS,nGroups);
   array<Type>   q_spf(nS,nP,nF);
   array<Type>   deltaq_spf(nS,nP,nF);
   array<Type>   tauObs_spf(nS,nP,nF);
@@ -549,6 +553,10 @@ Type objective_function<Type>::operator() ()
   deltaq_spf.setZero();
   tauObs_spf.setZero();
   tau2Obs_spf.setZero();
+  tau2q_sg.setZero();
+  tauq_sg.setZero();
+  tauq_g.setZero();
+  tau2q_g.setZero();
 
 
   // Time-varying catchability
@@ -764,6 +772,7 @@ Type objective_function<Type>::operator() ()
           // Update the epsilon array          
           // Check if ages or lengths are observed this time step
           if( tvSelFleets(f) == 1)
+          {
             for( int x = 0; x < nX; x++)
             {
               if( ((age_aspftx(0,s,p,f,t,x) >= 0) & (ageLikeWt > 0)) |
@@ -775,24 +784,25 @@ Type objective_function<Type>::operator() ()
                 break;
               }
             }
+            // Now update xSel50 and xSelStep - can happen
+            // at first time step, since we're using the gear specific
+            // selectivity curve when we don't have age observations
+            // for a stock within a fleet/species
+            xSel50_spft(s,p,f,t)    *= exp(epsxSel50_spft(s,p,f,t));
+            xSelStep_spft(s,p,f,t)  *= exp(epsxSelStep_spft(s,p,f,t));
+          }
    
           // do the same for time varying q
           if( tvqFleets(f) == 1 )
+          {
             if( I_spft(s,p,f,t) > 0 & t > minTimeIdx_spf(s,p,f) )
             {
               epslnq_spft(s,p,f,t) += sigmalnq * epslnq_vec(epslnqVecIdx);
               epslnqVecIdx++;
             }
-          // Now update xSel50 and xSelStep - can happen
-          // at first time step, since we're using the gear specific
-          // selectivity curve when we don't have age observations
-          // for a stock within a fleet/species
-          xSel50_spft(s,p,f,t)    *= exp(epsxSel50_spft(s,p,f,t));
-          xSelStep_spft(s,p,f,t)  *= exp(epsxSelStep_spft(s,p,f,t));
-
-          // Now update q
-          q_spft(s,p,f,t)         *= exp(epslnq_spft(s,p,f,t));
-          
+            // Now update q
+            q_spft(s,p,f,t)         *= exp(epslnq_spft(s,p,f,t));
+          }
         }
       }
     }
@@ -848,7 +858,7 @@ Type objective_function<Type>::operator() ()
   array<Type> F_aspftx(nA,nS,nP,nF,nT,nX);  // Fishing mortality by age, fleet, population and time
   array<Type> Z_aspxt(nA,nS,nP,nX,nT);      // Total mortality by age, population and time
   array<Type> C_aspftx(nA,nS,nP,nF,nT,nX);  // Predicted catch-at-age (in numbers), fleet, population and time
-  array<Type> Cw_aspftx(nA,nS,nP,nF,nT,nX); // Predicted catch-at-age (in weight), population and time
+  array<Type> Cw_xaspft(nX,nA,nS,nP,nF,nT); // Predicted catch-at-age (in weight), population and time
   array<Type> predCw_spft(nS,nP,nF,nT);     // Predicted catch (in weight) by population and time
   array<Type> predC_spft(nS,nP,nF,nT);      // Predicted catch (in numbers) by population and time
   array<Type> B_spt(nS,nP,nT);              // Total biomass by species, pop, time
@@ -1017,7 +1027,7 @@ Type objective_function<Type>::operator() ()
   F_aspftx.setZero();
   Z_aspxt.setZero();
   C_aspftx.setZero();
-  Cw_aspftx.setZero();
+  Cw_xaspft.setZero();
   B_spt.setZero();
   SB_spt.setZero();
   Bv_spft.setZero();
@@ -1044,6 +1054,9 @@ Type objective_function<Type>::operator() ()
   vB_spfxt.setZero();
   vB_spft.setZero();
   sel_aspfxt.setZero();
+
+  array<Type> nPosCatch_spf(nS,nP,nF);
+  nPosCatch_spf.fill(1e-9);
 
   // Loop over time, species
   for( int t = 0; t < nT; t++ )
@@ -1158,24 +1171,27 @@ Type objective_function<Type>::operator() ()
     array<Type> tmpF_spf(nS,nP,nF);
     tmpF_spf = F_spft.col(t);
 
+    array<Type> tmpCw_xaspf(nX,nA,nS,nP,nF);
+    tmpCw_xaspf.setZero();
+
     // Switch Baranov solver to return predicted catch
-    Cw_aspftx.rotate(1).col(t) = solveBaranov_spf(  nBaranovIter,
-                                                    lambdaBaranovStep,
-                                                    A_s,
-                                                    C_spft.col(t),
-                                                    M_spx,
-                                                    B_aspxt.col(t),
-                                                    vB_aspfxt.col(t),
-                                                    vB_spfxt.col(t),
-                                                    vB_spft.col(t),
-                                                    sel_aspfxt.col(t),
-                                                    tmpZ_aspx,
-                                                    tmpF_spf);
+    tmpCw_xaspf += solveBaranov_spf(  nBaranovIter,
+                                      lambdaBaranovStep,
+                                      A_s,
+                                      C_spft.col(t),
+                                      M_spx,
+                                      B_aspxt.col(t),
+                                      vB_aspfxt.col(t),
+                                      vB_spfxt.col(t),
+                                      vB_spft.col(t),
+                                      sel_aspfxt.col(t),
+                                      tmpZ_aspx,
+                                      tmpF_spf);
+    Cw_xaspft.col(t)  += tmpCw_xaspf;
+    Z_aspxt.col(t)    += tmpZ_aspx;
+    F_spft.col(t)     += tmpF_spf;
 
-    Z_aspxt.col(t) += tmpZ_aspx;
-    F_spft.col(t)  += tmpF_spf;
-
-    Fbar_spf += F_spft.col(t) / nT;
+    
 
     for( int s = 0; s < nS; s++)
       for( int p = 0; p < nP; p++ )
@@ -1184,15 +1200,21 @@ Type objective_function<Type>::operator() ()
           for( int x = 0; x < nX; x++ )
             for( int a = 0; a < A_s(s); a++)
             {
-              C_aspftx(a,s,p,f,t,x)  = Cw_aspftx(a,s,p,f,t,x) / meanWtAge_aspx(a,s,p,x);  
+              C_aspftx(a,s,p,f,t,x)  = Cw_xaspft(x,a,s,p,f,t) / meanWtAge_aspx(a,s,p,x);  
               // Generate predicted total catch in weight and numbers
-              predCw_spft(s,p,f,t) += Cw_aspftx(a,s,p,f,t,x);
+              predCw_spft(s,p,f,t) += Cw_xaspft(x,a,s,p,f,t);
               predC_spft(s,p,f,t)  += C_aspftx(a,s,p,f,t,x);
+
+
             }
-          
+         
+          if( predC_spft(s,p,f,t) > 0 )
+            nPosCatch_spf(s,p,f) += 1; 
         }
 
+    Fbar_spf += F_spft.col(t) / (1e-9 + nPosCatch_spf);
   }
+    
 
   // Compute exploitation rate
   U_spft = predCw_spft / vB_spft;
@@ -1271,9 +1293,10 @@ Type objective_function<Type>::operator() ()
   // Process model likelihood //
   // Recruitment deviations (initial and ongoing) - add correlation later
   // both auto-correlation and between-pop correlation can be added.
-  Type recnll = 0;
-  recnll -= dnorm( omegaRinit_vec,Type(0), Type(1), true).sum();
-  recnll -= dnorm( omegaR_vec,Type(0), Type(1), true).sum();
+  Type recnlp = 0;
+  recnlp -= dnorm( omegaRinit_vec,Type(0), Type(1), true).sum();
+  recnlp -= dnorm( omegaR_vec,Type(0), Type(1), true).sum();
+  recnlp += ((IGasigmaR+Type(1))*2*lnsigmaR_sp+IGbsigmaR/sigmaR_sp/sigmaR_sp).sum();
 
   // vonB growth model likelihood //
   // Currently has lengths binned the same as the integration above, 
@@ -1495,9 +1518,8 @@ Type objective_function<Type>::operator() ()
   Type Fnlp = 0;
 
 
-  // Now a prior on catchability and observation error SD
-  // Surveys only really act on one stock each, 
-  // so their catchabiliity prior will be across species
+  // Now a prior on the solution to the Baranov equation
+  // and observation error variance
   vector<Type> tauObsnlp_f(nF);
   tauObsnlp_f.setZero();
   for( int s = 0; s < nS; s++ )
@@ -1511,7 +1533,8 @@ Type objective_function<Type>::operator() ()
           Fvec = F_spft.rotate(1).col(f).col(p).col(s);
           Uvec = U_spft.rotate(1).col(f).col(p).col(s);
           // Penalize deviations of F from exploitation rate.
-          Fnlp -= dnorm(Fvec, Uvec, sdF, true).sum();
+          // Fnlp -= dnorm(Fvec, Uvec, sdF, true).sum();
+          Fnlp -= dnorm(log(Fbar_spf(s,p,f)), log(mF), sdF, true);
         }
         
         // Observation error SD
@@ -1521,22 +1544,6 @@ Type objective_function<Type>::operator() ()
       }
 
   
-
-  
-  // catchability
-  Type qnlp_tv = 0;
-  Type qnlp_stock = 0;
-  Type qnlp_gps = 0;
-  qnlp_tv -= dnorm( epslnq_vec, Type(0), Type(1), true).sum();
-  qnlp_stock -= dnorm( deltaqspf_vec, Type(0), Type(1), true).sum();
-  for( int g = 0; g < nGroups; g++)
-  {
-    vector<Type> qDevVec = deltaq_sg.col(g);
-    qnlp_gps -= dnorm( qDevVec, Type(0), Type(1), true).sum();
-  }
-
-  qnlp_gps -= dnorm( lnq_g, log(mq_g), sdq_g, true).sum();
-
 
 
   // Steepness
@@ -1641,8 +1648,10 @@ Type objective_function<Type>::operator() ()
     
   // And penalties stock mean growth model
   // deviations
-  L2nlp           -= dnorm( deltaL2bar_p, Type(0.), sigmaL2, true).sum();
-  vonKnlp         -= dnorm( deltaVonKbar_p, Type(0.), sigmavonK, true).sum();
+  // L2nlp           -= dnorm( deltaL2bar_p, Type(0.), sigmaL2, true).sum();
+  // vonKnlp         -= dnorm( deltaVonKbar_p, Type(0.), sigmavonK, true).sum();
+
+  // Selectivity
 
   // Add time-varying selectivity deviations
   sel_nlp -= dnorm( epsxSel50_vec, Type(0), 1., true).sum();
@@ -1661,8 +1670,29 @@ Type objective_function<Type>::operator() ()
     value  = lnxSelStep_sg.col(g);
     mean   = pmlnxSelStep_sg.col(g);
     sel_nlp -= dnorm( value, mean, cvxSel, true).sum();
+
+    // Add prior for tauq_g and tauq_sg
+    sel_nlp += ((IGasigmaSel_g(g)+Type(1))*2*lnsigmaxSel50_sg.col(g) + IGbsigmaSel_g(g)/sigmaxSel50_sg.col(g)/sigmaxSel50_sg.col(g)).sum();
+    sel_nlp += ((IGasigmaSel_g(g)+Type(1))*2*lnsigmaxSelStep_sg.col(g) + IGbsigmaSel_g(g)/sigmaxSelStep_sg.col(g)/sigmaxSelStep_sg.col(g)).sum();
   }
-  
+
+  // catchability
+  Type qnlp_tv = 0;       // time varying catchability
+  Type qnlp_stock = 0;    // stock specific catchability devs
+  Type qnlp_gps = 0;      // species specific group level catchability devs
+
+  qnlp_tv -= dnorm( epslnq_vec, Type(0), Type(1), true).sum();
+  qnlp_stock -= dnorm( deltaqspf_vec, Type(0), Type(1), true).sum();
+  for( int g = 0; g < nGroups; g++)
+  {
+    vector<Type> qDevVec = deltaq_sg.col(g);
+    qnlp_gps -= dnorm( qDevVec, Type(0), Type(1), true).sum();
+
+    qnlp_gps += ((IGatauq_g(g)+Type(1))*2*lntauq_g(g) + IGbtauq_g(g)/tau2q_g(g));
+    qnlp_gps += ((IGatauq_g(g)+Type(1))*2*lntauq_sg.col(g) + IGbtauq_g(g)/tau2q_sg.col(g)).sum();
+  }
+
+  qnlp_gps -= dnorm( lnq_g, log(mq_g), sdq_g, true).sum();
 
   // VonB priors
   vector<Type>  L1nlp_s(nS);
@@ -1696,7 +1726,7 @@ Type objective_function<Type>::operator() ()
   f += growthLikeWt * ( L2nlp_p.sum() + vonKnlp_p.sum());
   f += growthLikeWt * ( L2nlp + vonKnlp );
   // Recruitment errors
-  f += recnll;      // recruitment process errors
+  f += recnlp;      // recruitment process errors
   // q groups
   f += qnlp_stock + qnlp_gps + qnlp_tv;
   // Biological parameters
@@ -1742,8 +1772,9 @@ Type objective_function<Type>::operator() ()
   REPORT( xSel95_sf );      // length at 95% sel by species/fleet
   REPORT( xSelStep_sf );    // length at 95% sel by species/fleet
   REPORT( F_spft );         // Fishing mortality
+  REPORT( U_spft );         // Harvest rate
   REPORT( sel_lfspt );      // Selectivity at length
-  REPORT( sel_afsptx );      // Selectivity at age
+  REPORT( sel_afsptx );     // Selectivity at age
   REPORT( Fbar_spf );       // Average fishing mortality
   REPORT( tauD_f );
   REPORT( sigmaxSel50_sg );
@@ -1755,7 +1786,7 @@ Type objective_function<Type>::operator() ()
   REPORT( N_asptx );
   REPORT( R_spt );
   REPORT( C_aspftx );
-  REPORT( Cw_aspftx );
+  REPORT( Cw_xaspft );
   REPORT( predCw_spft );
   REPORT( predC_spft );
   REPORT( Bv_spft );
@@ -1763,7 +1794,8 @@ Type objective_function<Type>::operator() ()
   REPORT( Nv_aspftx );
   REPORT( SB_spt );
   REPORT( B_spt );
-  REPORT( Z_aspxt )
+  REPORT( Z_aspxt );
+
 
   // Stock recruit parameters
   REPORT( Surv_aspx );
@@ -1834,7 +1866,7 @@ Type objective_function<Type>::operator() ()
 
   // Likelihood values
   REPORT( joint_nlp );
-  REPORT( recnll );
+  REPORT( recnlp );
   REPORT( vonBnll_spf );
   REPORT( CPUEnll_spf );
   REPORT( tau2Obs_spf );

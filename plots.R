@@ -1421,8 +1421,8 @@ plotIdxFits <- function ( repObj = repInit,
       lines( x = years[1:nT], y = Bv_ft[fIdx,], lwd = 2, col = "grey30" )
       points( x = years[1:nT], y = scaledIndices, col = gearCols[fIdx], pch = 16 )
       panLab( x = 0.9, y = 0.8, txt = gearNames[fIdx], cex = 2 )
-      panLab( x = 0.9, y = .7, txt = paste("q = ",  round(q_f[fIdx],2),sep = ""), cex = 1.5 )
-      panLab( x = 0.9, y = .65, txt = paste("tau = ", round(tau_f[fIdx],2),sep = ""), cex = 1.5 )
+      panLab( x = 0.9, y = .7, txt = paste("q = ",  signif(q_f[fIdx],2),sep = ""), cex = 1.5 )
+      panLab( x = 0.9, y = .65, txt = paste("tau = ", signif(tau_f[fIdx],2),sep = ""), cex = 1.5 )
   }
   mtext(  side = 1, text = "Year", outer = T )
   mtext(  side = 2, text = "Vulnerable Biomass", outer = T, 
@@ -1437,6 +1437,8 @@ plotIdxResids <- function ( repObj = repInit,
   # Pull vulnerable biomass and indices
   I_ft_hat    <- repObj$I_spft_hat[sIdx,pIdx,,]
   I_ft        <- repObj$I_spft[sIdx,pIdx,,]
+
+  tauObs_f    <- repObj$tauObs_spf[sIdx,pIdx,]
 
   gearNames   <- dimnames(I_ft_hat)[[1]]
 
@@ -1464,7 +1466,7 @@ plotIdxResids <- function ( repObj = repInit,
   for( g in surveyGears )
   {
     skipLo <- FALSE
-    resids <- log(I_ft_hat[g,] / I_ft[g,])
+    resids <- log(I_ft_hat[g,] / I_ft[g,]) / tauObs_f[g]
     yLim <- range(resids,na.rm = T)
     if(any(!is.finite(range(resids,na.rm = T))))
     { 
@@ -1476,7 +1478,9 @@ plotIdxResids <- function ( repObj = repInit,
     plot( x = range(years), y = yLim,
           xlab = "", ylab = "", type = "n",
           axes = F )
-      axis(side = 1)
+      mfg <- par("mfg")
+      if( mfg[1] == mfg[3] )
+        axis(side = 1)
       axis(side = 2, las = 1)
       box()
       abline(h = 0, lty = 2, lwd = .8 )
@@ -1488,7 +1492,7 @@ plotIdxResids <- function ( repObj = repInit,
       panLab( x = 0.9, y = 0.8, txt = gearNames[g], cex = 2 )
   }
   mtext(  side = 1, text = "Year", outer = T )
-  mtext(  side = 2, text = "Vulnerable Biomass", outer = T, 
+  mtext(  side = 2, text = "Std. log-residuals", outer = T, 
           line = 2)
 } # END plotIdxFits()
 
@@ -1502,6 +1506,8 @@ plotSelLen <- function( repObj = repInit,
   sel_lft <- repObj$sel_lfspt[ , , sIdx, pIdx, ]
 
   gearNames <- dimnames(sel_lft)[[2]]
+
+  group_f   <- repObj$group_f + 1
 
   # Dimensions
   nF <- repObj$nF
@@ -1525,18 +1531,17 @@ plotSelLen <- function( repObj = repInit,
   }
 
   # Get prior mean pars
-  pmxSel50_sf   <- exp(repObj$pmlnxSel50_sf[sIdx,])
-  pmxSelStep_sf <- exp(repObj$pmlnxSelStep_sf[sIdx,])
-  pmxSel95_sf   <- pmxSel50_sf + pmxSelStep_sf
+  pmxSel50_sg   <- exp(repObj$pmlnxSel50_sg[sIdx,])
+  pmxSelStep_sg <- exp(repObj$pmlnxSelStep_sg[sIdx,])
+  pmxSel95_sg  <- pmxSel50_sg + pmxSelStep_sg
 
-  
   sel_lf    <- matrix(0, nrow = L, ncol = nF)
   pmSel_lf  <- matrix(0, nrow = L, ncol = nF)
 
   for( fIdx in 1:nF )
   {
     sel_lf[,fIdx] <- 1 / (1 + exp(-log(19) * (1:L - xSel50_f[fIdx])/xSelStep_f[fIdx]))
-    pmSel_lf[,fIdx] <- 1 / (1 + exp(-log(19) * (1:L - pmxSel50_sf[fIdx])/pmxSelStep_sf[fIdx]))
+    pmSel_lf[,fIdx] <- 1 / (1 + exp(-log(19) * (1:L - pmxSel50_sg[group_f[fIdx]])/pmxSelStep_sg[group_f[fIdx]]))
     if(!is.null(sel_lfs))
       sel_lfs[,fIdx] <- 1 / (1 + exp(-log(19) * (1:L - xSel50_sf[fIdx])/xSelStep_sf[fIdx]))
   }
@@ -1566,10 +1571,10 @@ plotSelLen <- function( repObj = repInit,
       mtext( side = 4, text = gearNames[fIdx], line = 2, font = 2)
       if(fIdx == 1)
         legend(x = "bottomright",
-                legend = c("Prior","Estimate"),
-                col = c("salmon","steelblue"),
-                lty = c(1,2),
-                lwd = c(2,2), bty = "n" )
+                legend = c("Prior","Stock Estimate","Fleet Estimate"),
+                col = c("steelblue","salmon","grey50"),
+                lty = c(1,2,2),
+                lwd = c(2,2,2), bty = "n" )
   }
   mtext( side = 1, text= "Length", outer = T, line = 2)
   mtext( side = 2, text= "Selectivity-at-length", outer = T, line = 2)

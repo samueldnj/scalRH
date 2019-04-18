@@ -38,14 +38,30 @@ scenario$scenario6$data$species c("Dover","English","Rock","Petrale")
 #
 mp$mp1$ctrl$modelHypName 'baseModel'
 #
-# MP 2 : tvq
+# MP 2 : tvSel
 #
-mp$mp2$ctrl$modelHypName 'tvq'
-mp$mp2$hypo$tvq TRUE
+mp$mp2$ctrl$modelHypName 'tvSel'
+mp$mp2$hypo$tvSel TRUE
 #
-# MP 3 : tvSel
+# MP 3 : lowtauqMode_g
 #
-mp$mp3$ctrl$modelHypName 'tvSel'
-mp$mp3$hypo$tvSel TRUE
+mp$mp3$ctrl$modelHypName 'lowtauqMode_g'
+mp$mp3$hypo$tauqMode_g c(.1,.1,.1)
 #
+# MP 4 : hitauqMode_g
+#
+mp$mp4$ctrl$modelHypName 'hitauqMode_g'
+mp$mp4$hypo$tauqMode_g c(1,1,1)
+#
+# MP 5 : lowSigmaSelMode_g
+#
+mp$mp5$ctrl$modelHypName 'lowsigmaSelMode_g'
+mp$mp5$hypo$sigmaSelMode_g c(.1,.1,.1)
+#
+# MP 6 : hiSigmaSelMode_g
+#
+mp$mp6$ctrl$modelHypName 'hisigmaSelMode_g'
+mp$mp6$hypo$sigmaSelMode_g c(1,1,1)
+#
+
 # File Ends <not run>.
