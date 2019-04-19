@@ -764,7 +764,6 @@ rerunPlots <- function( fitID = 1 )
                 calcStockSelDevs_spf  = calcStockSelDevs_spf,
                 calcStockQDevs_spf    = calcStockQDevs_spf   )
 
-
   # Generate parameter list
   pars <- list( ## Leading biological pars ##
                 lnB0_sp             = log(sumCat_sp),
@@ -806,6 +805,7 @@ rerunPlots <- function( fitID = 1 )
                 # Selectivity SDs
                 lnsigmaxSel50_sg    = array(log(hypoObj$cvxSel), dim = c(nS,nGroups)),
                 lnsigmaxSelStep_sg  = array(log(hypoObj$cvxSel), dim = c(nS,nGroups)),
+
                 IGasigmaSel_g       = hypoObj$sigmaxSelIGa_g,
                 IGbsigmaSel_g       = sigmaxSelIGb_g,
                 # Catchability deviations and SDs

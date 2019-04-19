@@ -56,12 +56,12 @@ mp$mp4$hypo$tauqMode_g c(1,1,1)
 # MP 5 : lowSigmaSelMode_g
 #
 mp$mp5$ctrl$modelHypName 'lowsigmaSelMode_g'
-mp$mp5$hypo$sigmaSelMode_g c(.1,.1,.1)
+mp$mp5$hypo$sigmaSelMode_g c(.01,.01,.01)
 #
 # MP 6 : hiSigmaSelMode_g
 #
 mp$mp6$ctrl$modelHypName 'hisigmaSelMode_g'
-mp$mp6$hypo$sigmaSelMode_g c(1,1,1)
+mp$mp6$hypo$sigmaSelMode_g c(.5,.5,.5)
 #
 
 # File Ends <not run>.

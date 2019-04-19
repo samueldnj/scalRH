@@ -714,9 +714,11 @@ Type objective_function<Type>::operator() ()
   }
 
   // Exponentiate and build catchability parameters
-  q_g = exp(lnq_g);
-  tauq_g = exp(lntauq_g);
-  tauq_sg = exp(lntauq_sg);
+  q_g       = exp(lnq_g);
+  tauq_g    = exp(lntauq_g);
+  tau2q_g   = exp(2*lntauq_g);
+  tauq_sg   = exp(lntauq_sg);
+  tau2q_sg  = exp(2*lntauq_sg);
 
   // Create group mean catchabilities for each
   // species
@@ -1002,6 +1004,14 @@ Type objective_function<Type>::operator() ()
               sel_afsptx.col(x).col(t).col(p).col(s).col(f).segment(0,minA_s(s)).fill(0);
             }
 
+          // Rescale selectivity at age by the highest value in the plusgroup across modeled sexes
+          if(nX > 1)
+            if( sel_afsptx(A_s(s)-1,f,s,p,t,0) > sel_afsptx(A_s(s)-1,f,s,p,t,1) )
+              sel_afsptx.rotate(1).col(t).col(p).col(s).col(f) /= sel_afsptx(A_s(s)-1,f,s,p,t,0);
+            if( sel_afsptx(A_s(s)-1,f,s,p,t,0) <= sel_afsptx(A_s(s)-1,f,s,p,t,1) )
+              sel_afsptx.rotate(1).col(t).col(p).col(s).col(f) /= sel_afsptx(A_s(s)-1,f,s,p,t,1); 
+          if( nX == 1 )
+            sel_afsptx.col(0).col(t).col(p).col(s).col(f) /= sel_afsptx(A_s(s)-1,f,s,p,t,0);
 
         }
       }
@@ -1505,23 +1515,11 @@ Type objective_function<Type>::operator() ()
       }
     }
 
-
-  // Shared Hierarchical Prior Distributions //
-  // loop over species and stocks, add penalty for stock deviations from
-  // species mean
-
-  // Synoptic catchability prior
-  vector<Type> qnlpSyn_s(nS);
-  Type qnlpSyn = 0.;
-  qnlpSyn_s.setZero();
-  Type qnlpSurv = 0.;
-  Type Fnlp = 0;
-
-
   // Now a prior on the solution to the Baranov equation
   // and observation error variance
   vector<Type> tauObsnlp_f(nF);
   tauObsnlp_f.setZero();
+  Type Fnlp = 0;
   for( int s = 0; s < nS; s++ )
     for( int p = 0; p < nP; p++ )
       for( int f = 0; f < nF; f++ )
@@ -1544,8 +1542,7 @@ Type objective_function<Type>::operator() ()
       }
 
   
-
-
+  // ------------------ Shared Hierarchical Prior Distributions ------------------ //
   // Steepness
   vector<Type>  steepnessnlp_s(nS);
   array<Type>   steepnessnlp_sp(nS,nP);
@@ -1704,7 +1701,7 @@ Type objective_function<Type>::operator() ()
   L2nlp_s   -= dnorm( log(L2_s), pmlnL2_s, cvL2, true);
   vonKnlp_s -= dnorm( lnvonK_s, pmlnVonK, cvVonK, true);
 
-
+  // Initial biomass
   array<Type> B0nlp_sp(nS,nP);
   B0nlp_sp.setZero();
   B0nlp_sp += lambdaB0 * ( log( B_spt.col(0) ) );
@@ -1894,10 +1891,9 @@ Type objective_function<Type>::operator() ()
   REPORT( Mnlp_sp );
   REPORT( Mnlp_s );
   REPORT( Mnlp );
-  REPORT( qnlpSurv );
-  REPORT( qnlpSyn );
-  REPORT( qnlpSyn_s );
   REPORT( qnlp_tv );
+  REPORT( qnlp_gps );
+  REPORT( qnlp_stock );
   REPORT( tauObsnlp_f );
   REPORT( minAgeProp );
   REPORT( minLenProp );
