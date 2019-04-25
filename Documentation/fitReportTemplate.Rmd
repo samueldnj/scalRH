@@ -71,7 +71,6 @@ library(knitr)
 library(kableExtra)
 library(dplyr)
 library(stringr)
-library(PBSmapping)
 library(tidyverse)
 library(here)
 # library( ggmap )
@@ -275,3 +274,5 @@ kable(  phaseReportTable, escape = FALSE,
                 bootstrap_options = c("striped", "hover"))
 
 ```
+
+
