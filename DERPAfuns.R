@@ -121,9 +121,9 @@ makeIndexArray <- function( relBio = relBioList_Survey,
 
   I_spft <- array( NA,  dim = c( nS, nP, nF, nT ),
                         dimnames = list(  species = names(relBio),
-                                          stocks = stockIDs,
-                                          fleets = c(commIDs,survIDs),
-                                          years = years ) )
+                                          stock   = stockIDs,
+                                          fleet   = c(commIDs,survIDs),
+                                          year    = years ) )
 
   # Now loop over species and fill
   for( specIdx in 1:nS )
@@ -2575,7 +2575,7 @@ makeCompsArray <- function( compList = ageComps,
   stockIDs <- dimnames(compList[[1]])[[1]]
   # Create dimension names
   dimNames <- list( 1:nX, specIDs, stockIDs, fleetIDs, years, c("male","female") )
-  names(dimNames) <- c(xName, "species", "stock", "fleet", "years", "sex")
+  names(dimNames) <- c(xName, "species", "stock", "fleet", "year", "sex")
 
   # Initialise array
   comps_xspftX <- array( 0, dim = c(nX, nS, nP, nF, nT, 2 ),

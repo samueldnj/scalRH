@@ -172,6 +172,143 @@ plotFspft <- function( repObj = repInit,
           lty = c(1), lwd = c(2) )
 } # END plotF_spt
 
+plotScaledIdxGrid <- function(repObj = repOpt )
+{
+  # Load vulnerable biomass
+  Bv_spft <- repObj$Bv_spft
+  I_spft  <- repObj$I_spft
+  q_spft  <- repObj$q_spft
+
+
+  # rescale indices
+  scaledI_spft <- I_spft / q_spft
+
+  scaledI_spft[scaledI_spft < 0] <- NA
+  Bv_spft[scaledI_spft <= 0] <- NA
+
+  scaledI_spft.df <-  melt(scaledI_spft) %>%
+                      rename( scaledIdx = value)
+  # Create a df of standardised values
+  stdBv_spft <- melt(Bv_spft) %>%
+                rename( vulnBiomass = value ) %>%
+                left_join( scaledI_spft.df, by = c("species","stock","fleet","year"))
+
+  idxFitPlot <- ggplot( data = stdBv_spft,
+                        mapping = aes(x = year, y = vulnBiomass,
+                                      group = fleet) ) +
+                geom_line(mapping = aes(  x = year, y = vulnBiomass,
+                                          group = fleet, colour = fleet) ) +
+                geom_point( mapping = aes(  x = year, y = scaledIdx,
+                                            colour = fleet, group = fleet ) ) +
+                facet_grid( stock ~ species, scales = "fixed" ) +
+                theme_sleek()
+
+  print(idxFitPlot)
+
+}
+
+
+plotIdxResidsGrid <- function(repObj = repOpt )
+{
+  # Load vulnerable biomass, indices and catchability scalar
+  Bv_spft <- repObj$Bv_spft
+  I_spft  <- repObj$I_spft
+  q_spft  <- repObj$q_spft
+
+  # Load observation error variance
+  tauObs_spf <- repObj$tauObs_spf
+
+  tauObs.df   <- melt(tauObs_spf) %>%
+                  rename( tau = value )
+
+
+  # rescale indices
+  scaledI_spft <- I_spft / q_spft
+
+  scaledI_spft[scaledI_spft < 0] <- NA
+
+  scaledI_spft.df <-  melt(scaledI_spft) %>%
+                      rename( scaledIdx = value)
+  # Create a df of standardised values
+  stdResids_spft.df <-  melt(Bv_spft) %>%
+                        rename( vulnBiomass = value ) %>%
+                        left_join( scaledI_spft.df, by = c("species","stock","fleet","year")) %>%
+                        left_join( tauObs.df, by = c("species","stock","fleet") ) %>%
+                        mutate( stdResids = (log(vulnBiomass) - log(scaledIdx))/tau )
+
+  idxResidsPlot <- ggplot(  data = stdResids_spft.df,
+                            mapping = aes(x = year, y = stdResids,
+                                          group = fleet) ) +
+                    geom_point(mapping = aes(  x = year, y = stdResids,
+                                              group = fleet, colour = fleet) ) +
+                    geom_smooth(  aes(colour = fleet, group = fleet),
+                                  method = 'loess', level = .2, span = 3 ) +
+                    facet_grid( stock ~ species, scales = "fixed" ) +
+                    geom_hline( yintercept = 0, linetype = "dashed", size = .8) +
+                    theme_sleek()
+
+  print(idxResidsPlot)
+
+}
+
+# plotIspft()
+plotSelLen_spf <- function( repObj = repOpt,
+                            sIdx = 1, pIdx = 1:3 )
+{
+  
+  # get estimates of selectivity
+  sel_lfsp   <- repObj$sel_lfspt[,,sIdx,pIdx,1,drop = FALSE]
+  L_s         <- repObj$L_s[sIdx]
+
+  # species/stocks
+  nS <- repObj$nS
+  nP <- repObj$nP
+  nT <- repObj$nT
+  nF <- repObj$nF
+
+  meltSel <- melt(sel_lfsp ) %>%
+              rename( selectivity = value )
+
+  tmpPlot <-  ggplot( data = meltSel, aes(  x = len, y = selectivity, 
+                                            col = fleet, group = fleet ) ) +
+              facet_grid( stock ~ species, scale = "fixed" ) +
+              geom_point() +
+              geom_line() + 
+              theme_sleek()
+
+  print(tmpPlot)
+  
+} # END plotCatchFit_spt
+
+# plotIspft()
+plotSelAge_spf <- function( repObj = repOpt,
+                            sIdx = 1, pIdx = 1:3 )
+{
+  
+  # get estimates of selectivity
+  sel_afsp    <- repObj$sel_afsptx[,,sIdx,pIdx,1,2,drop = FALSE]
+  A_s         <- repObj$L_s[sIdx]
+
+  # species/stocks
+  nS <- repObj$nS
+  nP <- repObj$nP
+  nT <- repObj$nT
+  nF <- repObj$nF
+
+  meltSel <- melt(sel_afsp ) %>%
+              rename( selectivity = value )
+
+  tmpPlot <-  ggplot( data = meltSel, aes(  x = age, y = selectivity, 
+                                            col = fleet, group = fleet ) ) +
+              facet_grid( stock ~ species + sex, scale = "fixed" ) +
+              geom_point() +
+              geom_line() + 
+              theme_sleek()
+
+  print(tmpPlot)
+  
+} # END plotCatchFit_spt
+
 
 # plotIspft()
 plotIspft <- function(  repObj = repOpt,
@@ -195,12 +332,12 @@ plotIspft <- function(  repObj = repOpt,
 
   meltI <- melt(I_spft) %>%
             rename( index = value ) %>%
-            group_by( species, stocks, fleets ) %>%
+            group_by( species, stock, fleet ) %>%
             mutate( index = index / mean(index,na.rm = T) ) %>%
             ungroup()
 
-  tmpPlot <-  ggplot( data = meltI, aes(x = years, y = index, col = fleets ) ) +
-              facet_grid( stocks ~ species, scale = "fixed" ) +
+  tmpPlot <-  ggplot( data = meltI, aes(x = year, y = index, col = fleet ) ) +
+              facet_grid( stock ~ species, scale = "fixed" ) +
               geom_point() +
               geom_line() + 
               theme_sleek()
@@ -597,8 +734,13 @@ plotRtDev <- function(  repObj = repInit,
   nP <- repObj$nP
   nT <- repObj$nT
 
-  # Pull spawning biomass
+  # Pull recruitment resids
   omegaR_t    <- repObj$omegaR_spt[sIdx, pIdx, ]
+
+  # Pull recruitment SD
+  sigmaR      <- repObj$sigmaR_sp[sIdx,pIdx]
+
+  omegaR_t    <- omegaR_t / sigmaR
 
   # Create years vector
   years     <- seq(from = initYear, length = nT + 1, by = 1)
@@ -615,7 +757,7 @@ plotRtDev <- function(  repObj = repInit,
     {
       axis(side = 2, las =1 )
       axis(side = 1)
-      mtext(side = 2, text = "Recruitment Residuals", line = 3)
+      mtext(side = 2, text = "Std. Recruitment Deviations", line = 3)
     }
     box()
     # Plot recruitment
@@ -986,6 +1128,8 @@ plotProbLenAge_sp <- function( repObj = repInit )
         mtext( side = 4, text = stockNames[p] )
     }
   
+  mtext( side = 1, text = "Length (cm)", outer = TRUE, line = 1.5)
+  mtext( side = 2, text = "Probability Density", outer = TRUE, line = 1.5)
 } # END plotProbLenAge()
 
 # plotProbLenAge()
@@ -1026,6 +1170,39 @@ plotProbLenAge <- function( repObj = repInit,
                 col = cols[x,aIdx], lwd = 1 )
 } # END plotProbLenAge()
 
+
+# plotTVq()
+# Time-varying catchability plots
+plotTVq <- function( repObj = repObj,
+                      sIdx = 1, pIdx = 1 )
+{
+  # Pull catchability time series
+  q_spft <- repObj$q_spft[sIdx,pIdx,,,drop = FALSE]
+
+  # use indices to mask q in years with no idx
+  I_spft <- repObj$I_spft[sIdx,pIdx,,,drop = FALSE]
+  q_spft[I_spft < 0] <- NA
+
+  # Cut down to fleets with tvq
+  tvqFleets <- which(repObj$tvqFleets == 1)
+  q_spft <- q_spft[,,tvqFleets,,drop = FALSE ]
+
+  # Now melt and plot
+  q_spft.df <- melt(q_spft) %>%
+                rename( lnq = value ) %>%
+                mutate( lnq = log(lnq) )
+
+  lnqPlot <- ggplot(  data = q_spft.df, mapping = aes( x = year, y = lnq) ) +              
+              geom_smooth( aes( group = fleet, colour = fleet), se = FALSE, method = 'loess',
+                            span = 1.5, alpha = .3, size = .8 ) +
+              geom_point( aes(x = year, y = lnq, group = fleet, colour = fleet) ) + 
+              facet_grid( stock ~ species, scales = "fixed") +
+              theme_sleek()
+              
+
+  print(lnqPlot)
+}
+
 # plotYeq
 # Plot equilibrium yield reference curve as a function
 # of F
@@ -1045,11 +1222,14 @@ plotYeqF <- function( repObj = repOpt,
   YeqF.df     <- melt(YeqF_spf) %>%
                   rename(yield = value) %>%
                   filter( yield >= 0 )
+
+  
+
   Fmsy.df     <- melt(Fmsy_sp) %>%
                   rename( Fmsy = value)
   YeqFmsy.df  <- melt(YeqFmsy_sp) %>%
                   rename( yield = value) %>%
-                  left_join(Fmsy.df)
+                  left_join(Fmsy.df, by = c("species","stock"))
 
   # Figure out how to stack multiple YPR/SPR ref point
   # tables together, with a column for the ref point
@@ -1057,7 +1237,7 @@ plotYeqF <- function( repObj = repOpt,
 
   tmp <-  ggplot(data = YeqF.df, aes(x=F, y=yield)) + 
           geom_line() +
-          facet_grid( stock ~ species, scale = "fixed") +
+          facet_grid( stock ~ species, scale = "free_y") +
           theme_sleek() +
           geom_point( data = YeqFmsy.df, inherit.aes = FALSE,
                       mapping = aes( x = Fmsy, y = yield ),
@@ -1065,7 +1245,6 @@ plotYeqF <- function( repObj = repOpt,
 
   print(tmp)
 
-  return(tmp)
 } # END plotYeqF()
 
 # plotProbLenAge()

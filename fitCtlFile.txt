@@ -1,7 +1,7 @@
 # Base fitCtlFile.txt for hierSCAL assessment model
 # written Tuesday, Apr 2, 2018 
 parameter value
-ctrl$dataScenarioName 'DERPA'
+ctrl$dataScenarioName 'Dover'
 ctrl$modelHypName 'base'
 ctrl$maxFunEval 100000
 ctrl$maxIterations 100000
@@ -64,7 +64,7 @@ hypo$identSel FALSE
 hypo$tvSelFleets c("comm.hist","comm.mod")
 hypo$sigmaSelDevs 0.1
 hypo$cvxSel 0.05
-hypo$sigmaSelMode_g rep(.05,3)
+hypo$sigmaSelMode_g rep(.02,3)
 hypo$sigmaxSelIGa_g rep(100,3)
 hypo$initFished c(Dover=0,English=1,Rock=1,Petrale=1,Arrowtooth=0)
 hypo$tvqFleets c("comm.hist","comm.mod","HSAss")

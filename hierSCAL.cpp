@@ -966,8 +966,10 @@ Type objective_function<Type>::operator() ()
   // --------- Selectivity and Fishing Mortality -------- //
   array<Type> sel_lfspt(nL,nF,nS,nP,nT);
   array<Type> sel_afsptx(nA,nF,nS,nP,nT,nX);
+  array<Type> maxSel_spf(nS,nP,nF);
   sel_lfspt.setZero();
   sel_afsptx.setZero();
+  maxSel_spf.setZero();
   for( int t = 0; t < nT; t++ )
     for( int s = 0; s < nS; s++ )
       for( int p = 0; p < nP; p++ )
@@ -997,21 +999,39 @@ Type objective_function<Type>::operator() ()
             } 
           }
           if( selX == "age" )
+          {
             for( int x = 0; x < nX; x++)
             {
               sel_afsptx.col(x).col(t).col(p).col(s).col(f) = 1/( 1 + exp( - log(Type(19.)) * ( age - xSel50_spft(s,p,f,t) ) / xSelStep_spft(s,p,f,t)  ) );
               // Reduce selectivity below minA to 0
               sel_afsptx.col(x).col(t).col(p).col(s).col(f).segment(0,minA_s(s)).fill(0);
             }
+          }
 
           // Rescale selectivity at age by the highest value in the plusgroup across modeled sexes
-          if(nX > 1)
+          if(nX == 2)
+          {
             if( sel_afsptx(A_s(s)-1,f,s,p,t,0) > sel_afsptx(A_s(s)-1,f,s,p,t,1) )
-              sel_afsptx.rotate(1).col(t).col(p).col(s).col(f) /= sel_afsptx(A_s(s)-1,f,s,p,t,0);
+            {
+              sel_afsptx.col(0).col(t).col(p).col(s).col(f) /= sel_afsptx(A_s(s)-1,f,s,p,t,0);
+              sel_afsptx.col(1).col(t).col(p).col(s).col(f) /= sel_afsptx(A_s(s)-1,f,s,p,t,0);
+
+              maxSel_spf(s,p,f) = sel_afsptx(A_s(s)-1,f,s,p,t,0);
+            }
             if( sel_afsptx(A_s(s)-1,f,s,p,t,0) <= sel_afsptx(A_s(s)-1,f,s,p,t,1) )
-              sel_afsptx.rotate(1).col(t).col(p).col(s).col(f) /= sel_afsptx(A_s(s)-1,f,s,p,t,1); 
+            {
+              sel_afsptx.col(0).col(t).col(p).col(s).col(f) /= sel_afsptx(A_s(s)-1,f,s,p,t,1);
+              sel_afsptx.col(1).col(t).col(p).col(s).col(f) /= sel_afsptx(A_s(s)-1,f,s,p,t,1);
+              maxSel_spf(s,p,f) = sel_afsptx(A_s(s)-1,f,s,p,t,1);
+            }
+          }
           if( nX == 1 )
+          {
             sel_afsptx.col(0).col(t).col(p).col(s).col(f) /= sel_afsptx(A_s(s)-1,f,s,p,t,0);
+            maxSel_spf(s,p,f) = sel_afsptx(A_s(s)-1,f,s,p,t,0);
+          }
+
+          
 
         }
       }
@@ -1132,7 +1152,7 @@ Type objective_function<Type>::operator() ()
 
             vB_aspfxt.col(t).col(x).col(f).col(p).col(s) += B_aspxt.col(t).col(x).col(p).col(s) * sel_afsptx.col(x).col(t).col(p).col(s).col(f);
             vB_spfxt(s,p,f,x,t) = vB_aspfxt.col(t).col(x).col(f).col(p).col(s).sum();
-            vB_spft(s,p,f,t) = Bv_spft(s,p,f,t);
+            vB_spft(s,p,f,t) += vB_spfxt(s,p,f,x,t);
             
             
             // Calculate vulnerable biomass
@@ -1955,6 +1975,7 @@ Type objective_function<Type>::operator() ()
   REPORT( minPAAL );
   REPORT( lambdaB0 );
   REPORT( minTimeIdx_spf );
+  REPORT( maxSel_spf );
 
   // REPORT(A);
 

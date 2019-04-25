@@ -62,25 +62,33 @@ calcRefPts <- function( obj )
                                                 stock = stockNames,
                                                 F = f ) )
   Beq_spf       <- Req_spf
+  expBeq_spf    <- Req_spf
   Yeq_spf       <- Req_spf
   ypr_spf       <- Req_spf
+  ssbpr_spf     <- Req_spf
+  Ueq_spf       <- Req_spf
 
   # Loop and fill
   for( i in 1:length(f) )
   {
     tmp         <- .calcEquil( f = f[i], obj = obj )
-    Req_spf[,,i]    <- tmp$Req
-    Beq_spf[,,i]    <- tmp$Beq
-    Yeq_spf[,,i]    <- tmp$Yeq
-    ypr_spf[,,i]    <- tmp$ypr
+    Req_spf[,,i]    <- tmp$Req_sp
+    Beq_spf[,,i]    <- tmp$Beq_sp
+    expBeq_spf[,,i] <- tmp$expBeq_sp
+    Yeq_spf[,,i]    <- tmp$Yeq_sp
+    ypr_spf[,,i]    <- tmp$ypr_sp
+    ssbpr_spf[,,i]  <- tmp$ssbpr_sp
+    Ueq_spf[,,i]    <- tmp$Ueq_sp
   }
 
   refCurves <- list()
-    refCurves$F         <- f
-    refCurves$ypr_spf   <- ypr_spf
-    refCurves$Req_spf   <- Req_spf
-    refCurves$Beq_spf   <- Beq_spf
-    refCurves$Yeq_spf   <- Yeq_spf
+    refCurves$F           <- f
+    refCurves$ypr_spf     <- ypr_spf
+    refCurves$Req_spf     <- Req_spf
+    refCurves$Beq_spf     <- Beq_spf
+    refCurves$expBeq_spf  <- expBeq_spf
+    refCurves$Yeq_spf     <- Yeq_spf
+    refCurves$Ueq_spf     <- Yeq_spf
 
   return( refCurves )
 }
@@ -123,9 +131,11 @@ calcRefPts <- function( obj )
   equil <- list()
     equil$Req_sp     <- recruits_sp
     equil$Beq_sp     <- recruits_sp * yprList$ssbpr_sp
+    equil$expBeq_sp  <- recruits_sp * yprList$expbpr_sp
     equil$Yeq_sp     <- recruits_sp * yprList$ypr_sp
     equil$ypr_sp     <- yprList$ypr_sp
     equil$ssbpr_sp   <- yprList$ssbpr_sp
+    equil$Ueq_sp     <- equil$Yeq_sp / equil$expBeq_sp
 
   return(equil)
 }
@@ -244,9 +254,13 @@ calcRefPts <- function( obj )
   ssbpr_asp  <- Surv_aspx[,,,nX,drop = FALSE] * wtAge_aspx[,,,nX,drop = FALSE] * matAge_aspx[,,,nX,drop = FALSE]
   ssbpr_sp   <- apply( X = ssbpr_asp, FUN = sum, MARGIN = c(2,3), na.rm = T )
 
+  expbpr_asp  <- Surv_aspx[,,,,drop = FALSE] * selAge_aspx[,,,,drop = FALSE]
+  expbpr_sp   <- apply( X = expbpr_asp, FUN = sum, MARGIN = c(2,3), na.rm = T )  
+
   # compile output list
   yprList <- list(  ssbpr_sp  = ssbpr_sp,
-                    ypr_sp    = ypr_sp )
+                    ypr_sp    = ypr_sp,
+                    expbpr_sp = expbpr_sp )
 
   obj$yprList <- yprList
 
@@ -323,10 +337,12 @@ calcRefPts <- function( obj )
   spMat       <- matrix(0, nrow = nS, ncol = nP)
   dimnames(spMat) <- dimnames(Fmsy_sp)
 
-  FmsyRefPts  <- list(  yprFmsy_sp = spMat,
-                        YeqFmsy_sp = spMat,
-                        BeqFmsy_sp = spMat,
-                        ReqFmsy_sp = spMat )
+  FmsyRefPts  <- list(  yprFmsy_sp    = spMat,
+                        YeqFmsy_sp    = spMat,
+                        BeqFmsy_sp    = spMat,
+                        ReqFmsy_sp    = spMat,
+                        expBeqFmsy_sp = spMat,
+                        Umsy_sp       = spMat )
 
   
   # Calculate ref points
@@ -337,11 +353,13 @@ calcRefPts <- function( obj )
     for( p in 1:nP )
     {
       tmp <- .calcEquil( f = Fmsy_sp[s,p], obj = obj )
-      FmsyRefPts$yprFmsy_sp[s,p] <- tmp$ypr_sp[s,p]
-      FmsyRefPts$YeqFmsy_sp[s,p] <- tmp$Yeq_sp[s,p]
-      FmsyRefPts$BeqFmsy_sp[s,p] <- tmp$Beq_sp[s,p]
-      FmsyRefPts$NeqFmsy_sp[s,p] <- tmp$Neq_sp[s,p]
-      FmsyRefPts$ReqFmsy_sp[s,p] <- tmp$Req_sp[s,p]
+      FmsyRefPts$yprFmsy_sp[s,p]    <- tmp$ypr_sp[s,p]
+      FmsyRefPts$YeqFmsy_sp[s,p]    <- tmp$Yeq_sp[s,p]
+      FmsyRefPts$BeqFmsy_sp[s,p]    <- tmp$Beq_sp[s,p]
+      FmsyRefPts$expBeqFmsy_sp[s,p] <- tmp$expBeq_sp[s,p]
+      FmsyRefPts$NeqFmsy_sp[s,p]    <- tmp$Neq_sp[s,p]
+      FmsyRefPts$ReqFmsy_sp[s,p]    <- tmp$Req_sp[s,p]
+      FmsyRefPts$Umsy_sp[s,p]       <- tmp$Ueq_sp[s,p]
     }
 
   FmsyRefPts

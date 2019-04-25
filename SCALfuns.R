@@ -805,7 +805,6 @@ rerunPlots <- function( fitID = 1 )
                 # Selectivity SDs
                 lnsigmaxSel50_sg    = array(log(hypoObj$cvxSel), dim = c(nS,nGroups)),
                 lnsigmaxSelStep_sg  = array(log(hypoObj$cvxSel), dim = c(nS,nGroups)),
-
                 IGasigmaSel_g       = hypoObj$sigmaxSelIGa_g,
                 IGbsigmaSel_g       = sigmaxSelIGb_g,
                 # Catchability deviations and SDs
@@ -1348,14 +1347,17 @@ renameReportArrays <- function( repObj = repInit, datObj = data )
   # Predicted data
   dimnames(repObj$I_spft_hat) <- dimnames(datObj$I_spft)
   dimnames(repObj$aDist_aspftx_hat) <- dimnames(datObj$age_aspftx)
-  dimnames(repObj$lDist_lspftx_hat) <- dimnames(datObj$len_lspft)
+  dimnames(repObj$lDist_lspftx_hat) <- dimnames(datObj$len_lspftx)
   # State arrays
   dimnames(repObj$B_asptx) <- dimnames(datObj$age_aspftx)[c(1:3,5)]
   dimnames(repObj$N_asptx) <- dimnames(datObj$age_aspftx)[c(1:3,5)]
   dimnames(repObj$B_spt) <- dimnames(datObj$age_aspftx)[c(2:3,5)]
   dimnames(repObj$R_spt) <- dimnames(datObj$age_aspftx)[c(2:3,5)]
   dimnames(repObj$SB_spt) <- dimnames(datObj$age_aspftx)[c(2:3,5)]
-  dimnames(repObj$Bv_spft) <- dimnames(datObj$age_aspftx)[c(2:5)]
+  dimnames(repObj$Bv_spft) <- list( species = specNames,
+                                    stock = stockNames,
+                                    fleet = gearNames,
+                                    year = yearNames )
   dimnames(repObj$predC_spft) <- dimnames(datObj$age_aspftx)[c(2:5)]
   dimnames(repObj$predCw_spft) <- dimnames(datObj$age_aspftx)[c(2:5)]
   dimnames(repObj$C_aspftx) <- dimnames(datObj$age_aspftx)[c(1:5)]
@@ -1373,6 +1375,7 @@ renameReportArrays <- function( repObj = repInit, datObj = data )
 
   # Observation models
   dimnames(repObj$q_spf)        <- dimnames(datObj$age_aspftx)[c(2:4)]  
+  dimnames(repObj$q_spft)       <- dimnames(datObj$age_aspftx)[c(2:5)]  
   dimnames(repObj$tau2Obs_spf)  <- dimnames(datObj$age_aspftx)[c(2:4)]  
   dimnames(repObj$tauObs_spf)   <- dimnames(datObj$age_aspftx)[c(2:4)]  
   dimnames(repObj$sel_lfspt)    <- list(  len = lenNames, 
@@ -1450,13 +1453,16 @@ renameReportArrays <- function( repObj = repInit, datObj = data )
   dimnames(repObj$vonK_sp)  <- list(  species = specNames,
                                       stock = stockNames )
 
-  dimnames(repObj$L1_spx)    <- list( species = specNames,
+  dimnames(repObj$L1_spx)   <- list(  species = specNames,
                                       stock = stockNames,
                                       sex = sexNames )
-  dimnames(repObj$L2_spx)    <- list( species = specNames,
+  dimnames(repObj$L2_spx)   <- list(  species = specNames,
                                       stock = stockNames,
                                       sex = sexNames )
-  dimnames(repObj$vonK_spx)  <- list( species = specNames,
+  dimnames(repObj$vonK_spx) <- list(  species = specNames,
+                                      stock = stockNames,
+                                      sex = sexNames )
+  dimnames(repObj$M_spx)    <- list(  species = specNames,
                                       stock = stockNames,
                                       sex = sexNames )
 
@@ -1464,6 +1470,43 @@ renameReportArrays <- function( repObj = repInit, datObj = data )
 
 
   return(repObj)
+}
+
+makeFitReport <- function( fitID = 1, groupFolder = "." )
+{
+  fitFolder <- here("Outputs","fits",groupFolder)
+
+  # List directories in project folder, remove "." from list
+  dirList <- list.dirs (path=fitFolder,full.names = FALSE,
+                        recursive=FALSE)
+  # Restrict to fit_ folders, pick the nominated simulation
+  fitList <- dirList[grep(pattern="fit",x=dirList)]
+  folder <- fitList[fitID]
+
+  # Load the nominated blob
+  reportsFileName <- paste(folder,".RData",sep="")
+  reportsPath <- file.path(fitFolder,folder,reportsFileName)
+  fitFolderPath <- here("Outputs","fits",folder)
+
+  # Create parameter list for rendering the document
+  params <- list( rootDir= fitFolderPath,
+                  RdataFile = reportsFileName)
+  # Make an output file name
+  outFile <- paste( "fitReport.html", sep = "")
+
+  # Render
+  rmarkdown::render(  input = here("Documentation","fitReportTemplate.Rmd"), 
+                      output_file = outFile,
+                      output_dir = fitFolderPath,
+                      params = params,
+                      envir = new.env(),
+                      output_format = "bookdown::html_document2" )
+
+  # remove temporary files
+  dataReportFiles <- "fitReport_files"
+  unlink(file.path(reportsPath,dataReportFiles), recursive = TRUE)
+
+  message( paste("fitReport.html created in ", fitFolderPath, "\n", sep = "" ) )
 }
 
 # savePlots()
