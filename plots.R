@@ -179,12 +179,21 @@ plotScaledIdxGrid <- function(repObj = repOpt )
   I_spft  <- repObj$I_spft
   q_spft  <- repObj$q_spft
 
+  nS      <- repObj$nS
+  nP      <- repObj$nP
+  nF      <- repObj$nF
+
 
   # rescale indices
   scaledI_spft <- I_spft / q_spft
 
   scaledI_spft[scaledI_spft < 0] <- NA
-  Bv_spft[scaledI_spft <= 0] <- NA
+
+  for( s in 1:nS )
+    for( p in 1:nP )
+      for( f  in 1:nF )
+        if(all(is.na(scaledI_spft[s,p,f,])))
+          Bv_spft[s,p,f,] <- NA
 
   scaledI_spft.df <-  melt(scaledI_spft) %>%
                       rename( scaledIdx = value)
@@ -200,7 +209,7 @@ plotScaledIdxGrid <- function(repObj = repOpt )
                                           group = fleet, colour = fleet) ) +
                 geom_point( mapping = aes(  x = year, y = scaledIdx,
                                             colour = fleet, group = fleet ) ) +
-                facet_grid( stock ~ species, scales = "fixed" ) +
+                facet_grid( stock ~ species, scales = "free_y" ) +
                 theme_sleek()
 
   print(idxFitPlot)
