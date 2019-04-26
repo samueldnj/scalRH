@@ -6,7 +6,7 @@ ctrl$modelHypName 'base'
 ctrl$maxFunEval 100000
 ctrl$maxIterations 100000
 ctrl$quiet TRUE
-ctrl$maxPhase 12
+ctrl$maxPhase 2
 ctrl$calcSD FALSE
 ctrl$calcRefPts TRUE
 ctrl$plots FALSE

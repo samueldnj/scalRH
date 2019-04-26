@@ -37,7 +37,11 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   if( !is.null(cplx) )
   {
     specRow <- which(controlTable$parameter == "data$species")
-    controlTable[specRow,"value"] <- paste("c('", cplx, "')", collapse = "','",sep = "")
+
+    cplx <- paste(cplx,collapse = "','")
+    cplx <- paste("c('",cplx,"')",sep = "")
+
+    controlTable[specRow,"value"] <- cplx
   }
   # Create control list
   controlList <- .createList  ( controlTable )
