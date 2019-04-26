@@ -1110,7 +1110,7 @@ Type objective_function<Type>::operator() ()
 
             // // Non-eqbm initialisation
             if(swRinit_s(s) == 1)
-              N_asptx.col(x).col(t).col(p).col(s) *= exp( omegaRinit_asp.col(p).col(s));
+              N_asptx.col(x).col(t).col(p).col(s) *= exp( omegaRinit_asp.col(p).col(s) );
 
           }
 
@@ -1121,7 +1121,7 @@ Type objective_function<Type>::operator() ()
             // Generate recruitment
             Type SBt = SB_spt(s,p,t-1);
             N_asptx(0,s,p,t,x) = reca_sp(s,p) * SBt / (1 + recb_sp(s,p) * SBt)/nX;
-            N_asptx(0,s,p,t,x) *= exp( omegaR_spt(s,p,t) - 0.5 * pow(sigmaR_sp(s,p),2) );
+            N_asptx(0,s,p,t,x) *= exp( omegaR_spt(s,p,t) );
 
             // Now loop over ages and apply fishing mortality (no discarding yet)
             for( int a = 1; a < A; a ++ )
@@ -1724,7 +1724,7 @@ Type objective_function<Type>::operator() ()
   // Initial biomass
   array<Type> B0nlp_sp(nS,nP);
   B0nlp_sp.setZero();
-  B0nlp_sp += lambdaB0 * ( log( B_spt.col(0) ) );
+  B0nlp_sp += lambdaB0 * ( log( B_spt.col(0) ) + log( B0_sp ) );
     
   
 

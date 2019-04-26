@@ -2,35 +2,39 @@
 parameter value
 # Scenarios
 #
-# Scenario 1 : Dover
+# Scenario 1 : 1954_allFleets_allComps
 #
-scenario$scenario1$ctrl$dataScenarioName 'Dover'
-scenario$scenario1$data$species "Dover"
+scenario$scenario1$ctrl$dataScenarioName '1954_allFleets'
 #
-# Scenario 2 : English
+# Scenario 2 : 1954_allFleets_ageOnly
 #
-scenario$scenario2$ctrl$dataScenarioName 'English'
-scenario$scenario2$data$species "English"
+scenario$scenario2$ctrl$dataScenarioName '1954_allFleets_ageOnly'
+scenario$scenario2$data$lenLikeWt 0
 #
-# Scenario 3 : Rock
+# Scenario 3 : 1954_survIdx
 #
-scenario$scenario3$ctrl$dataScenarioName 'Rock'
-scenario$scenario3$data$species "Rock"
+scenario$scenario3$ctrl$dataScenarioName '1954_survIdx'
+scenario$scenario3$data$idxFleets c("HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
 #
-# Scenario 4 : Petrale
+# Scenario 4 : 1984_allFleets_allComps
 #
-scenario$scenario4$ctrl$dataScenarioName 'Petrale'
-scenario$scenario4$data$species "Petrale"
+scenario$scenario4$ctrl$dataScenarioName '1984_allFleets'
+scenario$scenario4$data$fYearData 1984
+scenario$scenario4$hypo$initFished c(Dover=1,English=1,Rock=1,Petrale=1,Arrowtooth=1)
 #
-# Scenario 5 : Arrowtooth
+# Scenario 5 : 1984_allFleets_ageOnly
 #
-scenario$scenario5$ctrl$dataScenarioName 'Arrowtooth'
-scenario$scenario5$data$species "Arrowtooth"
+scenario$scenario5$ctrl$dataScenarioName '1984_allFleets_ageOnly'
+scenario$scenario5$data$fYearData 1984
+scenario$scenario5$data$lenLikeWt 0
+scenario$scenario5$hypo$initFished c(Dover=1,English=1,Rock=1,Petrale=1,Arrowtooth=1)
 #
-# Scenario 6 : DERPA
+# Scenario 6 : 1984_survIdx
 #
-scenario$scenario6$ctrl$dataScenarioName 'DERPA'
-scenario$scenario6$data$species c("Dover","English","Rock","Petrale","Arrowtooth")
+scenario$scenario6$ctrl$dataScenarioName '1984_survIdx'
+scenario$scenario6$data$idxFleets c("HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
+scenario$scenario6$data$fYearData 1984
+scenario$scenario6$hypo$initFished c(Dover=1,English=1,Rock=1,Petrale=1,Arrowtooth=1)
 #
 # Management Procedures
 #
@@ -42,6 +46,7 @@ mp$mp1$ctrl$modelHypName 'baseModel'
 #
 mp$mp2$ctrl$modelHypName 'tvSel'
 mp$mp2$hypo$tvSel TRUE
+mp$mp2$hypo$sigmaSelDevs .05
 #
 # MP 3 : lowtauqMode_g
 #
@@ -63,5 +68,5 @@ mp$mp5$hypo$sigmaSelMode_g c(.01,.01,.01)
 mp$mp6$ctrl$modelHypName 'hisigmaSelMode_g'
 mp$mp6$hypo$sigmaSelMode_g c(.5,.5,.5)
 #
-
+#
 # File Ends <not run>.

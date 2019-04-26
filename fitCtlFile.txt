@@ -1,7 +1,7 @@
 # Base fitCtlFile.txt for hierSCAL assessment model
 # written Tuesday, Apr 2, 2018 
 parameter value
-ctrl$dataScenarioName 'Dover'
+ctrl$dataScenarioName '1954_allFleets'
 ctrl$modelHypName 'base'
 ctrl$maxFunEval 100000
 ctrl$maxIterations 100000
@@ -53,7 +53,7 @@ data$minLenProp 0.02
 data$minPAAL 0.02
 data$minAgeSampSize 50
 data$minLenSampSize 100
-data$lambdaB0 2
+data$lambdaB0 1
 hypo$initVonK c(Dover=.3,English=.3,Rock=.3,Petrale=.3,Arrowtooth=.3)
 hypo$matX "age"
 hypo$selX "length"
@@ -64,7 +64,7 @@ hypo$identSel FALSE
 hypo$tvSelFleets c("comm.hist","comm.mod")
 hypo$sigmaSelDevs 0.1
 hypo$cvxSel 0.05
-hypo$sigmaSelMode_g rep(.02,3)
+hypo$sigmaSelMode_g rep(0.05,3)
 hypo$sigmaxSelIGa_g rep(100,3)
 hypo$initFished c(Dover=0,English=1,Rock=1,Petrale=1,Arrowtooth=0)
 hypo$tvqFleets c("comm.hist","comm.mod","HSAss")
@@ -73,11 +73,11 @@ hypo$sigmaqdevs .1
 hypo$mq_g c(0.5,0.5,0.5)
 hypo$sdq_g c(1,1,1)
 hypo$tauqMode_g c(1,1,1)
-hypo$IGatauq_g rep(.1,3)
-hypo$regFfleets c("comm.hist","comm.mod")
+hypo$IGatauq_g rep(.01,3)
+hypo$regFfleets c()
 hypo$regFPhases c(1:12)
 hypo$mF .2
-hypo$sdF .05
+hypo$sdF 10
 hypo$mM 0.3
 hypo$sdM 0.05
 hypo$yFirstRecDev c(Dover=1955,English=1955,Rock=1955,Petrale=1955,Arrowtooth=1955)

@@ -8,6 +8,116 @@
 #
 # <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
 
+runComplexBatch <- function(  batchCtlFile = "batchControlFile.bch", 
+                              baseCtlFile = "fitCtlFileBase.txt",
+                              complexCtlFile = "complexCtlFile.cplx",
+                              prjFld = ".",
+                              batchFld = "Batch",
+                              nCores = 4,
+                              availMem = 16 )
+{
+  .subChar <<- "__"
+  batchFilePath <- here(prjFld,batchFld,batchCtlFile)
+  baseFilePath  <- here(prjFld,batchFld,baseCtlFile)
+  cplxFilePath  <- here(prjFld,batchFld,complexCtlFile)
+  
+  # First, read cplx control file
+  cplxCtl <- .readParFile(cplxFilePath)
+  cplxCtl <- .createList(cplxCtl)$cplx
+
+  # Hardwire mem requirements, linearly growing from
+  # 1 species (5gb) to 5 (10gb):
+  memReqVec <- 15/4 + (1:5) * (10 - 5)/(5 - 1)
+
+  # Right now, there is only 1 line per complex
+  # so we can just count the rows for the number of jobs
+  nJobs     <- length(cplxCtl)
+  jobSize   <- unlist(lapply( X = cplxCtl, FUN = length ))
+  jobMem    <- memReqVec[jobSize]
+
+  if( any(jobMem > availMem) )
+  {
+    warning(  "Memory requirements for at least one complex exceeds available memory.\n",
+              "Consider finding more!")
+  }
+
+  # Make a vector of complex prefixes - need to
+  # pick off first letter of each name
+  makePrefix <- function( cplxVec )
+  {
+    initials <- substr(cplxVec,1,1)
+
+    prefix <- paste(initials, collapse = "")
+  }
+
+
+  cplxPrefix <- unlist(lapply( X = cplxCtl, FUN = makePrefix ))
+
+  # Make a job table to keep track of stuff
+  jobTable <- data.frame( jobNum = 1:nJobs,
+                          nSpec = jobSize,
+                          reqMem = jobMem,
+                          status = "incomplete",
+                          complex = cplxPrefix )
+              
+  names(cplxCtl) <- jobTable$complex
+
+  # Now makeBatch to create the batch control files
+  makeBatch(  batchCtlFile = batchCtlFile, 
+              prjFld = prjFld,
+              batchFld = batchFld, 
+              baseCtlFile = baseCtlFile )
+
+  # Start while loop
+  while( any( jobTable$status == "incomplete") )
+  {
+    remainingJobs <- jobTable %>%
+                      filter( status == "incomplete" )
+
+    jobRemMem     <- remainingJobs$reqMem
+    # Then decide which batches to send off first, 
+    # create a cluster and set them running.
+    # Order by memory requirements
+    orderedJobs  <- order(jobRemMem)
+    # Take cumulative sum of ordered memory requirements
+    # to determine the biggest cluster we can use
+    sumMem      <- cumsum(jobRemMem[orderedJobs])
+    maxSize     <- which.max( sumMem[sumMem<availMem])
+
+    # Now create a cluster to run those jobs
+    maxCores        <- min( maxSize, nCores, detectCores()-1 )
+    complexCluster  <- makeCluster( spec = maxCores )
+
+    # Export global variables
+    exportList      <- list( ".PRJFLD", ".DEFBATFLD" )
+    clusterExport( cl = complexCluster, exportList )
+
+    # So, now we have maxCores, can we 
+    # reduce to a list of jobs that will fit
+    # on the complexCluster, and run all
+    # of those in 1 go?
+    maxClusterMem <- availMem / maxCores 
+
+    # Get list of jobs for this loop
+    thisLoopJobs <- remainingJobs %>%
+                    filter(reqMem <= maxClusterMem)
+
+    # Run that list of jobs
+    parLapply(  X = thisLoopJobs$jobNum, 
+                fun = .runCplxBatchJob,
+                cl = complexCluster,
+                cplxList = cplxCtl )
+
+    stopCluster( complexCluster )
+
+    # Now update the list of jobs
+    jobTable[thisLoopJobs$jobNum,"status"] <- "complete"
+  }
+
+  message("Finished running ", batchCtlFile, " for all complexes in ", complexCtlFile,".\n")
+
+
+}
 
 # makeBatch()
 # Takes a batch control file and produces all the necessary structure
@@ -55,8 +165,27 @@ doBatchRun <- function( arg )
   
   # runMSE with the batch file
   # add random delay to offset simFolder names
-  fitHierSCAL(ctlFile=arg[1], folder=arg[2])
+  fitHierSCAL(ctlFile=arg[1], folder=arg[2], cplx = arg[3])
   return(NULL)
+}
+
+# .runCplxBatchJob
+# Wrapper for .runBatchJob with cplx as 
+# the first argument, meant for lapplying
+.runCplxBatchJob <- function( cplxNum = NULL,
+                              cplxList = list(D = "Dover"),
+                              batchDesign=NULL )
+{
+  source("ageStructuredControl.R")
+  # run batch job
+  .runBatchJob( batchDesign = batchDesign,
+                par = FALSE,
+                prefix = names(cplxList)[cplxNum],
+                initPar = 1,
+                subset = NULL, 
+                nCores = 1,
+                cplx = cplxList[[cplxNum]] )
+
 }
 
 
@@ -77,7 +206,8 @@ doBatchRun <- function( arg )
                           prefix=NULL, 
                           initPar = 1,
                           subset = NULL, 
-                          nCores = detectCores()-1 )
+                          nCores = detectCores()-1,
+                          cplx = NULL )
 {
   # Runs simulations from the design data.frame specified in batchDesign object.
   # 1. Does the mseR input parameter file exist? If YES then read the file.
@@ -105,7 +235,7 @@ doBatchRun <- function( arg )
   # Might need to have the .par file be an argument to runMSE()...check what effects
   # that would have elsewhere.
 
-  # if a parallel flag is set, run in parallel using multiple wds
+  # if a parallel flag is set, run in parallel
   if (par)
   { 
     # First, load parallel package
@@ -124,13 +254,13 @@ doBatchRun <- function( arg )
       parBatchArgList <- vector(mode = "list", length = length(subset) )
       for( i in 1:length(subset) )
       {
-        parBatchArgList[[i]] <- c( batchParFile[ subset[i] ],batchFolderNames[ subset[i] ])   
+        parBatchArgList[[i]] <- c( batchParFile[ subset[i] ],batchFolderNames[ subset[i] ], cplx)   
       }
     } else {
       parBatchArgList <- vector(mode = "list", length = length(batchParFile) - initPar + 1)
       for(i in initPar:nBatchFiles)
       {
-        parBatchArgList[[i - initPar + 1]] <- c( batchParFile[i],batchFolderNames[i])
+        parBatchArgList[[i - initPar + 1]] <- c( batchParFile[i],batchFolderNames[i], cplx)
       }
     }
 
@@ -167,7 +297,7 @@ doBatchRun <- function( arg )
       
       folderName <- paste(prefix,"bat",i,sep ="")
      
-      fitHierSCAL( batchParFile[i], folder = folderName )
+      fitHierSCAL( batchParFile[i], folder = folderName, cplx = cplx )
 
       elapsed <- (proc.time() - tBegin)[ "elapsed" ]
       cat( "\nMSG (.runBatchJob): Elapsed time for simulation = ",
