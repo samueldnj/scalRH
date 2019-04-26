@@ -1,7 +1,7 @@
 # Base fitCtlFile.txt for hierSCAL assessment model
 # written Tuesday, Apr 2, 2018 
 parameter value
-ctrl$dataScenarioName 'Dover'
+ctrl$dataScenarioName '1954_allFleets'
 ctrl$modelHypName 'base'
 ctrl$maxFunEval 100000
 ctrl$maxIterations 100000

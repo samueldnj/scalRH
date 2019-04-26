@@ -11,20 +11,36 @@
 #
 # <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
 
-# fitAssessCA()
-# Wrapper function to fit the assessCA model under a data scenario 
+# fitHierSCAL()
+# Wrapper function to fit the hierSCAL model under a data scenario 
 # and model hypothesis, both defined in the ctlFile. If fit is succesful
 # then model outputs are saved to a folder in the ./Outputs/fits/ directory
 # inputs:   ctlFile=character with the name/path of the control file
 #           folder=optional character name of output folder 
 #                   ie saves to ./Outputs/fits/<folder>
+#           quiet=logical to determine if optimisation progress and 
+#                 other messages are returned
+#           cplx=optional character vector to change the species
+#                 complex. Meant for batching, but can be used
+#                 from the console as well.
 # ouputs:   NULL
 # usage:    from the console to run the procedure
-fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt", folder=NULL, quiet=TRUE )
+fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt", 
+                          folder=NULL, 
+                          quiet=TRUE,
+                          cplx = NULL )
 { 
   # read in control file
-  controlList <- .readParFile ( ctlFile )
-  controlList <- .createList  ( controlList )
+  controlTable <- .readParFile ( ctlFile )
+
+  # Replace complex if provided
+  if( !is.null(cplx) )
+  {
+    specRow <- which(controlTable$parameter == "data$species")
+    controlTable[specRow,"value"] <- paste("c('", cplx, "')", collapse = "','",sep = "")
+  }
+  # Create control list
+  controlList <- .createList  ( controlTable )
 
   # Load hierSCAL object
   dyn.load(dynlib("hierSCAL"))
@@ -55,7 +71,16 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt", folder=NULL, quiet=TRUE )
   write.csv( reports$phaseList$fitReport, file = fitRepPath )
 
   # Copy control file to sim folder for posterity
-  file.copy(from=ctlFile,to=file.path(path,"fitCtlFile.txt"))
+  cat(  "fitCtlFile.txt, written to ", folder, "on ", Sys.time(),"\n", sep = "", 
+        file = file.path(path,"fitCtlFile.txt"))
+  write.table(  controlTable, 
+                file = file.path(path,"fitCtlFile.txt"),
+                row.names = FALSE,
+                quote = FALSE, qmethod = "double",
+                append = TRUE )
+  cat(  "<End File>", sep = "", 
+        file = file.path(path,"fitCtlFile.txt"),
+        append = TRUE)
   # Copy model files, so we can recreate report objects later.
   file.copy(from="hierSCAL.cpp",to=file.path(path,"hierSCAL.cpp"))
   file.copy(from="hierSCAL.so",to=file.path(path,"hierSCAL.so"))
