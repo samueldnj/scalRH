@@ -1002,7 +1002,7 @@ rerunPlots <- function( fitID = 1 )
   # Update names on report objects
   outList <- list(  repOpt = renameReportArrays(repOpt,data),
                     sdrepOpt = phaseList$sdrep,
-                    sdOptOutput = phaseList$optOutput,
+                    optOutput = phaseList$optOutput,
                     fYear = fYear, 
                     lYear = lYear,
                     gearLabs = useFleets,

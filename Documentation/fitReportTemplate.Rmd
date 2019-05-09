@@ -97,16 +97,17 @@ knitr::opts_knit$set(   fig.pos = 'p',
 
 options(warn = -1)
 
-source(here("plots.R"))
-source(here("SCALfuns.R"))
+source(here("assessCAplots"))
+source(here("assessCAfuns.R"))
+source(here("YEfuns.R"))
+source(here("plotDataYE.R"))
 source(here("refPts.R"))
 
 # Read in report file
 repFilePath <- file.path(params$rootDir, params$RdataFile)
 load(repFilePath)
 
-repObj <- c(reports$repOpt, reports$data)
-repObj <- calcRefPts(repObj)
+repObj  <- report$repFE
 
 repObj <- renameReportArrays(repObj = repObj, datObj = reports$data )
 

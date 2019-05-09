@@ -87,8 +87,6 @@ Optimisation is performed using the Template Model Builder package in R
 
 For stock $p$ of species $s$ the general population dynamics
 are governed by the following age $a$ and sex $x$ structured formulation:
-
-
 \begin{align}
 N_{a,s,p,t} &= \left\{ 
 \begin{array}{lc} R_{x,s,p,t} & a = 1 \\
@@ -96,9 +94,10 @@ N_{a,s,p,t} &= \left\{
                   (N_{a-1,x,s,p,t-1}) + N_{a,x,s,p,t-1}) e^{-Z_{a-1,x,s,p,t-1}} & a = A_s ,
 \end{array} \right.
 \end{align}
+where $A_s$ is the plus-group age for species $s$.
 
 Recruitment is generated from a Beverton-Holt stock-recruit function, 
-formulatd based on steepnes $h_{s,p}$ and unfished biomass $B_{0,s,p}$.
+formulated based on steepnes $h_{s,p}$ and unfished biomass $B_{0,s,p}$.
 Spawning biomass is based on female individuals only.
 
 \begin{align}

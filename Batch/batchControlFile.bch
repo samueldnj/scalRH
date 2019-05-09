@@ -68,5 +68,10 @@ mp$mp5$hypo$sigmaSelMode_g c(.01,.01,.01)
 mp$mp6$ctrl$modelHypName 'hisigmaSelMode_g'
 mp$mp6$hypo$sigmaSelMode_g c(.5,.5,.5)
 #
+# MP 7 : speciesGrowth
+#
+mp$mp6$ctrl$modelHypName 'hisigmaSelMode_g'
+mp$mp6$hypo$sigmaSelMode_g c(.5,.5,.5)
+#
 #
 # File Ends <not run>.
