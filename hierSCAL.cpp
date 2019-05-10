@@ -259,7 +259,7 @@ array<Type> solveBaranov_spf( int   nIter,
           for( int a = 0; a < A_s(s); a++ )
           {
             for(int f = 0; f < nF; f++ )  
-            {             
+            {  
               tmp_xaspf(x,a,s,p,f) += B_aspx(a,s,p,x) * (1 - exp(-newZ_aspx(a,s,p,x)) ) * sel_aspfx(a,s,p,f,x) *  F_spf(s,p,f) / newZ_aspx(a,s,p,x);
               tmp_spf(s,p,f) += tmp_xaspf(x,a,s,p,f);
 
@@ -270,7 +270,6 @@ array<Type> solveBaranov_spf( int   nIter,
               Type tmpJ4  = (newZ_aspx(a,s,p,x) - F_spf(s,p,f) * sel_aspfx(a,s,p,f,x))/newZ_aspx(a,s,p,x);
 
               J_spf(s,p,f) -= tmpJ1 * ( tmpJ2 + tmpJ3 * tmpJ4);
-
             }
           }
         }
@@ -431,8 +430,9 @@ Type objective_function<Type>::operator() ()
 
   // steepness //
   PARAMETER_VECTOR(lnsigmah_s);         // species level steepness SD
-  PARAMETER(logit_muSteep);             // complex steepness
+  PARAMETER(logit_muSteep);             // complex steepness prior mean
   PARAMETER(lnsigmah);                  // complex level steepness SD
+  PARAMTER(sdh);                        // complex steepness prior SD
   // Natural Mortality //
   PARAMETER_VECTOR(lnsigmaM_s);         // species M SD
   PARAMETER(lnsigmaM);                  // Assemblage M SD
@@ -454,7 +454,6 @@ Type objective_function<Type>::operator() ()
   PARAMETER_VECTOR(omegaR_vec);         // species-stock specific recruitment errors 2:nT
   PARAMETER_VECTOR(omegaRinit_vec);     // stock-age specific recruitment initialisation errors
   PARAMETER_ARRAY(lnsigmaR_sp);         // stock recruitment errors sd (sqrt cov matrix diag)
-  PARAMETER_VECTOR(logitRCorr_chol);    // stock recruitment errors corr chol factor off diag  
   PARAMETER_ARRAY(logitRgamma_sp);      // species-stock-specific AR1 auto-corr on year effect (omega)
   PARAMETER(IGasigmaR);                 // IG a parameter for sigma2R prior
   PARAMETER(IGbsigmaR);                 // IG b parameter for sigma2R prior
@@ -521,10 +520,17 @@ Type objective_function<Type>::operator() ()
 
   // derived variables
   // Stock recruitment //
-  array<Type>  R0_sp(nS,nP);            // eqbm recruitment
-  array<Type>  phi_sp(nS,nP);           // eqbm SSB per recruit
-  array<Type>  reca_sp(nS,nP);          // BH a parameter for pops
-  array<Type>  recb_sp(nS,nP);          // BH b parameter for pops
+  array<Type>   R0_sp(nS,nP);            // eqbm recruitment
+  array<Type>   phi_sp(nS,nP);           // eqbm SSB per recruit
+  array<Type>   reca_sp(nS,nP);          // BH a parameter for pops
+  array<Type>   recb_sp(nS,nP);          // BH b parameter for pops
+  array<Type>   gammaR_sp(nS,nP);        // AR-1 autocorrelation factor for SR devs
+
+  R0_sp.setZero();
+  phi_sp.setZero();
+  reca_sp.setZero();
+  recb_sp.setZero();
+  gammaR_sp.setZero();
 
   // Growth //
   array<Type>   Wlen_ls(nL,nS);                 // weight-at-length by species
@@ -566,6 +572,7 @@ Type objective_function<Type>::operator() ()
   // Fishing mortality
   array<Type>   F_spft(nS,nP,nF,nT);
   array<Type>   Fbar_spf(nS,nP,nF);
+  array<Type>   calcSel_spf(nS,nP,nF);
 
   // selectivity //
   // Fleet/species
@@ -606,6 +613,7 @@ Type objective_function<Type>::operator() ()
   epslnq_spft.setZero();
   F_spft.setZero();
   Fbar_spf.setZero();
+  calcSel_spf.setZero();
 
   // Loop and fill stock specific deviations from hierarchical/multi-level
   // prior group means
@@ -640,6 +648,9 @@ Type objective_function<Type>::operator() ()
           deltaq_spf(s,p,f)       = deltaqspf_vec(stockSpecQVecIdx);
           stockSpecQVecIdx++;
         }
+
+        if( C_spft.transpose().col(s).col(p).col(f).sum() > 0 )
+          calcSel_spf(s,p,f) = 1.;
       }
     }
   }
@@ -664,22 +675,22 @@ Type objective_function<Type>::operator() ()
   // correlation matrix
   matrix<Type> recCorrMat(nS*nP,nS*nP);
   recCorrMat.setZero();
+  // AR1 factor
+  gammaR_sp = -1 + 2 * invlogit(logitRgamma_sp);
 
 
   // Prior Hyperparameters //
   // Steepness
   vector<Type>  sigmah_s      = exp(lnsigmah_s);
   Type          sigmah        = exp(lnsigmah);
-  vector<Type>  h_s           = .2 + Type(0.78) / ( Type(1.0) + exp( -1 * (logitSteep + sigmah * epsSteep_s ) ) );
-  Type          mh            = .2 + Type(0.78) / ( Type(1.0) + exp( -1 * logit_muSteep) );
-  // Need to add an sdh
+  vector<Type>  h_s           = .2 + Type(0.78) * invlogit( logitSteep + sigmah * epsSteep_s );
+  Type          mh            = .2 + Type(0.78) * invlogit( logit_muSteep );
 
   // Natural mortality
   Type          sigmaM        = exp(lnsigmaM);
   vector<Type>  sigmaM_s      = exp(lnsigmaM_s);
   vector<Type>  M_s           = exp(lnM + sigmaM * epsM_s);
   Type          muM           = exp(ln_muM);
-  // need to add an sdM
   
   // Time varying RE SDs
   Type          sigmaSel      = exp(lnsigmaSel);
@@ -703,7 +714,7 @@ Type objective_function<Type>::operator() ()
   for( int pIdx = 0; pIdx < nP; pIdx++ )
   {
     B0_sp.col(pIdx)      = exp(lnB0_sp.col(pIdx));
-    h_sp.col(pIdx)       = .2 + 0.78 / ( Type(1.0) + exp( -1 * (logitSteep + sigmah * epsSteep_s + sigmah_s * epsSteep_sp.col(pIdx) ) ) );
+    h_sp.col(pIdx)       = .2 + 0.78 * invlogit(logitSteep + sigmah * epsSteep_s + sigmah_s * epsSteep_sp.col(pIdx) );
     M_sp.col(pIdx)       = exp(lnM) * exp( sigmaM * epsM_s + sigmaM_s * epsM_sp.col(pIdx) );
     L1_sp.col(pIdx)      = L1_s;
     L2_sp.col(pIdx)      = L2_s * exp(sigmaL2_s * deltaL2_sp.col(pIdx));
@@ -754,8 +765,8 @@ Type objective_function<Type>::operator() ()
     xSel95_sf.col(f) = xSel95_sg.col(group_f(f));
     for( int p = 0; p < nP; p++ )
     {
-      xSel50_spf.col(f).col(p)    = calcStockSelDevs_spf.col(f).col(p)*exp(lnxSel50_sg.col(group_f(f)) + sigmaxSel50_sg(group_f(f)) * epsxSel50_spf.col(f).col(p));
-      xSelStep_spf.col(f).col(p)  = calcStockSelDevs_spf.col(f).col(p)*exp(lnxSelStep_sg.col(group_f(f)) + sigmaxSelStep_sg(group_f(f)) * epsxSelStep_spf.col(f).col(p));
+      xSel50_spf.col(f).col(p)    = exp(lnxSel50_sg.col(group_f(f)) + sigmaxSel50_sg(group_f(f)) * epsxSel50_spf.col(f).col(p));
+      xSelStep_spf.col(f).col(p)  = exp(lnxSelStep_sg.col(group_f(f)) + sigmaxSelStep_sg(group_f(f)) * epsxSelStep_spf.col(f).col(p));
       xSel95_spf.col(f).col(p)    = xSel50_spf.col(f).col(p) + xSelStep_spf.col(f).col(p);
       for( int s = 0; s < nS; s++)
       {
@@ -842,7 +853,7 @@ Type objective_function<Type>::operator() ()
           omegaR_spt(s,p,t) = omegaR_vec(devVecIdx);
 
         if( boundRecDevs == 1 )
-          omegaR_spt(s,p,t) = (-5. + 10. / (1. + exp(-omegaR_vec(devVecIdx))));
+          omegaR_spt(s,p,t) = -5. + 10. * invlogit(omegaR_vec(devVecIdx));
           
         // And fill the matrix of deviations
         omegaRmat_spt( s*nP + p, t ) = omegaR_spt(s,p,t);
@@ -857,7 +868,7 @@ Type objective_function<Type>::operator() ()
           if( boundRecDevs == 0 )
             omegaRinit_asp(a,s,p) = omegaRinit_vec(initVecIdx) ;
           if( boundRecDevs == 1 )
-            omegaRinit_asp(a,s,p) = (-5. + 10./( 1 + exp(-omegaRinit_vec(initVecIdx) )));
+            omegaRinit_asp(a,s,p) = -5. + 10. * invlogit( omegaRinit_vec(initVecIdx) );
 
           initVecIdx++;
         }
@@ -991,63 +1002,58 @@ Type objective_function<Type>::operator() ()
         // Loop over fleets, create selectivities
         for( int f = 0; f < nF; f++ )
         {
-          // Only run sel calcs if there is a fleet
-          // on this stock (i.e. positive catch)
-          if( C_spft.transpose().col(s).col(p).col(f).sum() > 0 )
+          // selectivity-at-length
+          if( selX == "length" )
           {
-            // selectivity-at-length
-            if( selX == "length" )
+            sel_lfspt.col(t).col(p).col(s).col(f).fill(1.);
+            sel_lfspt.col(t).col(p).col(s).col(f) /= ( 1 + exp( - log(Type(19.)) * ( len - xSel50_spft(s,p,f,t) ) / xSelStep_spft(s,p,f,t)  ) );
+            // reduce selectivity below min L to 0
+            sel_lfspt.col(t).col(p).col(s).col(f).segment(0,minL_s(s)).fill(0);
+            // convert selectivity-at-length to selectivity-at-age using probability matrix
+            for( int x = 0; x < nX; x++)
             {
-              sel_lfspt.col(t).col(p).col(s).col(f).fill(1.);
-              sel_lfspt.col(t).col(p).col(s).col(f) /= ( 1 + exp( - log(Type(19.)) * ( len - xSel50_spft(s,p,f,t) ) / xSelStep_spft(s,p,f,t)  ) );
-              // reduce selectivity below min L to 0
-              sel_lfspt.col(t).col(p).col(s).col(f).segment(0,minL_s(s)).fill(0);
-              // convert selectivity-at-length to selectivity-at-age using probability matrix
-              for( int x = 0; x < nX; x++)
+              for( int a = 0; a < A_s(s); a++ )
               {
-                for( int a = 0; a < A_s(s); a++ )
-                {
-                  vector<Type> probLenAgea_l(nL) ;
-                  probLenAgea_l.setZero();
-                  probLenAgea_l = probLenAge_laspx.col(x).col(p).col(s).col(a);
-                  sel_afsptx(a,f,s,p,t,x) = (probLenAgea_l*sel_lfspt.col(t).col(p).col(s).col(f)).sum();
-                }
-                // Reduce selectivity below minA to 0
-                sel_afsptx.col(x).col(t).col(p).col(s).col(f).segment(0,minA_s(s)).fill(0);
-              } 
-            }
-            if( selX == "age" )
-            {
-              for( int x = 0; x < nX; x++)
-              {
-                sel_afsptx.col(x).col(t).col(p).col(s).col(f) = 1/( 1 + exp( - log(Type(19.)) * ( age - xSel50_spft(s,p,f,t) ) / xSelStep_spft(s,p,f,t)  ) );
-                // Reduce selectivity below minA to 0
-                sel_afsptx.col(x).col(t).col(p).col(s).col(f).segment(0,minA_s(s)).fill(0);
+                vector<Type> probLenAgea_l(nL) ;
+                probLenAgea_l.setZero();
+                probLenAgea_l = probLenAge_laspx.col(x).col(p).col(s).col(a);
+                sel_afsptx(a,f,s,p,t,x) = (probLenAgea_l*sel_lfspt.col(t).col(p).col(s).col(f)).sum();
               }
+              // Reduce selectivity below minA to 0
+              sel_afsptx.col(x).col(t).col(p).col(s).col(f).segment(0,minA_s(s)).fill(0);
+            } 
+          }
+          if( selX == "age" )
+          {
+            for( int x = 0; x < nX; x++)
+            {
+              sel_afsptx.col(x).col(t).col(p).col(s).col(f) = 1/( 1 + exp( - log(Type(19.)) * ( age - xSel50_spft(s,p,f,t) ) / xSelStep_spft(s,p,f,t)  ) );
+              // Reduce selectivity below minA to 0
+              sel_afsptx.col(x).col(t).col(p).col(s).col(f).segment(0,minA_s(s)).fill(0);
             }
+          }
 
-            // Rescale selectivity at age by the highest value in the plusgroup across modeled sexes
-            if(nX == 2)
-            {
-              if( sel_afsptx(A_s(s)-1,f,s,p,t,0) > sel_afsptx(A_s(s)-1,f,s,p,t,1) )
-              {
-                sel_afsptx.col(0).col(t).col(p).col(s).col(f) /= sel_afsptx(A_s(s)-1,f,s,p,t,0);
-                sel_afsptx.col(1).col(t).col(p).col(s).col(f) /= sel_afsptx(A_s(s)-1,f,s,p,t,0);
-
-                maxSel_spf(s,p,f) = sel_afsptx(A_s(s)-1,f,s,p,t,0);
-              }
-              if( sel_afsptx(A_s(s)-1,f,s,p,t,0) <= sel_afsptx(A_s(s)-1,f,s,p,t,1) )
-              {
-                sel_afsptx.col(0).col(t).col(p).col(s).col(f) /= sel_afsptx(A_s(s)-1,f,s,p,t,1);
-                sel_afsptx.col(1).col(t).col(p).col(s).col(f) /= sel_afsptx(A_s(s)-1,f,s,p,t,1);
-                maxSel_spf(s,p,f) = sel_afsptx(A_s(s)-1,f,s,p,t,1);
-              }
-            }
-            if( nX == 1 )
+          // Rescale selectivity at age by the highest value in the plusgroup across modeled sexes
+          if(nX == 2)
+          {
+            if( sel_afsptx(A_s(s)-1,f,s,p,t,0) > sel_afsptx(A_s(s)-1,f,s,p,t,1) )
             {
               sel_afsptx.col(0).col(t).col(p).col(s).col(f) /= sel_afsptx(A_s(s)-1,f,s,p,t,0);
+              sel_afsptx.col(1).col(t).col(p).col(s).col(f) /= sel_afsptx(A_s(s)-1,f,s,p,t,0);
+
               maxSel_spf(s,p,f) = sel_afsptx(A_s(s)-1,f,s,p,t,0);
             }
+            if( sel_afsptx(A_s(s)-1,f,s,p,t,0) <= sel_afsptx(A_s(s)-1,f,s,p,t,1) )
+            {
+              sel_afsptx.col(0).col(t).col(p).col(s).col(f) /= sel_afsptx(A_s(s)-1,f,s,p,t,1);
+              sel_afsptx.col(1).col(t).col(p).col(s).col(f) /= sel_afsptx(A_s(s)-1,f,s,p,t,1);
+              maxSel_spf(s,p,f) = sel_afsptx(A_s(s)-1,f,s,p,t,1);
+            }
+          }
+          if( nX == 1 )
+          {
+            sel_afsptx.col(0).col(t).col(p).col(s).col(f) /= sel_afsptx(A_s(s)-1,f,s,p,t,0);
+            maxSel_spf(s,p,f) = sel_afsptx(A_s(s)-1,f,s,p,t,0);
           }
         }
       }
@@ -1239,22 +1245,19 @@ Type objective_function<Type>::operator() ()
       for( int p = 0; p < nP; p++ )
         for( int f = 0; f < nF; f++ )
         {
-          if( C_spft.transpose().col(s).col(p).col(f).sum() > 0)
-          {
-            for( int x = 0; x < nX; x++ )
-              for( int a = 0; a < A_s(s); a++)
-              {
-                C_aspftx(a,s,p,f,t,x)  = Cw_xaspft(x,a,s,p,f,t) / meanWtAge_aspx(a,s,p,x);  
-                // Generate predicted total catch in weight and numbers
-                predCw_spft(s,p,f,t) += Cw_xaspft(x,a,s,p,f,t);
-                predC_spft(s,p,f,t)  += C_aspftx(a,s,p,f,t,x);
+          for( int x = 0; x < nX; x++ )
+            for( int a = 0; a < A_s(s); a++)
+            {
+              C_aspftx(a,s,p,f,t,x)  = Cw_xaspft(x,a,s,p,f,t) / meanWtAge_aspx(a,s,p,x);  
+              // Generate predicted total catch in weight and numbers
+              predCw_spft(s,p,f,t) += Cw_xaspft(x,a,s,p,f,t);
+              predC_spft(s,p,f,t)  += C_aspftx(a,s,p,f,t,x);
 
 
-              }
-           
-            if( predC_spft(s,p,f,t) > 0 )
-              nPosCatch_spf(s,p,f) += 1;
-          }
+            }
+         
+          if( predC_spft(s,p,f,t) > 0 )
+            nPosCatch_spf(s,p,f) += 1;
         }
 
     Fbar_spf += F_spft.col(t) / (1e-9 + nPosCatch_spf);
@@ -1683,12 +1686,9 @@ Type objective_function<Type>::operator() ()
   steepnessnlp_s  -= dnorm( epsSteep_s, 0., Type(1), true );
   Mnlp_s          -= dnorm( epsM_s, 0., Type(1), true );
   
-  // Now prior on complex mean M
-  // Currently have sigmaM/sigmah doing double duty, replace
-  // with another hyperparameter - we might want to estimate
-  // the complex variance later
+  // Now prior on complex mean M and steepness
   Mnlp            -= dnorm( lnM, log(muM), sdM, true);
-  steepnessnlp    -= dnorm( logitSteep, logit_muSteep, sigmah, true);
+  steepnessnlp    -= dnorm( logitSteep, logit_muSteep, sdh, true);
     
   // And penalties stock mean growth model
   // deviations

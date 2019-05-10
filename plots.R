@@ -300,7 +300,7 @@ plotRecDevCircles <- function(  repObj = repOpt,
   # Plot of circles that correspond to deviation
   # direction (colour) and magnitude (size)
   plot( x = c(fYear,max(yrs)), y = c(1,(nS*nP)), 
-        axes = F, type = "n" )
+        axes = F, type = "n", xlab = "", ylab = "" )
     axis( side = 1 )
     axis( side = 2, at = 1:(nS*nP),
           labels = rev(specStock), las = 1 )

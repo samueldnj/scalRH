@@ -755,6 +755,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 lnsigmah_s          = rep(log(sdh),nS),
                 logit_muSteep       = log((mh - .2)/(1 - mh)),
                 lnsigmah            = log(sdh),
+                sdh                 = sdh
                 # Mortality
                 lnsigmaM_s          = rep( log(sdM), nS ),
                 lnsigmaM            = log(sdM),

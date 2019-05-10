@@ -74,7 +74,7 @@ hypo$mq_g c(0.5,0.5,0.5)
 hypo$sdq_g c(2,2,2)
 hypo$tauqMode_g c(.5,.5,.5)
 hypo$IGatauq_g rep(.01,3)
-hypo$recModel "uncorr"
+hypo$recModel "corr"
 hypo$regFfleets c()
 hypo$regFPhases c(1:12)
 hypo$mF .2
@@ -111,6 +111,7 @@ phases$lnM 3
 phases$lnxSel50_sg 4
 phases$lnxSelStep_sg 4
 phases$omegaR_vec 5
+phases$recCorr_vec 5
 phases$lnsigmaR_sp 5
 phases$lnL2step_s 6
 phases$lnvonK_s 6
