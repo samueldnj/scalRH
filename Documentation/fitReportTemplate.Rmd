@@ -97,19 +97,20 @@ knitr::opts_knit$set(   fig.pos = 'p',
 
 options(warn = -1)
 
-source(here("assessCAplots"))
-source(here("assessCAfuns.R"))
-source(here("YEfuns.R"))
-source(here("plotDataYE.R"))
+source(here("plots.R"))
+source(here("SCALfuns.R"))
 source(here("refPts.R"))
 
 # Read in report file
+
 repFilePath <- file.path(params$rootDir, params$RdataFile)
 load(repFilePath)
 
-repObj  <- report$repFE
+repObj <- c(reports$repOpt, reports$data)
+repObj <- calcRefPts(repObj)
 
 repObj <- renameReportArrays(repObj = repObj, datObj = reports$data )
+
 
 fYear   <- reports$fYear
 nS      <- repObj$nS
@@ -130,6 +131,16 @@ Model Hypothesis: `r reports$ctlList$ctrl$modelHypName`
 Species: `r reports$ctlList$data$species`
 
 Stocks: `r reports$ctlList$data$stocks`
+
+## Final phase convergence diagnostics
+
+Max Gradient: `r reports$phaseList$maxGrad`
+
+Objective Function value: `r reports$phaseList$objfun`
+
+Time to fit model:  `r reports$phaseList$totTime`
+
+
 
 ```{r, captions, include = FALSE, echo = FALSE}
 SBsptCaption <- "Spawning biomass (red line), catch (grey bars), and scaled biomass indices (coloured points), for all stocks and species. Indices are scaled by the fleet catchability, then by the ratio of spawning biomass to vulnerable biomass."
@@ -157,6 +168,10 @@ SRplotCap <- "Stock-recruit curves (solid lines) and modeled recruitments (grey 
 selLenCap <- "Selectivity-at-length for each fleet, gridded over species (columns) and stocks (rows). "
 
 selAgeCap <- "Selectivity-at-age for each fleet, for females only, gridded over species (columns) and stocks (rows). "
+
+circRecDevsCap <- "Standardised recruitment deviations. Blue indicates a positive deviation, red indicates a negative deviation, and the area of each circle is proportional to the size of the deviation."
+
+corrRecDevsCap <- "Correlation matrix of recruitment deviations. Blue indicates a positive correlation, and red indicates a negative correlation."
 
 ```
 
@@ -315,9 +330,15 @@ kable(  refPtsTab, escape = FALSE,
 
 
 
-## Correlations
+## Recruitment correlations
 
-**UNDER CONSTRUCTION**
+```{r, plotRecDevCirc, fig.cap = circRecDevsCap, echo = FALSE}
+plotRecDevCircles(repObj, fYear)
+```
+
+```{r, plotRecDevCorr, fig.cap = corrRecDevsCap, echo = FALSE}
+plotRecDevCorrMat(repObj)
+```
 
 # Individual species
 

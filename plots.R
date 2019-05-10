@@ -4,10 +4,6 @@
 #
 # Plotting functions for hierSCAL TMB model.
 # 
-# Plots to add:
-#     2. Age/length residual bubbles - use plotBubble functions
-#     3. Pred/obs catch
-#
 #
 # <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
 
@@ -260,6 +256,118 @@ plotIdxResidsGrid <- function(repObj = repOpt )
 
 }
 
+# plotCorrRecDevs()
+# Plot empirical correlation matrix for estimated recruitment
+# deviations
+plotRecDevCircles <- function(  repObj = repOpt,
+                                fYear = 1954 )
+{
+  # Pull recruitment deviations and SD
+  recDevMat <- repObj$omegaRmat_spt
+  sigmaR_sp <- repObj$sigmaR_sp
+
+  # Count species and stocks
+  nS        <- repObj$nS
+  nP        <- repObj$nP
+  nT        <- repObj$nT
+  # Axis labels
+  yrs       <- seq( fYear, by = 1, length.out = nT)
+  yrsLab    <- seq( from = signif(fYear,3), by = 10, to = max(yrs) )
+  specStock <- character(length = nS * nP )
+
+  specNames <- dimnames(sigmaR_sp)[[1]]
+  stockNames <- dimnames(sigmaR_sp)[[2]]
+
+
+  # Standardise
+  for( s in 1:nS )
+    for( p in 1:nP )
+    {
+      recDevMat[(s-1)*nP + p,] <- recDevMat[(s-1)*nP + p,] / sigmaR_sp[s,p]
+      specStock[(s-1)*nP + p] <- paste(specNames[s],"_",stockNames[p],sep = "")
+    }
+
+  rownames(recDevMat) <- specStock
+
+  # Get first and last rec devs - we need
+  # correlations only in years they are all
+  # estimated
+  tFirstRecDev_s <- repObj$tFirstRecDev_s
+  tLastRecDev_s  <- repObj$tLastRecDev_s
+  maxFirst <- max( tFirstRecDev_s )
+  minLast  <- min( tLastRecDev_s )
+
+  # Plot of circles that correspond to deviation
+  # direction (colour) and magnitude (size)
+  plot( x = c(fYear,max(yrs)), y = c(1,(nS*nP)), 
+        axes = F, type = "n" )
+    axis( side = 1 )
+    axis( side = 2, at = 1:(nS*nP),
+          labels = rev(specStock), las = 1 )
+    grid()
+    box()
+    for( t in 1:nT )
+    {
+      # Skip if no rec devs
+      if( all(recDevMat[,t] == 0))
+        next
+
+      # else, create a colour vector
+      # based on sign of deviations
+      colVec <- character( length = nS*nP )
+      colVec[recDevMat[,t] == 0 ] <- "black"
+      colVec[recDevMat[,t] > 0 ]  <- "blue"
+      colVec[recDevMat[,t] < 0 ]  <- "red"
+
+      points( x = rep(yrs[t],nS*nP), y = 1:(nS*nP),
+              cex = rev(sqrt(abs(recDevMat[,t]))), col = rev(colVec),
+              fill = colVec )
+    }
+
+} # END plotRecDevCircles()
+
+plotRecDevCorrMat <- function( repObj )
+{
+
+  # Pull recruitment deviations and SD
+  recDevMat <- repObj$omegaRmat_spt
+  sigmaR_sp <- repObj$sigmaR_sp
+
+  # Count species and stocks
+  nS        <- repObj$nS
+  nP        <- repObj$nP
+  nT        <- repObj$nT
+
+  # Pull estimated recruitment matrix
+  recCorrMat <- repObj$recCorrMat
+
+  # Get first and last rec devs - we need
+  # correlations only in years they are all
+  # estimated
+  tFirstRecDev_s <- repObj$tFirstRecDev_s
+  tLastRecDev_s  <- repObj$tLastRecDev_s
+  maxFirst <- max( tFirstRecDev_s )
+  minLast  <- min( tLastRecDev_s )
+
+  if( !is.null(recCorrMat))
+  {
+    if( any( recCorrMat) > 0 )
+      corrMat <- recCorrMat
+    else {
+      recDevMat <- recDevMat[, maxFirst:minLast ]
+      corrMat <- cor(t(recDevMat))
+    }
+  } else {
+    recDevMat <- recDevMat[, maxFirst:minLast ]
+    corrMat <- cor(t(recDevMat))
+  }
+
+  # Now plot correlation matrix
+  corrplot.mixed( corrMat )
+
+} # END plotRecDevCorrMat()
+
+
 # plotIspft()
 plotSelLen_spf <- function( repObj = repOpt,
                             sIdx = 1, pIdx = 1:3 )
@@ -267,7 +375,12 @@ plotSelLen_spf <- function( repObj = repOpt,
   
   # get estimates of selectivity
   sel_lfsp   <- repObj$sel_lfspt[,,sIdx,pIdx,1,drop = FALSE]
-  L_s         <- repObj$L_s[sIdx]
+  L_s        <- repObj$L_s[sIdx]
+
+  C_spft     <- repObj$C_spft
+  posCat_spf <- apply(X = C_spft, FUN = sum, MARGIN = c(1,2,3))
+  posCat_spf[posCat_spf > 0] <- 1
+  dimnames(posCat_spf) <- dimnames(sel_lfsp)[c(3,4,2)]
 
   # species/stocks
   nS <- repObj$nS
@@ -275,8 +388,13 @@ plotSelLen_spf <- function( repObj = repOpt,
   nT <- repObj$nT
   nF <- repObj$nF
 
+  posCat.df <- melt(posCat_spf) %>%
+                rename( indicator = value )
+
   meltSel <- melt(sel_lfsp ) %>%
-              rename( selectivity = value )
+              rename( selectivity = value ) %>%
+              left_join( posCat.df, by = c("species","stock","fleet")) %>%
+              filter( indicator == 1 )
 
   tmpPlot <-  ggplot( data = meltSel, aes(  x = len, y = selectivity, 
                                             col = fleet, group = fleet ) ) +
@@ -298,14 +416,24 @@ plotSelAge_spf <- function( repObj = repOpt,
   sel_afsp    <- repObj$sel_afsptx[,,sIdx,pIdx,1,2,drop = FALSE]
   A_s         <- repObj$L_s[sIdx]
 
+  C_spft     <- repObj$C_spft
+  posCat_spf <- apply(X = C_spft, FUN = sum, MARGIN = c(1,2,3))
+  posCat_spf[posCat_spf > 0] <- 1
+  dimnames(posCat_spf) <- dimnames(sel_afsp)[c(3,4,2)]
+
   # species/stocks
   nS <- repObj$nS
   nP <- repObj$nP
   nT <- repObj$nT
   nF <- repObj$nF
 
+  posCat.df <- melt(posCat_spf) %>%
+                rename( indicator = value )
+
   meltSel <- melt(sel_afsp ) %>%
-              rename( selectivity = value )
+              rename( selectivity = value ) %>%
+              left_join( posCat.df, by = c("species","stock","fleet")) %>%
+              filter( indicator == 1 )
 
   tmpPlot <-  ggplot( data = meltSel, aes(  x = age, y = selectivity, 
                                             col = fleet, group = fleet ) ) +

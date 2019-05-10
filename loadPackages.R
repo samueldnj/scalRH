@@ -27,7 +27,8 @@ cranPackages <- c("coda",
                   "here",
                   "bookdown",
                   "kableExtra" ,
-                  "ggridges")
+                  "ggridges",
+                  "corrplot")
 
 for( pkg in cranPackages )
   while(!require(pkg, character.only = TRUE) )

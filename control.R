@@ -27,12 +27,10 @@
 #     area (1954 - 2016)
 #   - survey data by year, species and management area for
 #       - Synoptic survey (all 4 legs) (2003 - 2016)
-#       - Hecate Strait Assemblage (1984 - 2003)
-#       - Fine mesh surveys - not really used
-#       - Commercial CPUE: Modeled with tv q in 3 blocks:
-#           - 1. Pre ASOP (1954 - 1996)
-#           - 2. ASOP (1997-2005)
-#           - 3. Integration (2006+)
+#       - Hecate Strait Assemblage (1984 - 2002)
+#       - Commercial CPUE: Modeled with tv q in 2 blocks:
+#           - 1. Pre ASOP (1954 - 1995)
+#           - 2. ASOP (1996 +)
 #   - Biological observations from surveys on length and age, for 
 #     integrated growth model
 #   - Biological data from commercial fleets - length/age/sex
@@ -45,6 +43,7 @@
 source("loadPackages.R")
 source("DERPAfuns.R")
 source("SCALfuns.R")
+source("SCALtools.R")
 source("mseRtools.r")
 source("batchTools.R")
 source("plots.R")
