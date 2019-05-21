@@ -9,7 +9,7 @@ scenario$scenario1$ctrl$dataScenarioName '1954_allFleets'
 # Scenario 2 : 1954_allFleets_ageOnly
 #
 scenario$scenario2$ctrl$dataScenarioName '1954_allFleets_ageOnly'
-scenario$scenario2$data$lenLikeWt 0
+scenario$scenario2$data$lenLikeWt_g rep(0,3)
 #
 # Scenario 3 : 1954_survIdx
 #
@@ -26,7 +26,7 @@ scenario$scenario4$hypo$initFished c(Dover=1,English=1,Rock=1,Petrale=1,Arrowtoo
 #
 scenario$scenario5$ctrl$dataScenarioName '1984_allFleets_ageOnly'
 scenario$scenario5$data$fYearData 1984
-scenario$scenario5$data$lenLikeWt 0
+scenario$scenario5$data$lenLikeWt_g rep(0,3)
 scenario$scenario5$hypo$initFished c(Dover=1,English=1,Rock=1,Petrale=1,Arrowtooth=1)
 #
 # Scenario 6 : 1984_survIdx
@@ -51,7 +51,7 @@ mp$mp2$hypo$sigmaSelDevs .05
 # MP 3 : lowtauqMode_g
 #
 mp$mp3$ctrl$modelHypName 'lowtauqMode_g'
-mp$mp3$hypo$tauqMode_g c(.1,.1,.1)
+mp$mp3$hypo$tauqMode_g c(.05,.05,.05)
 #
 # MP 4 : hitauqMode_g
 #
@@ -68,10 +68,12 @@ mp$mp5$hypo$sigmaSelMode_g c(.01,.01,.01)
 mp$mp6$ctrl$modelHypName 'hisigmaSelMode_g'
 mp$mp6$hypo$sigmaSelMode_g c(.5,.5,.5)
 #
-# MP 7 : speciesGrowth
+# MP 7 : corrRec
 #
-mp$mp6$ctrl$modelHypName 'hisigmaSelMode_g'
-mp$mp6$hypo$sigmaSelMode_g c(.5,.5,.5)
+mp$mp7$ctrl$modelHypName 'corrRec'
+mp$mp7$hypo$recModel "corr"
+mp$mp7$hypo$IWnu 5
+mp$mp7$hypo$IWscale "identity"
 #
 #
 # File Ends <not run>.

@@ -584,13 +584,16 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   # reduce the data arrays so that the fits are repsonsive
   # to changing data scenarios and species complex structures
 
-  # Pull prior mean values from hypoObj to keep pars list tidier
-  mh      <- hypoObj$hPriorMean
-  sdh     <- hypoObj$hPriorSD
-  mq_g    <- hypoObj$mq_g
-  sdq_g   <- hypoObj$sdq_g
-  mM      <- hypoObj$mM
-  sdM     <- hypoObj$sdM
+  # Prior mean values for hierarchical parameters
+  # steepness, catchability, and mortality
+  hBetaPrior  <- hypoObj$hBetaPrior
+  mq_g        <- hypoObj$mq_g
+  sdq_g       <- hypoObj$sdq_g
+  mM          <- hypoObj$mM
+  sdM         <- hypoObj$sdM
+
+  # Calculate prior mean h
+  mh <- hBetaPrior[1] / sum(hBetaPrior)
 
   # Observation errors
   tau2ObsIGa  <- hypoObj$tau2ObsIGa[useFleetsIdx]
@@ -654,6 +657,29 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
 
   # data <- .loadData( ctlList = obj )
 
+  # Recruitment correlations
+  IWmode <- diag(1,(nS * nP))
+  IWnu   <- nS * nP + hypoObj$IWnu
+
+  if( hypoObj$IWscale == "stockCorr" )
+  {
+    # Create a striped correlation matrix
+    # that correlates the recruitments within stock areas
+  }
+
+  if( hypoObj$IWscale == "specCorr" )
+  {
+    # Create a striped correlation matrix
+    # that correlates the recruitments within
+    # species
+  }
+
+  if( hypoObj$IWscale == "specCorr" )
+  {
+    # Create a striped correlation matrix
+    # that correlates the recruitments 
+    # as a function of distance (GMRF style)
+  }  
 
 
   # Generate the data list
@@ -675,9 +701,9 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 tvSelFleets           = tvSelFleets,
                 tvqFleets             = tvqFleets,
                 regFfleets            = regFfleets,
-                idxLikeWt             = dataObj$idxLikeWt,
-                ageLikeWt             = dataObj$ageLikeWt,
-                lenLikeWt             = dataObj$lenLikeWt,
+                idxLikeWt_g           = dataObj$idxLikeWt_g,
+                ageLikeWt_g           = dataObj$ageLikeWt_g,
+                lenLikeWt_g           = dataObj$lenLikeWt_g,
                 growthLikeWt          = dataObj$growthLikeWt,
                 tFirstRecDev_s        = as.integer(tFirstRecDev_s),
                 tLastRecDev_s         = as.integer(tLastRecDev_s),
@@ -709,13 +735,14 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 lnL1_s              = log(initL1_s),
                 # Stock specific growth pars
                 deltaL2sp_vec       = rep(0,sum(calcStockGrowth)),
-                lnsigmaL2_s         = rep(log(hypoObj$sigmaL2),nS),
+                lnsigmaL2_s         = rep(log(hypoObj$pmsigmaL2),nS),
                 deltaVonKsp_vec     = rep(0,sum(calcStockGrowth)),
-                lnsigmavonK_s       = rep(log(hypoObj$sigmavonK),nS),
+                lnsigmavonK_s       = rep(log(hypoObj$pmsigmavonK),nS),
                 deltaL2_sx          = array(0,dim = c(nS,nX)),
                 deltaVonK_sx        = array(0,dim = c(nS,nX)),
-                lnsigmaL2           = log(hypoObj$sigmaL2),
-                lnsigmavonK         = log(hypoObj$sigmavonK),
+                pmsigmavonK         = hypoObj$pmsigmavonK,
+                pmsigmaL2           = hypoObj$pmsigmaL2,
+                IGalphaVonB         = hypoObj$IGalphaVonB,
                 # process error in growth model
                 lnsigmaLa_s         = log(sigmaLa_s),
                 sigmaLb_s           = sigmaLb_s,
@@ -728,7 +755,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 ## Observation models ##
                 # fleet catchability and obs idx SD
                 lnq_g               = rep(0,max(group_f)),
-                lntauObs_spf        = array(-1,dim = c(nS,nP,nF)),
+                lntauObs_spg        = array(-1,dim = c(nS,nP,nGroups)),
                 # Selectivity top level means and deviations for fleets/stocks
                 lnxSel50_sg         = lnxSel50_sg,
                 lnxSelStep_sg       = lnxSelStep_sg,
@@ -740,8 +767,8 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 # Selectivity SDs
                 lnsigmaxSel50_sg    = array(log(hypoObj$cvxSel), dim = c(nS,nGroups)),
                 lnsigmaxSelStep_sg  = array(log(hypoObj$cvxSel), dim = c(nS,nGroups)),
-                IGasigmaSel_g       = hypoObj$sigmaxSelIGa_g,
-                IGbsigmaSel_g       = sigmaxSelIGb_g,
+                pmsigmaSel_g        = hypoObj$pmsigmaSel_g,
+                IGalphaSel          = hypoObj$IGalphaSel,
                 # Catchability deviations and SDs
                 deltaq_sg           = array(0,dim=c(nS,nGroups)),
                 lntauq_g            = rep(log(sdq_g)),
@@ -749,21 +776,24 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 lntauq_sg           = array(log(sdq_g),dim =c(nS,nGroups)),
                 mq_g                = mq_g,
                 sdq_g               = sdq_g,
-                IGatauq_g           = hypoObj$IGatauq_g ,
-                IGbtauq_g           = IGbtauq_g,
+                pmtauq_g            = hypoObj$pmtauq_g,
+                IGalphaq            = hypoObj$IGalphaq,
                 # Steepness
-                lnsigmah_s          = rep(log(sdh),nS),
-                logit_muSteep       = log((mh - .2)/(1 - mh)),
-                lnsigmah            = log(sdh),
-                sdh                 = sdh
+                hBetaPrior          = hypoObj$hBetaPrior,
+                lnsigmah_s          = rep(log(hypoObj$pmsigmah),nS),
+                lnsigmah            = log(hypoObj$pmsigmah),
+                pmsigmah            = hypoObj$pmsigmah,
+                IGalphah            = hypoObj$IGalphah,
                 # Mortality
                 lnsigmaM_s          = rep( log(sdM), nS ),
                 lnsigmaM            = log(sdM),
                 ln_muM              = log(mM),
                 sdM                 = sdM,
+                pmsigmaM            = sdM,
+                IGalphaM            = hypoObj$IGalphaM,
                 # IG Prior on obs error SD
-                IGatau_f            = tau2ObsIGa,
-                IGbtau_f            = tau2ObsIGb,
+                pmtauObs_g          = hypoObj$pmtauObs_g,
+                IGalphaObs          = hypoObj$IGalphaObs,
                 # Species effect on steepness
                 epsSteep_s          = rep(0,nS),
                 # Species effect on M
@@ -777,10 +807,9 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 omegaR_vec          = rep( 0, nRecDevs),
                 omegaRinit_vec      = rep( 0, nInitDevs ),
                 lnsigmaR_sp         = array( log(hypoObj$sigmaR), dim = c(nS,nP)),
-                IGasigmaR           = hypoObj$IGasigmaR,
-                IGbsigmaR           = IGbsigmaR,
+                pmsigmaR            = hypoObj$pmsigmaR,
+                IGalphaR            = hypoObj$IGalphaR,
                 # Correlation in recruitment resids
-                logitRCorr_chol     = rep(0, nS * nP),
                 logitRgamma_sp      = array( 0, dim = c(nS,nP)),
                 # Time-varying selectivity
                 epsxSel50_vec       = rep( 0, nSelDevs ),
@@ -791,6 +820,8 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 lnsigmaepslnq       = log( hypoObj$sigmaqdevs ),
                 # Correlations in recruitment
                 recCorr_vec         = rep(0,(nS*nP)*(nS*nP - 1)/2),
+                IWmode              = IWmode,
+                IWnu                = IWnu,
                 ## Single-level priors ##
                 # Priors on top level selectivity
                 pmlnxSel50_sg       = lnxSel50_sg,
@@ -828,7 +859,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   }
 
   # generate base map for TMBphase()
-  map <- list(  lntauObs_spf      = factor(taumap_spf))
+  map <- list( )
 
   # Turn off tv sel deviations if not being used
   if( !hypoObj$tvSel | nSelDevs == 0 )
@@ -841,6 +872,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   if( !hypoObj$tvq | nqDevs == 0 )
     phases$epslnq_vec       <- -1
 
+  # Turn off stock specific devs if nP == 1
   if( nP == 1)
   {
     phases$epsSteep_sp        <- -1
@@ -849,18 +881,24 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
     phases$deltaVonKsp_vec    <- -1
   }
 
+  # Turn off species specific devs if nS == 1
   if( nS == 1 )
   {
     phases$epsSteep_s       <- -1
     phases$epsM_s           <- -1
     phases$deltaq_sg        <- -1     
   }
-
+  # Turn off sexual dimorphism if nX == 1
   if( nX == 1 )
   {
     phases$deltaL2_sx       <- -1
     phases$deltaVonK_sx     <- -1
     phases$epsM_sx          <- -1
+  }
+  # Turn off recruitment correlation cholesky factor 
+  if( hypoObj$recModel == "uncorr" )
+  {
+    phases$recCorr_vec      <- -1
   }
 
   checkDat <- lapply( X = data, FUN = .checkNA )
@@ -1048,6 +1086,16 @@ TMBphase <- function( data,
     if( phase_cur > 1 ) 
       params_use <- obj$env$parList( opt$par )
 
+    # Check names in map correspond to par names
+    if( any( ! names(map_use) %in% names(params_use) ) )
+    {
+      badNames <- names(map_use)[ !names(map_use) %in% names(params_use)]
+      cat( badNames )
+      browser()
+
+    }
+
+
     # Fit the model
     obj <- TMB::MakeADFun(  data = data,
                             parameters = params_use,
@@ -1065,6 +1113,8 @@ TMBphase <- function( data,
                       iter.max = maxIter  )
 
     repInit <- obj$report()
+
+
 
     if( phase_cur == 1 )
     {

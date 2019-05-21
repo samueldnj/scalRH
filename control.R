@@ -8,7 +8,7 @@
 #   - Multistock and multispecies (DERPA)
 #   - Sex structured
 #   - Multi-level RH priors on:
-#       - Growth (vonB )
+#       - Growth (vonB)
 #       - Fishing mortality (correlation in REs if estimated)
 #       - Natural mortality (M0 prior and correlated deviations)
 #       - Selectivity

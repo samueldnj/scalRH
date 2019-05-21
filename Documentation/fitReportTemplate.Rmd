@@ -259,6 +259,7 @@ plotYeqF(repObj = repObj, sIdx = 1:nS, pIdx = 1:nP)
 
 ### Goldilocks Plots
 
+Re-read Hilborn 2018 for the goldilocks plot
 
 
 ### Table
@@ -303,19 +304,20 @@ for( s in 1:nS )
   {
     rowIdx <- (s - 1) * nP + p
 
-    refPtsTab[rowIdx,"Species"]  <- species[s]
-    refPtsTab[rowIdx,"Stock"]    <- stock[p]
-    refPtsTab[rowIdx,"B0"]       <- B0_sp[s,p]
-    refPtsTab[rowIdx,"R0"]       <- R0_sp[s,p]
-    refPtsTab[rowIdx,"M_m"]      <- M_spx[s,p,1]
-    refPtsTab[rowIdx,"M_f"]      <- M_spx[s,p,2]
-    refPtsTab[rowIdx,"Bmsy"]     <- Bmsy_sp[s,p]
-    refPtsTab[rowIdx,"Fmsy"]     <- Fmsy_sp[s,p]
-    refPtsTab[rowIdx,"Umsy"]     <- Umsy_sp[s,p]
-    refPtsTab[rowIdx,"MSY"]      <- MSY_sp[s,p]
-    refPtsTab[rowIdx,"SSB_T"]    <- SSBT_sp[s,p,1]
-    refPtsTab[rowIdx,"D_T"]      <- DT_sp[s,p]
-    refPtsTab[rowIdx,"Dmsy_T"]   <- DmsyT_sp[s,p]
+    refPtsTab[rowIdx,"Species"]   <- species[s]
+    refPtsTab[rowIdx,"Stock"]     <- stock[p]
+    refPtsTab[rowIdx,"B0"]        <- B0_sp[s,p]
+    refPtsTab[rowIdx,"R0"]        <- R0_sp[s,p]
+    refPtsTab[rowIdx,"M_m"]       <- M_spx[s,p,1]
+    refPtsTab[rowIdx,"M_f"]       <- M_spx[s,p,2]
+    refPtsTab[rowIdx,"h"]         <- h_sp[s,p]
+    refPtsTab[rowIdx,"Bmsy"]      <- Bmsy_sp[s,p]
+    refPtsTab[rowIdx,"Fmsy"]      <- Fmsy_sp[s,p]
+    refPtsTab[rowIdx,"Umsy"]      <- Umsy_sp[s,p]
+    refPtsTab[rowIdx,"MSY"]       <- MSY_sp[s,p]
+    refPtsTab[rowIdx,"SSB_T"]     <- SSBT_sp[s,p,1]
+    refPtsTab[rowIdx,"D_T"]       <- DT_sp[s,p]
+    refPtsTab[rowIdx,"Dmsy_T"]    <- DmsyT_sp[s,p]
 
   }
 

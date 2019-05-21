@@ -226,7 +226,6 @@ plotIdxResidsGrid <- function(repObj = repOpt )
   tauObs.df   <- melt(tauObs_spf) %>%
                   rename( tau = value )
 
-
   # rescale indices
   scaledI_spft <- I_spft / q_spft
 
@@ -339,7 +338,7 @@ plotRecDevCorrMat <- function( repObj )
   nT        <- repObj$nT
 
   # Pull estimated recruitment matrix
-  recCorrMat <- repObj$recCorrMat
+  recCorrMat <- repObj$recCorrMat_sp
 
   # Get first and last rec devs - we need
   # correlations only in years they are all
@@ -349,9 +348,9 @@ plotRecDevCorrMat <- function( repObj )
   maxFirst <- max( tFirstRecDev_s )
   minLast  <- min( tLastRecDev_s )
 
-  if( !is.null(recCorrMat))
+  if( !is.null(recCorrMat) & any(recDevMat != 0) )
   {
-    if( any( recCorrMat) > 0 )
+    if( recCorrMat[1,2] != 0 )
       corrMat <- recCorrMat
     else {
       recDevMat <- recDevMat[, maxFirst:minLast ]
@@ -361,6 +360,14 @@ plotRecDevCorrMat <- function( repObj )
     recDevMat <- recDevMat[, maxFirst:minLast ]
     corrMat <- cor(t(recDevMat))
   }
+
+  if( all( recDevMat == 0 ) )
+    corrMat <- diag( 1, nS * nP )
+
+  specStock <- rownames(recDevMat)
+
+  dimnames(corrMat) <- list(  specStock = specStock,
+                              specStock = specStock )
 
   # Now plot correlation matrix
   corrplot.mixed( corrMat )
@@ -414,12 +421,14 @@ plotSelAge_spf <- function( repObj = repOpt,
   
   # get estimates of selectivity
   sel_afsp    <- repObj$sel_afsptx[,,sIdx,pIdx,1,2,drop = FALSE]
-  A_s         <- repObj$L_s[sIdx]
+  A_s         <- repObj$A_s[sIdx]
 
   C_spft     <- repObj$C_spft
   posCat_spf <- apply(X = C_spft, FUN = sum, MARGIN = c(1,2,3))
   posCat_spf[posCat_spf > 0] <- 1
   dimnames(posCat_spf) <- dimnames(sel_afsp)[c(3,4,2)]
+
+  names(A_s) <- dimnames(posCat_spf)[[1]][sIdx]
 
   # species/stocks
   nS <- repObj$nS
@@ -433,7 +442,11 @@ plotSelAge_spf <- function( repObj = repOpt,
   meltSel <- melt(sel_afsp ) %>%
               rename( selectivity = value ) %>%
               left_join( posCat.df, by = c("species","stock","fleet")) %>%
-              filter( indicator == 1 )
+              filter( indicator == 1 ) %>%
+              mutate( maxAge = A_s[species] ) %>%
+              group_by( species ) %>%
+              filter( age <= maxAge ) %>%
+              ungroup()
 
   tmpPlot <-  ggplot( data = meltSel, aes(  x = age, y = selectivity, 
                                             col = fleet, group = fleet ) ) +
