@@ -62,8 +62,6 @@ runComplexBatch <- function(  batchCtlFile = "batchControlFile.bch",
               
   names(cplxCtl) <- jobTable$complex
 
-  browser()
-
   # Now makeBatch to create the batch control files
   makeBatch(  batchCtlFile = batchCtlFile, 
               prjFld = prjFld,
