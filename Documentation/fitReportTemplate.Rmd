@@ -102,6 +102,7 @@ source(here("SCALfuns.R"))
 source(here("refPts.R"))
 
 # Read in report file
+
 repFilePath <- file.path(params$rootDir, params$RdataFile)
 load(repFilePath)
 
@@ -109,6 +110,7 @@ repObj <- c(reports$repOpt, reports$data)
 repObj <- calcRefPts(repObj)
 
 repObj <- renameReportArrays(repObj = repObj, datObj = reports$data )
+
 
 fYear   <- reports$fYear
 nS      <- repObj$nS
@@ -129,6 +131,16 @@ Model Hypothesis: `r reports$ctlList$ctrl$modelHypName`
 Species: `r reports$ctlList$data$species`
 
 Stocks: `r reports$ctlList$data$stocks`
+
+## Final phase convergence diagnostics
+
+Max Gradient: `r reports$phaseList$maxGrad`
+
+Objective Function value: `r reports$phaseList$objfun`
+
+Time to fit model:  `r reports$phaseList$totTime`
+
+
 
 ```{r, captions, include = FALSE, echo = FALSE}
 SBsptCaption <- "Spawning biomass (red line), catch (grey bars), and scaled biomass indices (coloured points), for all stocks and species. Indices are scaled by the fleet catchability, then by the ratio of spawning biomass to vulnerable biomass."
@@ -156,6 +168,10 @@ SRplotCap <- "Stock-recruit curves (solid lines) and modeled recruitments (grey 
 selLenCap <- "Selectivity-at-length for each fleet, gridded over species (columns) and stocks (rows). "
 
 selAgeCap <- "Selectivity-at-age for each fleet, for females only, gridded over species (columns) and stocks (rows). "
+
+circRecDevsCap <- "Standardised recruitment deviations. Blue indicates a positive deviation, red indicates a negative deviation, and the area of each circle is proportional to the size of the deviation."
+
+corrRecDevsCap <- "Correlation matrix of recruitment deviations. Blue indicates a positive correlation, and red indicates a negative correlation."
 
 ```
 
@@ -243,6 +259,7 @@ plotYeqF(repObj = repObj, sIdx = 1:nS, pIdx = 1:nP)
 
 ### Goldilocks Plots
 
+Re-read Hilborn 2018 for the goldilocks plot
 
 
 ### Table
@@ -287,19 +304,20 @@ for( s in 1:nS )
   {
     rowIdx <- (s - 1) * nP + p
 
-    refPtsTab[rowIdx,"Species"]  <- species[s]
-    refPtsTab[rowIdx,"Stock"]    <- stock[p]
-    refPtsTab[rowIdx,"B0"]       <- B0_sp[s,p]
-    refPtsTab[rowIdx,"R0"]       <- R0_sp[s,p]
-    refPtsTab[rowIdx,"M_m"]      <- M_spx[s,p,1]
-    refPtsTab[rowIdx,"M_f"]      <- M_spx[s,p,2]
-    refPtsTab[rowIdx,"Bmsy"]     <- Bmsy_sp[s,p]
-    refPtsTab[rowIdx,"Fmsy"]     <- Fmsy_sp[s,p]
-    refPtsTab[rowIdx,"Umsy"]     <- Umsy_sp[s,p]
-    refPtsTab[rowIdx,"MSY"]      <- MSY_sp[s,p]
-    refPtsTab[rowIdx,"SSB_T"]    <- SSBT_sp[s,p,1]
-    refPtsTab[rowIdx,"D_T"]      <- DT_sp[s,p]
-    refPtsTab[rowIdx,"Dmsy_T"]   <- DmsyT_sp[s,p]
+    refPtsTab[rowIdx,"Species"]   <- species[s]
+    refPtsTab[rowIdx,"Stock"]     <- stock[p]
+    refPtsTab[rowIdx,"B0"]        <- B0_sp[s,p]
+    refPtsTab[rowIdx,"R0"]        <- R0_sp[s,p]
+    refPtsTab[rowIdx,"M_m"]       <- M_spx[s,p,1]
+    refPtsTab[rowIdx,"M_f"]       <- M_spx[s,p,2]
+    refPtsTab[rowIdx,"h"]         <- h_sp[s,p]
+    refPtsTab[rowIdx,"Bmsy"]      <- Bmsy_sp[s,p]
+    refPtsTab[rowIdx,"Fmsy"]      <- Fmsy_sp[s,p]
+    refPtsTab[rowIdx,"Umsy"]      <- Umsy_sp[s,p]
+    refPtsTab[rowIdx,"MSY"]       <- MSY_sp[s,p]
+    refPtsTab[rowIdx,"SSB_T"]     <- SSBT_sp[s,p,1]
+    refPtsTab[rowIdx,"D_T"]       <- DT_sp[s,p]
+    refPtsTab[rowIdx,"Dmsy_T"]    <- DmsyT_sp[s,p]
 
   }
 
@@ -314,9 +332,15 @@ kable(  refPtsTab, escape = FALSE,
 
 
 
-## Correlations
+## Recruitment correlations
 
-**UNDER CONSTRUCTION**
+```{r, plotRecDevCirc, fig.cap = circRecDevsCap, echo = FALSE}
+plotRecDevCircles(repObj, fYear)
+```
+
+```{r, plotRecDevCorr, fig.cap = corrRecDevsCap, echo = FALSE}
+plotRecDevCorrMat(repObj)
+```
 
 # Individual species
 

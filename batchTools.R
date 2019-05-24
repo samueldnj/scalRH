@@ -62,6 +62,8 @@ runComplexBatch <- function(  batchCtlFile = "batchControlFile.bch",
               
   names(cplxCtl) <- jobTable$complex
 
+  browser()
+
   # Now makeBatch to create the batch control files
   makeBatch(  batchCtlFile = batchCtlFile, 
               prjFld = prjFld,
@@ -84,13 +86,7 @@ runComplexBatch <- function(  batchCtlFile = "batchControlFile.bch",
     sumMem      <- cumsum(jobRemMem[orderedJobs])
     maxSize     <- which.max( sumMem[sumMem<availMem])
 
-    # Now create a cluster to run those jobs
     maxCores        <- min( maxSize, nCores, detectCores()-1 )
-    complexCluster  <- makeCluster( spec = maxCores )
-
-    # Export global variables
-    exportList      <- list( ".PRJFLD", ".DEFBATFLD" )
-    clusterExport( cl = complexCluster, exportList )
 
     # So, now we have maxCores, can we 
     # reduce to a list of jobs that will fit
@@ -100,15 +96,36 @@ runComplexBatch <- function(  batchCtlFile = "batchControlFile.bch",
 
     # Get list of jobs for this loop
     thisLoopJobs <- remainingJobs %>%
-                    filter(reqMem <= maxClusterMem)
+                    filter(reqMem <= maxClusterMem )
 
-    # Run that list of jobs
-    parLapply(  X = thisLoopJobs$jobNum, 
-                fun = .runCplxBatchJob,
-                cl = complexCluster,
-                cplxList = cplxCtl )
 
-    stopCluster( complexCluster )
+    
+
+    if( maxCores == 1 )
+      lapply( X = thisLoopJobs$jobNum,
+              FUN = .runCplxBatchJob,
+              cplxList = cplxCtl  )
+
+    if( maxCores > 1 )
+    {
+      # Now create a cluster to run those jobs
+      complexCluster  <- makeCluster( spec = maxCores )
+
+      # Export global variables
+      exportList      <- list( ".PRJFLD", ".DEFBATFLD" )
+      clusterExport( cl = complexCluster, exportList )
+
+      
+      
+
+      # Run that list of jobs
+      parLapply(  X = thisLoopJobs$jobNum, 
+                  fun = .runCplxBatchJob,
+                  cl = complexCluster,
+                  cplxList = cplxCtl )
+
+      stopCluster( complexCluster )
+    }
 
     # Now update the list of jobs
     jobTable[thisLoopJobs$jobNum,"status"] <- "complete"
@@ -176,7 +193,7 @@ doBatchRun <- function( arg )
                               cplxList = list(D = "Dover"),
                               batchDesign=NULL )
 {
-  source("ageStructuredControl.R")
+  source("control.R")
   # run batch job
   .runBatchJob( batchDesign = batchDesign,
                 par = FALSE,

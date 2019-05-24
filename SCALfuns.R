@@ -2,11 +2,7 @@
 #
 # SCALfuns.R
 #
-# Functions for hierSCAL TMB model.
-# 
-# To Do:
-#   6. Add in joint priors - be clever about it, we need to avoid
-#       joint q priors on 
+# Functions for fitting hierSCAL TMB model to DERPA data.
 #
 #
 # <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
@@ -28,7 +24,8 @@
 fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt", 
                           folder=NULL, 
                           quiet=TRUE,
-                          cplx = NULL )
+                          cplx = NULL,
+                          groupFolder = "." )
 { 
   # read in control file
   controlTable <- .readParFile ( ctlFile )
@@ -60,7 +57,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   } else folder <- paste ("fit_", folder, sep = "")
   
   # Now paste together the path to the folder and create it
-  path <- file.path (getwd(),"Outputs","fits",folder)
+  path <- here::here("Outputs","fits",groupFolder,folder)
   dir.create ( path )
   cat( "\nMSG (saveFit) Created assessment fit folder ",folder,"in ./Outputs/fits/.\n" )
   
@@ -70,19 +67,21 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   # Save reports object
   save(reports,file = file.path(path,paste(folder,".RData",sep="")))
 
-  # Write out fitReport
-  fitRepPath <- file.path(path,"fitReport.csv")
-  write.csv( reports$phaseList$fitReport, file = fitRepPath )
+  # Make html fit report
+  makeFitReport( fitID = folder, groupFolder = groupFolder )
+
+  # Create a quick to read info file for the fit folder
+  .makeInfoFile(reports)
 
   # Copy control file to sim folder for posterity
-  cat(  "fitCtlFile.txt, written to ", folder, "on ", Sys.time(),"\n", sep = "", 
+  cat(  "# fitCtlFile.txt, written to ", folder, "on ", Sys.time(),"\n", sep = "", 
         file = file.path(path,"fitCtlFile.txt"))
   write.table(  controlTable, 
                 file = file.path(path,"fitCtlFile.txt"),
                 row.names = FALSE,
                 quote = FALSE, qmethod = "double",
                 append = TRUE )
-  cat(  "<End File>", sep = "", 
+  cat(  "# <End File>", sep = "", 
         file = file.path(path,"fitCtlFile.txt"),
         append = TRUE)
   # Copy model files, so we can recreate report objects later.
@@ -99,103 +98,6 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   
   # Done
 } # END fitHierSCAL()
-
-# loadFit()
-# Loads the nominated fit reports object into memory, 
-# so that plot functions can be called
-# inputs:   fit=ordinal indicator of sim in project folder
-# ouputs:   NULL
-# usage:    Prior to plotting simulation outputs
-.loadFit <- function( fit = 1, groupFolder = "." )
-{
-  fitFolder <- file.path("./Outputs/fits",groupFolder)
-
-  # List directories in project folder, remove "." from list
-  dirList <- list.dirs (path=fitFolder,full.names = FALSE,
-                        recursive=FALSE)
-  # Restrict to fit_ folders, pick the nominated simulation
-  fitList <- dirList[grep(pattern="fit",x=dirList)]
-  folder <- fitList[fit]
-
-  # Load the nominated blob
-  reportsFileName <- paste(folder,".RData",sep="")
-  reportsPath <- file.path(fitFolder,folder,reportsFileName)
-  load ( file = reportsPath )
-
-  # Update the path object - not sure if this is necessary
-  reports$path <- file.path(fitFolder, folder) 
-
-  # Assign to global environment
-  assign( "reports",reports,pos=1 )
-
-  message("(.loadFit) Reports in ", folder, " loaded from", fitFolder, "\n", sep="" )
-
-  return( file.path(fitFolder, folder) )
-}
-
-
-# # runBatchPlots()
-# # Function to redo all plots from a given
-# # folder of fits
-# runBatchPlots <- function( batchFolder = "batch_1954" )
-# {
-#   # Get list of fit objects in batchFolder
-#   fitObjs <- list.dirs( path = file.path("./Outputs/fits",batchFolder),
-#                         full.names = TRUE, recursive =FALSE )
-
-#   # Restrict to fit_ folders, pick the nominated simulation
-#   fitList <- fitObjs[grep(pattern="fit_",x=fitObjs)]
-#   nFits <- length(fitList)
-
-#   for( i in 1:nFits )
-#   {
-#     # Load the fit object
-#     fitPath <- .loadFit(i, batchFolder)
-
-#     if(!is.null(reports$repInit))
-#       reports$repInit <- renameReportArrays( reports$repInit, reports$data )
-
-#     if(!is.null(reports$repOpt))
-#       reports$repOpt <- renameReportArrays( reports$repOpt, reports$data )
-
-#     if(is.null(reports$refPoints))
-#       reports$repOpt <- calcRefPts(reports$repOpt)
-
-#     # rerun savePlots
-#     savePlots(  fitObj = reports,
-#                 saveDir = fitPath )
-
-#     reports <<- NULL
-
-#     cat("MSG (rerunPlots) Plots redone in ", reports$path, "\n", sep = "")
-#     beep()
-#   }
-
- 
-# }
-
-
-
-# rerunPlots()
-# Function to redo all plots from a given
-# fit report object
-rerunPlots <- function( fitID = 1 )
-{
-  # Load the fit object
-  .loadFit(fitID)
-
-  if(!is.null(reports$repOpt))
-    reports$repOpt <- renameReportArrays( reports$repOpt, reports$data )
-
-  if(is.null(reports$refPoints))
-    reports$repOpt <- calcRefPts(reports$repOpt)
-
-  # rerun savePlots
-  savePlots(  fitObj = reports,
-              saveDir = reports$path )
-
-  cat("MSG (rerunPlots) Plots redone in ", reports$path, "\n", sep = "")
-}
 
 # .runHierSCAL()
 # Procedure to create data, parameter and map 
@@ -378,9 +280,14 @@ rerunPlots <- function( fitID = 1 )
   # CAAL data - Lee et al 2019+ (shared privately)
   ALfleetNames    <- dimnames(ALFreq_spalftx)[[5]]
   growthFleetIdx  <- which(ALfleetNames %in% dataObj$growthFleets)
+
+  growthYears     <- dataObj$growthYears[1]:dataObj$growthYears[2]
+  growthYrIdx     <- growthYears - fYear + 1
+
   
   # Set all observations outside those fleets to 0
-  ALFreq_spalftx[,,,,-growthFleetIdx,,] <- 0
+  ALFreq_spalftx[,,,,-growthFleetIdx,-growthYrIdx,] <- 0
+
 
 
   # Load age and length compositions
@@ -682,13 +589,16 @@ rerunPlots <- function( fitID = 1 )
   # reduce the data arrays so that the fits are repsonsive
   # to changing data scenarios and species complex structures
 
-  # Pull prior mean values from hypoObj to keep pars list tidier
-  mh      <- hypoObj$hPriorMean
-  sdh     <- hypoObj$hPriorSD
-  mq_g    <- hypoObj$mq_g
-  sdq_g   <- hypoObj$sdq_g
-  mM      <- hypoObj$mM
-  sdM     <- hypoObj$sdM
+  # Prior mean values for hierarchical parameters
+  # steepness, catchability, and mortality
+  hBetaPrior  <- hypoObj$hBetaPrior
+  mq_g        <- hypoObj$mq_g
+  sdq_g       <- hypoObj$sdq_g
+  mM          <- hypoObj$mM
+  sdM         <- hypoObj$sdM
+
+  # Calculate prior mean h
+  mh <- hBetaPrior[1] / sum(hBetaPrior)
 
   # Observation errors
   tau2ObsIGa  <- hypoObj$tau2ObsIGa[useFleetsIdx]
@@ -728,7 +638,10 @@ rerunPlots <- function( fitID = 1 )
     meanLenAge <- sum(totLenAtAge)/nLenAtAge
 
     if(!is.finite(meanLenAge))
-      browser(cat("Non-finite mean length-at-age."))
+    {
+      message("Non-finite mean length-at-age.\n")
+      browser()
+    }
 
     meanLenAge
   }
@@ -749,7 +662,29 @@ rerunPlots <- function( fitID = 1 )
 
   # data <- .loadData( ctlList = obj )
 
+  # Recruitment correlations
+  IWmode <- diag(1,(nS * nP))
+  IWnu   <- nS * nP + hypoObj$IWnu
 
+  if( hypoObj$IWscale == "stockCorr" )
+  {
+    # Create a striped correlation matrix
+    # that correlates the recruitments within stock areas
+  }
+
+  if( hypoObj$IWscale == "specCorr" )
+  {
+    # Create a striped correlation matrix
+    # that correlates the recruitments within
+    # species
+  }
+
+  if( hypoObj$IWscale == "specCorr" )
+  {
+    # Create a striped correlation matrix
+    # that correlates the recruitments 
+    # as a function of distance (GMRF style)
+  }  
 
 
   # Generate the data list
@@ -771,9 +706,9 @@ rerunPlots <- function( fitID = 1 )
                 tvSelFleets           = tvSelFleets,
                 tvqFleets             = tvqFleets,
                 regFfleets            = regFfleets,
-                idxLikeWt             = dataObj$idxLikeWt,
-                ageLikeWt             = dataObj$ageLikeWt,
-                lenLikeWt             = dataObj$lenLikeWt,
+                idxLikeWt_g           = dataObj$idxLikeWt_g,
+                ageLikeWt_g           = dataObj$ageLikeWt_g,
+                lenLikeWt_g           = dataObj$lenLikeWt_g,
                 growthLikeWt          = dataObj$growthLikeWt,
                 tFirstRecDev_s        = as.integer(tFirstRecDev_s),
                 tLastRecDev_s         = as.integer(tLastRecDev_s),
@@ -791,7 +726,9 @@ rerunPlots <- function( fitID = 1 )
                 A2_s                  = A2_s[useSpecies],
                 calcStockGrowth_sp    = calcStockGrowth,
                 calcStockSelDevs_spf  = calcStockSelDevs_spf,
-                calcStockQDevs_spf    = calcStockQDevs_spf   )
+                calcStockQDevs_spf    = calcStockQDevs_spf,
+                boundRecDevs          = hypoObj$boundRecDevs,
+                recruitVariance       = hypoObj$recModel   )
 
   # Generate parameter list
   pars <- list( ## Leading biological pars ##
@@ -803,13 +740,14 @@ rerunPlots <- function( fitID = 1 )
                 lnL1_s              = log(initL1_s),
                 # Stock specific growth pars
                 deltaL2sp_vec       = rep(0,sum(calcStockGrowth)),
-                lnsigmaL2_s         = rep(log(hypoObj$sigmaL2),nS),
+                lnsigmaL2_s         = rep(log(hypoObj$pmsigmaL2),nS),
                 deltaVonKsp_vec     = rep(0,sum(calcStockGrowth)),
-                lnsigmavonK_s       = rep(log(hypoObj$sigmavonK),nS),
+                lnsigmavonK_s       = rep(log(hypoObj$pmsigmavonK),nS),
                 deltaL2_sx          = array(0,dim = c(nS,nX)),
                 deltaVonK_sx        = array(0,dim = c(nS,nX)),
-                lnsigmaL2           = log(hypoObj$sigmaL2),
-                lnsigmavonK         = log(hypoObj$sigmavonK),
+                pmsigmavonK         = hypoObj$pmsigmavonK,
+                pmsigmaL2           = hypoObj$pmsigmaL2,
+                IGalphaVonB         = hypoObj$IGalphaVonB,
                 # process error in growth model
                 lnsigmaLa_s         = log(sigmaLa_s),
                 sigmaLb_s           = sigmaLb_s,
@@ -822,7 +760,7 @@ rerunPlots <- function( fitID = 1 )
                 ## Observation models ##
                 # fleet catchability and obs idx SD
                 lnq_g               = rep(0,max(group_f)),
-                lntauObs_spf        = array(-1,dim = c(nS,nP,nF)),
+                lntauObs_spg        = array(-1,dim = c(nS,nP,nGroups)),
                 # Selectivity top level means and deviations for fleets/stocks
                 lnxSel50_sg         = lnxSel50_sg,
                 lnxSelStep_sg       = lnxSelStep_sg,
@@ -834,8 +772,8 @@ rerunPlots <- function( fitID = 1 )
                 # Selectivity SDs
                 lnsigmaxSel50_sg    = array(log(hypoObj$cvxSel), dim = c(nS,nGroups)),
                 lnsigmaxSelStep_sg  = array(log(hypoObj$cvxSel), dim = c(nS,nGroups)),
-                IGasigmaSel_g       = hypoObj$sigmaxSelIGa_g,
-                IGbsigmaSel_g       = sigmaxSelIGb_g,
+                pmsigmaSel_g        = hypoObj$pmsigmaSel_g,
+                IGalphaSel          = hypoObj$IGalphaSel,
                 # Catchability deviations and SDs
                 deltaq_sg           = array(0,dim=c(nS,nGroups)),
                 lntauq_g            = rep(log(sdq_g)),
@@ -843,19 +781,24 @@ rerunPlots <- function( fitID = 1 )
                 lntauq_sg           = array(log(sdq_g),dim =c(nS,nGroups)),
                 mq_g                = mq_g,
                 sdq_g               = sdq_g,
-                IGatauq_g           = hypoObj$IGatauq_g ,
-                IGbtauq_g           = IGbtauq_g,
+                pmtauq_g            = hypoObj$pmtauq_g,
+                IGalphaq            = hypoObj$IGalphaq,
                 # Steepness
-                lnsigmah_s          = rep(log(sdh),nS),
-                logit_muSteep       = log((mh - .2)/(1 - mh)),
-                lnsigmah            = log(sdh),
+                hBetaPrior          = hypoObj$hBetaPrior,
+                lnsigmah_s          = rep(log(hypoObj$pmsigmah),nS),
+                lnsigmah            = log(hypoObj$pmsigmah),
+                pmsigmah            = hypoObj$pmsigmah,
+                IGalphah            = hypoObj$IGalphah,
                 # Mortality
                 lnsigmaM_s          = rep( log(sdM), nS ),
-                ln_muM              = log(mM),
                 lnsigmaM            = log(sdM),
+                ln_muM              = log(mM),
+                sdM                 = sdM,
+                pmsigmaM            = sdM,
+                IGalphaM            = hypoObj$IGalphaM,
                 # IG Prior on obs error SD
-                IGatau_f            = tau2ObsIGa,
-                IGbtau_f            = tau2ObsIGb,
+                pmtauObs_g          = hypoObj$pmtauObs_g,
+                IGalphaObs          = hypoObj$IGalphaObs,
                 # Species effect on steepness
                 epsSteep_s          = rep(0,nS),
                 # Species effect on M
@@ -869,10 +812,9 @@ rerunPlots <- function( fitID = 1 )
                 omegaR_vec          = rep( 0, nRecDevs),
                 omegaRinit_vec      = rep( 0, nInitDevs ),
                 lnsigmaR_sp         = array( log(hypoObj$sigmaR), dim = c(nS,nP)),
-                IGasigmaR           = hypoObj$IGasigmaR,
-                IGbsigmaR           = IGbsigmaR,
+                pmsigmaR            = hypoObj$pmsigmaR,
+                IGalphaR            = hypoObj$IGalphaR,
                 # Correlation in recruitment resids
-                logitRCorr_chol     = rep(0, nS * nP),
                 logitRgamma_sp      = array( 0, dim = c(nS,nP)),
                 # Time-varying selectivity
                 epsxSel50_vec       = rep( 0, nSelDevs ),
@@ -881,6 +823,10 @@ rerunPlots <- function( fitID = 1 )
                 # Time-varying catchability
                 epslnq_vec          = rep( 0, nqDevs ),
                 lnsigmaepslnq       = log( hypoObj$sigmaqdevs ),
+                # Correlations in recruitment
+                recCorr_vec         = rep(0,(nS*nP)*(nS*nP - 1)/2),
+                IWmode              = IWmode,
+                IWnu                = IWnu,
                 ## Single-level priors ##
                 # Priors on top level selectivity
                 pmlnxSel50_sg       = lnxSel50_sg,
@@ -918,7 +864,7 @@ rerunPlots <- function( fitID = 1 )
   }
 
   # generate base map for TMBphase()
-  map <- list(  lntauObs_spf      = factor(taumap_spf))
+  map <- list( )
 
   # Turn off tv sel deviations if not being used
   if( !hypoObj$tvSel | nSelDevs == 0 )
@@ -931,6 +877,7 @@ rerunPlots <- function( fitID = 1 )
   if( !hypoObj$tvq | nqDevs == 0 )
     phases$epslnq_vec       <- -1
 
+  # Turn off stock specific devs if nP == 1
   if( nP == 1)
   {
     phases$epsSteep_sp        <- -1
@@ -939,18 +886,24 @@ rerunPlots <- function( fitID = 1 )
     phases$deltaVonKsp_vec    <- -1
   }
 
+  # Turn off species specific devs if nS == 1
   if( nS == 1 )
   {
     phases$epsSteep_s       <- -1
     phases$epsM_s           <- -1
     phases$deltaq_sg        <- -1     
   }
-
+  # Turn off sexual dimorphism if nX == 1
   if( nX == 1 )
   {
     phases$deltaL2_sx       <- -1
     phases$deltaVonK_sx     <- -1
     phases$epsM_sx          <- -1
+  }
+  # Turn off recruitment correlation cholesky factor 
+  if( hypoObj$recModel == "uncorr" )
+  {
+    phases$recCorr_vec      <- -1
   }
 
   checkDat <- lapply( X = data, FUN = .checkNA )
@@ -1002,7 +955,7 @@ rerunPlots <- function( fitID = 1 )
   # Update names on report objects
   outList <- list(  repOpt = renameReportArrays(repOpt,data),
                     sdrepOpt = phaseList$sdrep,
-                    sdOptOutput = phaseList$optOutput,
+                    optOutput = phaseList$optOutput,
                     fYear = fYear, 
                     lYear = lYear,
                     gearLabs = useFleets,
@@ -1138,6 +1091,16 @@ TMBphase <- function( data,
     if( phase_cur > 1 ) 
       params_use <- obj$env$parList( opt$par )
 
+    # Check names in map correspond to par names
+    if( any( ! names(map_use) %in% names(params_use) ) )
+    {
+      badNames <- names(map_use)[ !names(map_use) %in% names(params_use)]
+      cat( badNames )
+      browser()
+
+    }
+
+
     # Fit the model
     obj <- TMB::MakeADFun(  data = data,
                             parameters = params_use,
@@ -1155,6 +1118,8 @@ TMBphase <- function( data,
                       iter.max = maxIter  )
 
     repInit <- obj$report()
+
+
 
     if( phase_cur == 1 )
     {
@@ -1246,7 +1211,7 @@ TMBphase <- function( data,
 
   } # close phase loop
 
-  # Fit the model
+  # integration of the posterior using Laplace Approximation
   if( intMethod == "RE" & !is.null(random) &  class(opt) != "try-error" )
   { 
     randEffList <- list()
@@ -1295,6 +1260,7 @@ TMBphase <- function( data,
     outList$randEffList <- randEffList
   }
 
+  # HMC using tmbstan package
   if( intMethod == "MCMC" & class(opt) != "try-error" )
   {
     tBegin      <- proc.time()[3]
@@ -1317,520 +1283,32 @@ TMBphase <- function( data,
 
   }
   
+  # Save sdreport object
   if(outList$success & calcSD )
     outList$sdrep <- TMB::sdreport(obj)
 
+  # Save phase reports
   if( savePhases )
     outList$phaseReports      <- phaseReports
 
+  # Now save report object
   if(outList$success)
   {
     outList$repOpt            <- obj$report()
     outList$optPar            <- obj$env$parList( opt$par )
-  }
-  else {
+  } else {
     outList$optPar         <- params_use
     outList$repOpt         <- repInit
   }
 
+  # And the remainder of the details
   outList$objfun            <- obj$fn()
   outList$optOutput         <- opt
   outList$map               <- map_use
   outList$maxGrad           <- max(obj$gr())
   outList$fitReport         <- fitReport
-  outList$totTime           <- sum(fitReport$time)
+  outList$totTime           <- sum(fitReport$time,na.rm = TRUE)
   
   return( outList )  
 
 } # END TMBphase()
-
-# renameReportArrays()
-# Updates the dimension names of the arrays in the 
-# report lists, as a way of making plot code more efficient later.
-renameReportArrays <- function( repObj = repInit, datObj = data )
-{
-  # Just go down the list, but first do the objects with the same names
-
-  repNames <- names(repObj)
-  datNames <- names(datObj)
-
-  bothNames <- repNames[ repNames %in% datNames ]
-
-  for( itemName in bothNames )
-  {
-    dimnames(repObj[[itemName]]) <- dimnames(datObj[[itemName]])
-  }
-
-  # Recover names
-  specNames   <- dimnames(datObj$I_spft)[[1]]
-  stockNames  <- dimnames(datObj$I_spft)[[2]]
-  gearNames   <- dimnames(datObj$I_spft)[[3]]
-  yearNames   <- dimnames(datObj$I_spft)[[4]]
-  lenNames    <- dimnames(datObj$len_lspftx)[[1]]
-  ageNames    <- dimnames(datObj$age_aspftx)[[1]]
-  sexNames    <- dimnames(datObj$age_aspftx)[[6]]
-
-
-  # Ok, that's the data taken care of. There are still all the
-  # new arrays that we created
-  # Predicted data
-  dimnames(repObj$I_spft_hat) <- dimnames(datObj$I_spft)
-  dimnames(repObj$aDist_aspftx_hat) <- dimnames(datObj$age_aspftx)
-  dimnames(repObj$lDist_lspftx_hat) <- dimnames(datObj$len_lspftx)
-  # State arrays
-  dimnames(repObj$B_asptx) <- dimnames(datObj$age_aspftx)[c(1:3,5)]
-  dimnames(repObj$N_asptx) <- dimnames(datObj$age_aspftx)[c(1:3,5)]
-  dimnames(repObj$B_spt) <- dimnames(datObj$age_aspftx)[c(2:3,5)]
-  dimnames(repObj$R_spt) <- dimnames(datObj$age_aspftx)[c(2:3,5)]
-  dimnames(repObj$SB_spt) <- dimnames(datObj$age_aspftx)[c(2:3,5)]
-  dimnames(repObj$Bv_spft) <- list( species = specNames,
-                                    stock = stockNames,
-                                    fleet = gearNames,
-                                    year = yearNames )
-  dimnames(repObj$predC_spft) <- dimnames(datObj$age_aspftx)[c(2:5)]
-  dimnames(repObj$predCw_spft) <- dimnames(datObj$age_aspftx)[c(2:5)]
-  dimnames(repObj$C_aspftx) <- dimnames(datObj$age_aspftx)[c(1:5)]
-  dimnames(repObj$Cw_xaspft) <- dimnames(datObj$age_aspftx)[c(6,1:5)]
-  dimnames(repObj$F_spft) <- dimnames(datObj$age_aspftx)[c(2:5)]
-  dimnames(repObj$Z_aspxt) <- dimnames(datObj$age_aspftx)[c(1:3,6,5)]
-  # Biological parameters
-  dimnames(repObj$R0_sp) <- dimnames(datObj$age_aspftx)[c(2:3)]
-  dimnames(repObj$B0_sp) <- dimnames(datObj$age_aspftx)[c(2:3)]
-  dimnames(repObj$h_sp) <- dimnames(datObj$age_aspftx)[c(2:3)]
-  dimnames(repObj$M_sp) <- dimnames(datObj$age_aspftx)[c(2:3)]
-  dimnames(repObj$phi_sp) <- dimnames(datObj$age_aspftx)[c(2:3)]
-  dimnames(repObj$reca_sp) <- dimnames(datObj$age_aspftx)[c(2:3)]
-  dimnames(repObj$recb_sp) <- dimnames(datObj$age_aspftx)[c(2:3)]
-
-  # Observation models
-  dimnames(repObj$q_spf)        <- dimnames(datObj$age_aspftx)[c(2:4)]  
-  dimnames(repObj$q_spft)       <- dimnames(datObj$age_aspftx)[c(2:5)]  
-  dimnames(repObj$tau2Obs_spf)  <- dimnames(datObj$age_aspftx)[c(2:4)]  
-  dimnames(repObj$tauObs_spf)   <- dimnames(datObj$age_aspftx)[c(2:4)]  
-  dimnames(repObj$sel_lfspt)    <- list(  len = lenNames, 
-                                          fleet = gearNames,
-                                          species = specNames,
-                                          stock = stockNames,
-                                          year = yearNames )
-  dimnames(repObj$sel_afsptx)     <- list( age = ageNames, 
-                                          fleet = gearNames,
-                                          species = specNames,
-                                          stock = stockNames,
-                                          year = yearNames,
-                                          sex = sexNames )
-
-
-  dimnames(repObj$ageRes_aspftx)   <- list(  age = ageNames, 
-                                            species = specNames,
-                                            stock = stockNames,
-                                            fleet = gearNames,
-                                            year = yearNames,
-                                            sex = sexNames )  
-  dimnames(repObj$tau2Age_spf)   <- list( species = specNames,
-                                          stock = stockNames,
-                                          fleet = gearNames )  
-  dimnames(repObj$lenRes_lspftx)   <- list( length = lenNames, 
-                                            species = specNames,
-                                            stock = stockNames,
-                                            fleet = gearNames,
-                                            year = yearNames,
-                                            sex = sexNames ) 
-  dimnames(repObj$tau2Len_spf)   <- list( species = specNames,
-                                          stock = stockNames,
-                                          fleet = gearNames )  
-
-  # Growth model quants
-  dimnames(repObj$probLenAge_laspx) <- list( len = lenNames, 
-                                              age = ageNames,
-                                              species = specNames,
-                                              stock = stockNames,
-                                              sex = sexNames )
-
-  dimnames(repObj$lenAge_aspx) <- list(     age = ageNames,
-                                            species = specNames,
-                                            stock = stockNames,
-                                            sex = sexNames  )
-
-  dimnames(repObj$probAgeLen_alspftx) <- list(  age = ageNames,
-                                                len = lenNames,
-                                                species = specNames,
-                                                stock = stockNames,
-                                                fleet = gearNames,
-                                                year = yearNames,
-                                                sex = sexNames  ) 
-
-  dimnames(repObj$ageAtLenResids_alspftx) <- list(  age = ageNames,
-                                                    len = lenNames,
-                                                    species = specNames,
-                                                    stock = stockNames,
-                                                    fleet = gearNames,
-                                                    year = yearNames,
-                                                    sex = sexNames  )
-  # Growth model parameters
-  # vectors
-  names(repObj$A1_s)      <- specNames
-  names(repObj$A2_s)      <- specNames
-  names(repObj$L1_s)      <- specNames
-  names(repObj$L2_s)      <- specNames
-  names(repObj$sigmaLa_s) <- specNames
-  names(repObj$sigmaLb_s) <- specNames
-  # arrays
-  dimnames(repObj$L1_sp)    <- list(  species = specNames,
-                                      stock = stockNames )
-  dimnames(repObj$L2_sp)    <- list(  species = specNames,
-                                      stock = stockNames )
-  dimnames(repObj$vonK_sp)  <- list(  species = specNames,
-                                      stock = stockNames )
-
-  dimnames(repObj$L1_spx)   <- list(  species = specNames,
-                                      stock = stockNames,
-                                      sex = sexNames )
-  dimnames(repObj$L2_spx)   <- list(  species = specNames,
-                                      stock = stockNames,
-                                      sex = sexNames )
-  dimnames(repObj$vonK_spx) <- list(  species = specNames,
-                                      stock = stockNames,
-                                      sex = sexNames )
-  dimnames(repObj$M_spx)    <- list(  species = specNames,
-                                      stock = stockNames,
-                                      sex = sexNames )
-
-
-
-
-  return(repObj)
-}
-
-makeFitReport <- function( fitID = 1, groupFolder = "." )
-{
-  fitFolder <- here("Outputs","fits",groupFolder)
-
-  # List directories in project folder, remove "." from list
-  dirList <- list.dirs (path=fitFolder,full.names = FALSE,
-                        recursive=FALSE)
-  # Restrict to fit_ folders, pick the nominated simulation
-  fitList <- dirList[grep(pattern="fit",x=dirList)]
-  folder <- fitList[fitID]
-
-  # Load the nominated blob
-  reportsFileName <- paste(folder,".RData",sep="")
-  reportsPath <- file.path(fitFolder,folder,reportsFileName)
-  fitFolderPath <- here("Outputs","fits",folder)
-
-  # Create parameter list for rendering the document
-  params <- list( rootDir= fitFolderPath,
-                  RdataFile = reportsFileName)
-  # Make an output file name
-  outFile <- paste( "fitReport.html", sep = "")
-
-  # Render
-  rmarkdown::render(  input = here("Documentation","fitReportTemplate.Rmd"), 
-                      output_file = outFile,
-                      output_dir = fitFolderPath,
-                      params = params,
-                      envir = new.env(),
-                      output_format = "bookdown::html_document2" )
-
-  # remove temporary files
-  dataReportFiles <- "fitReport_files"
-  unlink(file.path(reportsPath,dataReportFiles), recursive = TRUE)
-
-  message( paste("fitReport.html created in ", fitFolderPath, "\n", sep = "" ) )
-}
-
-# savePlots()
-savePlots <- function(  fitObj = reports,
-                        saveDir = "./Outputs/fits/" )
-{
-  # Create a plots sub directory in the saveDir
-  saveDir <- file.path(saveDir,"plots")
-  if(!dir.exists(saveDir))
-    dir.create(saveDir)
-
-  fYear <- fitObj$fYear
-  lYear <- fitObj$lYear
-
-  report   <- c(fitObj$repOpt,fitObj$data)
-
-  specNames   <- fitObj$species
-  stockNames  <- fitObj$stocks
-  fleetNames  <- fitObj$gearLabs
-
-  nS <- length(specNames)
-  nP <- length(stockNames)
-  nF <- length(fleetNames)
-  
-  graphics.off()
-
-  # Plot recruitments
-  png(  file.path(saveDir,"plotRspt.png"),
-        width = 11, height = 8.5, units = "in", res = 300)
-  plotRspt( repObj = report, initYear = fYear )
-  dev.off()
-
-  # Plot recruitment deviations
-  png(  file.path(saveDir,"plotRsptDev.png"),
-        width = 11, height = 8.5, units = "in", res = 300)
-  plotRsptDev( repObj = report, initYear = fYear )
-  dev.off()
-
-  # Plot spawning biomass with catch 
-  png(  file.path(saveDir,"plotSBspt.png"),
-        width = 11, height = 8.5, units = "in", res = 300)
-  plotSBspt( repObj = report, initYear = fYear )
-  dev.off()
-
-  # Plot probLenAge 
-  png(  file.path(saveDir,"plotProbLenAge.png"),
-        width = 11, height = 8.5, units = "in", res = 300)
-  plotProbLenAge_sp( repObj = report)
-  dev.off()
-
-  # Plot indices
-  png( file.path(saveDir,"plotStdzedIndices.png"),
-        width = 11, height = 8.5, units = "in", res = 300)
-  plotIspft(  repObj = report,
-              fYear = fYear, lYear = lYear,
-              sIdx = 1:nS, pIdx = 1:nP,
-              fIdx = 1:nF )
-  dev.off()
-
-  png(  file.path(saveDir,"plotYieldCurves.png"),
-        width = 11, height = 8.5, units = "in", res = 300 )
-  plotYeqF( repObj = report,
-            sIdx = 1:nS, pIdx = 1:nP )
-  dev.off()
-
-  # Plot catch fits
-  png(  file.path(saveDir,"plotCatchFit.png"),
-        width = 11, height = 8.5, units = "in", res = 300)
-  plotCatchFit_spt( repObj = report, initYear = fYear )
-  dev.off()
-
-  # Plot Fs
-  png(  file.path(saveDir,"plotFspft.png"),
-        width = 11, height = 8.5, units = "in", res = 300)
-  plotFspft( repObj = report, initYear = fYear )
-  dev.off()
-
-  # Plot Stock recruit
-  png(  file.path(saveDir,"plotSRsp.png"),
-        width = 11, height = 8.5, units = "in", res = 300)
-  plotSRsp( repObj = report, initYear = fYear )
-  dev.off()
-
-  for( sIdx in 1:nS )
-  {
-    # Make a directory to hold species specific plots
-    specDir <- specNames[sIdx]
-    specPath <- file.path(saveDir,specDir)
-    if(!dir.exists(specPath))
-      dir.create(specPath)
-
-    fileName <- paste("plotAgeLenResids_",specDir,".png",sep = "")
-    png(  file.path(specPath,fileName),
-        width = 11, height = 8.5, units = "in", res = 300)
-    plotHeatmapAgeLenResids(  repObj = report, 
-                              sIdx = sIdx, pIdx = 1:nP,
-                              fIdx = 1:nF )
-    dev.off()  
-
-    fileName <- paste("plotAgeResids_",specDir,".png",sep = "")
-    png(  file.path(specPath,fileName),
-        width = 11, height = 8.5, units = "in", res = 300)
-    plotCompResids( repObj = report, 
-                    sIdx = sIdx, pIdx = 1:nP,
-                    fIdx = 1:nF, comps = "age" )
-    dev.off()  
-
-    fileName <- paste("plotLenResids_",specDir,".png",sep = "")
-    png(  file.path(specPath,fileName),
-        width = 11, height = 8.5, units = "in", res = 300)
-    plotCompResids( repObj = report, 
-                    sIdx = sIdx, pIdx = 1:nP,
-                    fIdx = 1:nF, comps = "length" )
-    dev.off()  
-
-    # Plot probLenAge 
-    png(  file.path(specPath,"plotLenAtAgeDist.png"),
-          width = 11, height = 8.5, units = "in", res = 300)
-    plotHeatmapProbLenAge( repObj = report, 
-                            sIdx = sIdx, pIdx = 1:nP)
-    dev.off()
-
-    for( pIdx in 1:nP)
-    {
-      # Make a directory to hold stock specific plots
-      stockDir <- stockNames[pIdx]
-      stockPath <- file.path(specPath,stockDir)
-      if(!dir.exists(stockPath))
-        dir.create(stockPath)
-
-      # Plot Index fits to vuln bio
-      png(  file.path(stockPath,"plotIdxFits.png"),
-            width = 8.5, height = 11, units = "in", res = 300)
-      plotIdxFits(  repObj = report, initYear = fYear,
-                    sIdx = sIdx, pIdx = pIdx )
-      dev.off()
-
-      # Plot Index residuals
-      png(  file.path(stockPath,"plotIdxResids.png"),
-            width = 8.5, height = 11, units = "in", res = 300)
-      plotIdxResids(  repObj = report, initYear = fYear,
-                      sIdx = sIdx, pIdx = pIdx )
-      dev.off()
-
-      # Plot selectivity at age
-      png(  file.path(stockPath,"plotSelAge.png"),
-            width = 8.5, height = 11, units = "in", res = 300)
-      plotSelAge( repObj = report,
-                  sIdx = sIdx, pIdx = pIdx )
-      dev.off()
-
-      # Plot selectivity at length
-      png(  file.path(stockPath,"plotSelLen.png"),
-            width = 8.5, height = 11, units = "in", res = 300)
-      plotSelLen( repObj = report,
-                  sIdx = sIdx, pIdx = pIdx )
-      dev.off()
-
-      # # Plot maturity at length
-      # png(  file.path(stockPath,"plotMatLen.png"),
-      #       width = 11, height = 8.5, units = "in", res = 300)
-      # plotMatLength( repObj = report,
-      #                sIdx = sIdx, pIdx = pIdx )
-      # dev.off()
-
-      # Plot maturity at Age
-      png(  file.path(stockPath,"plotMatAge.png"),
-            width = 11, height = 8.5, units = "in", res = 300)
-      plotMatAge( repObj = report,
-                  sIdx = sIdx, pIdx = pIdx )
-      dev.off()
-
-
-      # Plot length-at-age
-      png(  file.path(stockPath,"plotLenAge.png"),
-        width = 11, height = 8.5, units = "in", res = 300)
-      plotHeatmapProbLenAge( repObj = report, 
-                              sIdx = sIdx, pIdx = pIdx)
-
-      dev.off()
-
-      # Plot weight at Age
-      png(  file.path(stockPath,"plotWtAge.png"),
-            width = 11, height = 8.5, units = "in", res = 300)
-      plotWtAge( repObj = report,
-                  sIdx = sIdx, pIdx = pIdx )
-      dev.off()
-
-      # Plot age comp fits
-      plotCompFitYrs( repObj = report,
-                      initYear = fYear,
-                      sIdx = sIdx, pIdx = pIdx,
-                      comps = "age", save = TRUE,
-                      savePath = file.path(stockPath,"plotFitAgeYrs") )
-
-      # Plot age comp fits (average)
-      png(  file.path(stockPath,"plotFitAgeAvg.png"),
-            width = 8.5, height = 11, units = "in", res = 300)
-      plotCompFitAvg( repObj = report,
-                      initYear = fYear,
-                      sIdx = sIdx, pIdx = pIdx,
-                      comps = "age" )
-      dev.off()
-
-      # Plot length comp fits
-      plotCompFitYrs( repObj = report,
-                      initYear = fYear,
-                      sIdx = sIdx, pIdx = pIdx,
-                      comps = "length", save = TRUE,
-                      savePath = file.path(stockPath,"plotFitLenYrs") )
-
-      # Plot length comp fits (average)
-      png(  file.path(stockPath,"plotFitLenAvg.png"),
-            width = 8.5, height = 11, units = "in", res = 300)
-      plotCompFitAvg( repObj = report,
-                      initYear = fYear,
-                      sIdx = sIdx, pIdx = pIdx,
-                      comps = "length" )
-      dev.off()
-
-
-      # Plot Catch fits by gear
-      png(  file.path(stockPath,"plotCatchFit_ft.png"),
-            width = 8.5, height = 11, units = "in", res = 300)
-      plotCatchFit_ft(  repObj = report,
-                        initYear = fYear,
-                        sIdx = sIdx, pIdx = pIdx )
-      dev.off()
-
-      png(  file.path(stockPath,"plotStockRecruit.png"),
-            width = 8.5, height = 8.5, units = "in", res = 300)
-      plotSR( repObj = report,
-              sIdx = sIdx, pIdx = pIdx )
-      dev.off()
-
-      # Plot spawning biomass with catch and indices
-      png(  file.path(stockPath,"plotSBt.png"),
-            width = 11, height = 8.5, units = "in", res = 300)
-      plotSBt( repObj = report, initYear = fYear,
-                  sIdx = sIdx, pIdx = pIdx )
-      dev.off()
-
-      for( fIdx in 1:nF )
-      {
-        if(!dir.exists(file.path(stockPath,"resids")) )
-          dir.create(file.path(stockPath,"resids"))
-        
-        fleetID <- fleetNames[fIdx]
-        fileName <- paste("plotAgeLenResids_",fleetID,".png",sep = "")
-        png(  file.path(stockPath,"resids",fileName),
-            width = 11, height = 8.5, units = "in", res = 300)
-        plotHeatmapAgeLenResids(  repObj = report, 
-                                  sIdx = 1:nS, pIdx = 1:nP,
-                                  fIdx = fIdx )
-        dev.off()  
-
-        fileName <- paste("plotAgeResids_",fleetID,".png",sep = "")
-        png(  file.path(stockPath,"resids",fileName),
-            width = 11, height = 8.5, units = "in", res = 300)
-        plotCompResids( repObj = report, 
-                        sIdx = 1:nS, pIdx = 1:nP,
-                        fIdx = fIdx, comps = "age" )
-        dev.off()  
-
-        fileName <- paste("plotLenResids_",fleetID,".png",sep = "")
-        png(  file.path(stockPath,"resids",fileName),
-            width = 11, height = 8.5, units = "in", res = 300)
-        plotCompResids( repObj = report, 
-                        sIdx = 1:nS, pIdx = 1:nP,
-                        fIdx = fIdx, comps = "length" )
-        dev.off()  
-      }
-
-    }
-  }
-
-
-} # END savePlots()
-
-# Check NAs/NaNs in lists
-.checkNA <- function( listEntry )
-{
-  x <- any(is.na(listEntry))
-  x
-}
-
-# Check for Infs in lists
-.checkFinite <- function( listEntry )
-{
-  x <- any(!is.finite(listEntry))
-  x
-}
-
-.checkNaN <- function( listEntry )
-{
-  x <- any(is.nan(listEntry))
-  x
-}

@@ -20,7 +20,7 @@ fontsize: 12pt
 lineno: true
 numbersections: false
 appendix: false
-abstract: Fisheries stock assessments are typically performed for a single species or stock at a time. Not all stocks have the same available data (e.g. missing age structures), due to low fishing effort or sampling effort, so go un-assessed or get aggregated with other management units, despite heterogeneity in abundance or biological data. Modern hierarchical multi-species and multi-stock assessment models are an alternative option for dealing with data limitations in spatially diverse fisheries. For example, biological information can be shared between stocks within a species, and environmental effects may be experienced similarly by species that inhabit the same stock area. In this paper, we present a multi-species, multi-stock, age structured integrated assessment model, able to be fit to abundance, age, and length data for 5 flatfish species in 3 stock areas on the coast of British Columbia. For 2 species, at least one stock area is missing age composition data, so length compositions are the primary compositional data to detect changes in recruitment. To share information between stocks, hierarchical shrinkage priors are applied to catchability, stock-recruit steepness, survey index observation error variance,... parameters. We compare the assessment results under multiple model hypotheses and data scenarios. Integrated growth model/first assessments of many stocks/... Results...
+abstract: Fisheries stock assessments are typically performed for a single species or stock at a time. Not all stocks have the same available data (e.g. missing age structures), due to low fishing effort or sampling effort, so go un-assessed or get aggregated with other management units, despite heterogeneity in abundance or biological data. Modern hierarchical multi-species and multi-stock assessment models are an alternative option for dealing with data limitations in spatially diverse fisheries. For example, biological information can be shared between stocks within a species, and environmental effects may be experienced similarly by species that inhabit the same stock area. In this paper, we present a multi-species, multi-stock, age and sex structured integrated stock assessment model, able to be fit to abundance, age, and length data for five right-eyed flounder (Pleuronectidae) species in three stock areas on the coast of British Columbia. For two of those species, at least one stock area was missing age composition data, so length compositions were the primary compositional data used to detect recruitment signals in those stocks, and by implication no growth model was estimable for those stocks due to missing length-at-age observations. To share information between stocks, hierarchical shrinkage priors were formulated for catchability, natural mortality, stock-recruit steepness, selectivity-at-length, and von Bertalanffy asymptotic length parameters. We compared the assessment results under multiple model hypotheses and data scenarios, varying prior belief in hierarchical prior hypervariance parameters, assessment model initialisation times, and switching between time-varying and constant observation model parameters. Integrated growth model/first assessments of many stocks/... Results...
 output: 
   pdf_document:
     citation_package: natbib
@@ -71,7 +71,7 @@ Fisheries stock assessment is concerned with determining the status of exploited
 
 Fisheries management typically focuses on a single stock of a single species at a time. This narrow focus often implictly assumes that fish are uniformly distributed across the management area, ignoring any spatial structure, and ignores interactions between species, except implicitly through recruitment or mortality [@albertsen2017connecting; @siple2017contributions].
 
-Data limitations - modern fisheries management is based on fitting age structured models, age data is often missing as it is costly to collect. Length compositions are 
+Data limitations - modern fisheries management is based on fitting age structured models, age data is often missing as it is costly to collect. Age data provides signals to help estimate selectivity, mortality, and recruitment. Length compositions are commonly used as an alternative when age data is missing, but often lack contrast around the asymptotic length of a species, especially for fast growing species that are rarely encountered by surveys or commercial effort.
 
 Hierarchical multi-stock and multi-species stock assessment models offer an alternative to increasing costly age readings for low-abundance or importance stocks.
     - Sharing information [@johnson2018evaluating; punt2011among; @jiao2011poor]
@@ -83,7 +83,7 @@ In this paper, we apply a hierarchical multi-stock age-structured assessment mod
     - Technical interactions - caught together (though not all)
     - estimating correlations in fishing/total mortality and recruitment (emmig/immig and technical interactions) - Read Siple paper again
     - Integrated growth model - look at integrated assessment model literature
-    - shared priors on catchability [@johnson2018evaluating], steepness [@myers1999maximum], mortality [@albertsen2017connecting]
+    - shared priors on catchability [@johnson2018evaluating], steepness [@myers1999maximum], mortality [@albertsen2017connecting], selectivity, growth model pars [@piner2016evaluation]
 
 
 # Methods
@@ -111,16 +111,16 @@ Not all stocks are surveyed equally: different stocks have large samples age str
 - Fishery dependent CPUE (1956 - 2017) (Source)
 - Age and length composition data (surveys and commercial fleet)
     * Explain stocks with missing data?
-- Length-at-age data
+- Conditional age-at-length data by fleet group
 
 
 ## Stock assessment model
 
-The stock assessment model has an age structured process model that explicitly includes uncertainty in the length-at-age distribution. Length-at-age distributions for each stock are estimated by fitting a hierarchical growth model to length and age data for each stock and species. 
+The stock assessment model has an age structured process model that explicitly includes uncertainty in the length-at-age distribution. Length-at-age distributions for each stock are estimated by fitting a hierarchical growth model to conditional age-at-length data for each stock and species. 
 
 **Equations are given in Table XX/Supplemental material**
 
-For stocks without age observations, length comps with separate length-at-age distributions for each stock are used in the observation model. To avoid using the same data twice, we only use length compositions from individual fish where age was not observed. For fish where age was observed, accompanying length observations are available, and this data was used to fit the integrated Von Bertalanffy growth model
+For stocks without age observations, length comps for each stock are used in the observation model. To avoid using the same data twice, we only use length compositions from individual fish where age was not observed. For fish where age was observed, accompanying length observations are available, and this data was used to fit the integrated random-at-length Von Bertalanffy growth model
 
 Hierarchical priors:
 - integrated Schnute formulation of vonB growth model [@schnute1981versatile; @francis2016growth]
@@ -128,20 +128,17 @@ Hierarchical priors:
     - K, L2 and sigmaL within species
     - Random-at-length, using modeled age structure and selectivity inside the model
 - Steepness between stocks and species (multilevel)
-- Catchability for surveys
+- Catchability for fleet groups
 - M between stocks and species (multilevel)
 - Correlations in recruitment deviations?
-- Correlations in Ft deviations (auto-correlated Ft?)?
 - Selectivity-at-length parameters - this will probably play well with the compositional data issues below
 
-Multifleet model: one fleet for each survey leg in Synoptic (WCHG, HS, QCS, and WCVI), one for the HS Assemblage survey, and two commercial trawl fleets (historic and modern). Given the Synoptic survey is using the same vessel/gear across years and legs. These fleets naturally fall into three groups (Commercial Trawl, Assemblage survey, and Syboptic surveys), so a hierarchical prior
+Multifleet model: one fleet for each survey leg in Synoptic (WCHG, HS, QCS, and WCVI), one for the HS Assemblage survey, and two commercial trawl fleets (historic and modern). These fleets naturally fall into three groups (Commercial Trawl, Assemblage survey, and Syboptic surveys), so a hierarchical prior structure was defined based on those groups for observation model parmeters, e.g.
 
 
 
+Compositional data: This might be the crux of this paper/analysis, i.e. what to do about compositional data. 
 
-
-Compositional data: This might be the crux of this paper/analysis, i.e. what to do about compositional data 
-+ what kind of likelihood to use? How to avoid swamping the abundance index likelihood?
 + What to do about selectivity - time-varying to follow bad fitting compositions?
 + Papers:
     * @francis2017revisiting, 
@@ -161,8 +158,8 @@ Here I need to include the data scenarios and model hypotheses I'm going to test
 
 1. Different hierarchical model structures
     a. Coastwide vs stock specific growth
-    b. Different correlation matrix structures for (i) Recruitment process errors and (ii) Ft values - post-hoc analysis of correlations?
-    c. Smaller or larger hyperprior variance on shared mortality/steepness priors
+    b. Different correlation matrix structures for Recruitment process errors - post-hoc analysis of correlations?
+    c. Smaller or larger hyperprior on hypervariance on multi-level priors
 3. Multi-species vs single species/multi-stock
 4. Data scenarios:
     a. Starting in 1956, 1984, 1996, 2003
@@ -177,10 +174,30 @@ Here I need to include the data scenarios and model hypotheses I'm going to test
 
 ## Model selection criteria
 
-AIC is standard, but need to calculate eff. number of parameters, and what about for choosing between two different data scenarios, e.g. coastwide vs multi-stock, different initial times? Cross validation??
+AIC is standard, but need to calculate eff. number of parameters, and what about for choosing between two different data scenarios, e.g. coastwide vs multi-stock, different initial times? Cross validation?? Comparison of reference points
 
-## Reference points/management quantities
 
+
+## Reference points and fishery performance
+
+We calculated biological reference points based on equilibrium maximum sustainable yield (MSY) 
+(see supplemental for equilibria definitions). While MSY is a controversial management quantity, 
+it is important to note that we do not recommend MSY as a target value, 
+but as an upper bound on the absolute allowable catch of fish from a given a stock 
+[@larkin1977epitaph]. We instead follow the recommendation that the associated fishing mortality 
+rate $F_{MSY}$, or harvest rate $U_{MSY}$, be used as an upper limit on fishing mortality,
+and that the associated spawning stock biomass $B_{MSY}$ be used as a target biomass 
+[@smith2001gospel].
+
+**CHECK THAT FMSY IS APPROPRIATE, smith and punt suggest we used F0.1**
+
+To determine historical fishery performance, we calculated the proportion 
+of stocks that were underexploited, fished 'just right', or overexploited, 
+in each year [@hilborn2018measuring]. We defined under-exploited as either the 
+fishing mortality rate $F$ being *less than* the reference rate $F_{MSY}$, or biomass being above
+$1.2 \cdot B_{MSY}$, while overexploited was defined as $F > F_{MSY}$ or spawning
+biomass being below $0.8 \cdot B_{MSY}$. These bounds are based on the management
+targets used in **GET FROM HILBORN PAPER and CHECK SFF**.
 
 
 # Results
@@ -211,14 +228,14 @@ Limitations:
   - 
 
 Conclusion:
-  - Despite limitations, these hierarchical stock assessment models are aviable method of extending assessments to management units where data are limited or non-existent
+  - Despite limitations, these hierarchical stock assessment models are a viable method of extending assessments to management units where data are limited or non-existent
   - 
 
 Future work: 
-    - using this as an operating model to test multi-speces management objectives - could use simpler AM, such as multispecies coastwide.
+    - using this as an operating model to test multi-speces management objectives - could use simpler AM, such as multispecies coastwide, or a DD or SP model.
     - Adding movement hypotheses
     - Adding bycatch - especially for testing above multi-species management objectives, want to have choke effects as an emergent property
-    - ...
+    - Adding high-grading
 
 
 # References
