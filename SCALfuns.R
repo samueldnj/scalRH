@@ -885,6 +885,10 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
     phases$epsM_sp            <- -1
     phases$deltaL2sp_vec      <- -1
     phases$deltaVonKsp_vec    <- -1
+    phases$lnsigmaL2_s        <- -1
+    phases$lnsigmavonK_s      <- -1
+    phases$lnsigmah_s         <- -1
+    phases$lntauq_sg          <- -1
   }
 
   # Turn off species specific devs if nS == 1
@@ -893,6 +897,10 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
     phases$epsSteep_s       <- -1
     phases$epsM_s           <- -1
     phases$deltaq_sg        <- -1     
+    phases$lnxSel50_sg      <- -1
+    phases$lnxSelStep_sg    <- -1
+    phases$lntauq_g         <- -1
+
   }
   # Turn off sexual dimorphism if nX == 1
   if( nX == 1 )

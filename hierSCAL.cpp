@@ -2036,6 +2036,7 @@ Type objective_function<Type>::operator() ()
   REPORT( tau2Age_spf );
   REPORT( lenRes_lspftx );
   REPORT( tau2Len_spf );
+  REPORT( recCorrMat_sp );
   if( debugMode == 1 )
   {
     REPORT( recnlp );
@@ -2077,7 +2078,6 @@ Type objective_function<Type>::operator() ()
     REPORT( sel_nlp );
     REPORT( L2nlp );
     REPORT( vonKnlp );
-    REPORT( recCorrMat_sp );
     REPORT( corrRecnlp );
   }
 

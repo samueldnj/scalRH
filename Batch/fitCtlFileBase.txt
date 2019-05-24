@@ -136,7 +136,6 @@ phases$lnsigmaL2_s 9
 phases$deltaL2sp_vec 9
 phases$lnsigmavonK_s 9
 phases$deltaVonKsp_vec 9
-phases$lnsigmavonK_s 9
 phases$epsSteep_s 10
 phases$lnsigmah 10
 phases$epsM_s 10
