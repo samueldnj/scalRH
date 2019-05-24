@@ -417,6 +417,7 @@ Type objective_function<Type>::operator() ()
   DATA_ARRAY(calcStockQDevs_spf);       // Switch for calculating stock-specific catchability parameters
   DATA_INTEGER(boundRecDevs);           // Switch for bounding recruitment deviations between +/- 5 sds
   DATA_STRING(recruitVariance);         // Character-switch for recruitment variance model
+  DATA_INTEGER(debugMode);              // 1 = debug mode on, return all arrays, 0 = fit mode, return only relevant arrays
   // DATA_INTEGER(debugMode);              // Turn on debug mode (will return more in the report object and calculate quantities)
 
   // Fixed values
@@ -1952,8 +1953,11 @@ Type objective_function<Type>::operator() ()
   REPORT( meanWtAge_aspx );
   REPORT( ageAtLenResids_alspftx );
   REPORT( nObsAgeAtLen_spf );
-  REPORT( etaSumSqAgeAtLen_spf );
-  REPORT( nResidsAgeAtLen_spf );
+  if( debugMode == 1)
+  {
+    REPORT( etaSumSqAgeAtLen_spf );
+    REPORT( nResidsAgeAtLen_spf );
+  }
   REPORT( L1_s );
   REPORT( L2_s );
   REPORT( vonK_s );
@@ -1971,17 +1975,16 @@ Type objective_function<Type>::operator() ()
   REPORT( h );
   REPORT( sigmah_s );
   REPORT( sigmah );
-  // REPORT( qbarSyn );
-  // REPORT( tauqSyn );
-  // REPORT( qbarSyn_s );
-  // REPORT( tauqSyn_s );
 
   // Echo input priors
-  REPORT( pmlnxSel50_sg );
-  REPORT( pmlnxSelStep_sg );
-  REPORT( pmlnL1_s );
-  REPORT( pmlnL2_s );
-  REPORT( pmlnVonK );
+  if(debugMode == 1)
+  {
+    REPORT( pmlnxSel50_sg );
+    REPORT( pmlnxSelStep_sg );
+    REPORT( pmlnL1_s );
+    REPORT( pmlnL2_s );
+    REPORT( pmlnVonK );
+  }
 
   // Random effects
   REPORT( epsxSel50_spft );
@@ -2001,51 +2004,54 @@ Type objective_function<Type>::operator() ()
 
   // Likelihood values
   REPORT( joint_nlp );
-  REPORT( recnlp );
-  REPORT( vonBnll_spf );
-  REPORT( CPUEnll_spf );
-  REPORT( tau2Obs_spg );
-  REPORT( tauObs_spg );
-  REPORT( tau2Obs_spf );
-  REPORT( tauObs_spf );
-  REPORT( tauObsnlp_g );
-  REPORT( validIdxObs_spf );
-  REPORT( residCPUE_spft );
-  REPORT( ssrIdx_spf );
-  REPORT( ageCompsnll_spf );
-  REPORT( etaSumSqAge_spf );
-  REPORT( nResidsAge_spf );
-  REPORT( nObsAge_spf );
-  REPORT( tau2Age_spf );
   REPORT( ageRes_aspftx );
-  REPORT( lenCompsnll_spf );
-  REPORT( etaSumSqLen_spf );
-  REPORT( nResidsLen_spf );
-  REPORT( nObsLen_spf );
-  REPORT( tau2Len_spf );
-  REPORT( Fnlp );
+  REPORT( tau2Age_spf );
   REPORT( lenRes_lspftx );
-  REPORT( steepnessnlp_sp );
-  REPORT( steepnessnlp_s );
-  REPORT( steepnessnlp );
-  REPORT( Mnlp_sp );
-  REPORT( Mnlp_s );
-  REPORT( Mnlp );
-  REPORT( qnlp_tv );
-  REPORT( qnlp_gps );
-  REPORT( qnlp_stock );
-  REPORT( minAgeProp );
-  REPORT( minLenProp );
-  REPORT( L1nlp_s );
-  REPORT( L2nlp_s );
-  REPORT( L2nlp_p );
-  REPORT( vonKnlp_s );
-  REPORT( vonKnlp_p );
-  REPORT( sel_nlp );
-  REPORT( L2nlp );
-  REPORT( vonKnlp );
-  REPORT( recCorrMat_sp );
-  REPORT( corrRecnlp );
+  REPORT( tau2Len_spf );
+  if( debugMode == 1 )
+  {
+    REPORT( recnlp );
+    REPORT( vonBnll_spf );
+    REPORT( CPUEnll_spf );
+    REPORT( tau2Obs_spg );
+    REPORT( tauObs_spg );
+    REPORT( tau2Obs_spf );
+    REPORT( tauObs_spf );
+    REPORT( tauObsnlp_g );
+    REPORT( validIdxObs_spf );
+    REPORT( residCPUE_spft );
+    REPORT( ssrIdx_spf );
+    REPORT( ageCompsnll_spf );
+    REPORT( etaSumSqAge_spf );
+    REPORT( nResidsAge_spf );
+    REPORT( nObsAge_spf );
+    REPORT( lenCompsnll_spf );
+    REPORT( etaSumSqLen_spf );
+    REPORT( nResidsLen_spf );
+    REPORT( nObsLen_spf );
+    REPORT( Fnlp );
+    REPORT( steepnessnlp_sp );
+    REPORT( steepnessnlp_s );
+    REPORT( steepnessnlp );
+    REPORT( Mnlp_sp );
+    REPORT( Mnlp_s );
+    REPORT( Mnlp );
+    REPORT( qnlp_tv );
+    REPORT( qnlp_gps );
+    REPORT( qnlp_stock );
+    REPORT( minAgeProp );
+    REPORT( minLenProp );
+    REPORT( L1nlp_s );
+    REPORT( L2nlp_s );
+    REPORT( L2nlp_p );
+    REPORT( vonKnlp_s );
+    REPORT( vonKnlp_p );
+    REPORT( sel_nlp );
+    REPORT( L2nlp );
+    REPORT( vonKnlp );
+    REPORT( recCorrMat_sp );
+    REPORT( corrRecnlp );
+  }
 
   // Switches and constants
   REPORT( group_f );
@@ -2065,36 +2071,37 @@ Type objective_function<Type>::operator() ()
   REPORT( I_spft_hat );
 
   // Reordered arrays
-  REPORT( B_aspxt );
-  REPORT( vB_aspfxt );
-  REPORT( vB_spfxt );
-  REPORT( vB_spft );
-  REPORT( sel_aspfxt );
+  if( debugMode == 1)
+  {
+    REPORT( B_aspxt );
+    REPORT( vB_aspfxt );
+    REPORT( vB_spfxt );
+    REPORT( vB_spft );
+    REPORT( sel_aspfxt );
+  }
 
   // Echo switches
-  REPORT( swRinit_s );
-  REPORT( parSwitch );
-  REPORT( calcIndex_spf );
-  REPORT( tvSelFleets );
-  REPORT( tvqFleets );
-  REPORT( regFfleets );
-  REPORT( idxLikeWt_g );
-  REPORT( ageLikeWt_g );
-  REPORT( lenLikeWt_g );
-  REPORT( growthLikeWt );
-  REPORT( tFirstRecDev_s );
-  REPORT( tLastRecDev_s );
-  REPORT( minAgeProp );
-  REPORT( minLenProp );
-  REPORT( minPAAL );
-  REPORT( lambdaB0 );
-  REPORT( minTimeIdx_spf );
-  REPORT( maxSel_spf );
-
-  // REPORT(A);
-
-  // REPORT( matX );
-  // REPORT( selX );
+  if( debugMode ==1 )
+  {
+    REPORT( swRinit_s );
+    REPORT( parSwitch );
+    REPORT( calcIndex_spf );
+    REPORT( tvSelFleets );
+    REPORT( tvqFleets );
+    REPORT( regFfleets );
+    REPORT( idxLikeWt_g );
+    REPORT( ageLikeWt_g );
+    REPORT( lenLikeWt_g );
+    REPORT( growthLikeWt );
+    REPORT( tFirstRecDev_s );
+    REPORT( tLastRecDev_s );
+    REPORT( minAgeProp );
+    REPORT( minLenProp );
+    REPORT( minPAAL );
+    REPORT( lambdaB0 );
+    REPORT( minTimeIdx_spf );
+    REPORT( maxSel_spf );
+  }
 
 
   // sd report for standard errors
