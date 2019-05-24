@@ -15,7 +15,6 @@
 // 
 // To Do:
 //  4. Consider correlation in the compositional likelihoods
-//  6. Un-center hierarchical distributions
 // 
 // 
 // Intended features:
@@ -1741,7 +1740,12 @@ Type objective_function<Type>::operator() ()
   Mnlp_spx.setZero();
   Type sel_nlp = 0.;
 
+  // Initial biomass weakly penalised
+  // from total catch
+  array<Type> B0nlp_sp(nS,nP);
+  B0nlp_sp.setZero();
 
+  // Biological parameters
   for( int s = 0; s < nS; s++ )
   {
     vector<Type> vonKVec   = deltaVonK_sp.transpose().col(s);
@@ -1751,8 +1755,15 @@ Type objective_function<Type>::operator() ()
     vonKnlp_s(s)          -= dinvgamma( pow(sigmavonK_s(s),2), IGalphaVonB, square(pmsigmavonK) * (IGalphaVonB + 1), true);
     L2nlp_s(s)            -= dinvgamma( pow(sigmaL2_s(s),2), IGalphaVonB, square(pmsigmaL2) * (IGalphaVonB + 1), true);
 
+    steepnessnlp_s(s)     -= dinvgamma( pow(sigmah_s(s),2), IGalphah, square(pmsigmah) * (IGalphah + 1), 1);
+    Mnlp_s(s)             -= dinvgamma( pow(sigmaM_s(s),2), IGalphaM, square(pmsigmaM) * (IGalphaM + 1), 1);
+
     for( int p = 0; p < nP; p ++)
     {
+      // Unfished biomass
+      B0nlp_sp(s,p) -= dnorm( B0_sp(s,p), totCatch_sp(s,p), lambdaB0 * totCatch_sp(s,p), true );
+
+      // Steepness
       steepnessnlp_sp(s,p)  -= dnorm( epsSteep_sp(s,p), Type(0), Type(1), true);
       Mnlp_sp(s,p)          -= dnorm( epsM_sp(s,p), Type(0), Type(1), true);
 
@@ -1767,15 +1778,10 @@ Type objective_function<Type>::operator() ()
     }
 
   }
-  
+
   // add species level h prior
   steepnessnlp_s  -= dnorm( epsSteep_s, 0., Type(1), true );
   Mnlp_s          -= dnorm( epsM_s, 0., Type(1), true );
-  for( int s = 0; s < nS; s ++ )
-  {
-    steepnessnlp_s(s)  -= dinvgamma( pow(sigmah_s(s),2), IGalphah, square(pmsigmah) * (IGalphah + 1), 1);
-    Mnlp_s(s)          -= dinvgamma( pow(sigmaM_s(s),2), IGalphaM, square(pmsigmaM) * (IGalphaM + 1), 1);
-  }
   
   // Now prior on complex mean M and steepness
   Mnlp            -= dnorm( lnM, log(muM), sdM, true);
@@ -1788,8 +1794,16 @@ Type objective_function<Type>::operator() ()
   // L2nlp           -= dnorm( deltaL2bar_p, Type(0.), sigmaL2, true).sum();
   // vonKnlp         -= dnorm( deltaVonKbar_p, Type(0.), sigmavonK, true).sum();
 
-  // Selectivity
+  // catchability
+  Type qnlp_tv = 0;       // time varying catchability
+  Type qnlp_stock = 0;    // stock specific catchability devs
+  Type qnlp_gps = 0;      // species specific group level catchability devs
 
+  qnlp_tv     -= dnorm( epslnq_vec, Type(0), Type(1), true).sum();
+  qnlp_stock  -= dnorm( deltaqspf_vec, Type(0), Type(1), true).sum();
+  qnlp_gps    -= dnorm( lnq_g, log(mq_g), sdq_g, true).sum();
+
+  // Selectivity
   // Add time-varying selectivity deviations
   sel_nlp -= dnorm( epsxSel50_vec, Type(0), 1., true).sum();
   sel_nlp -= dnorm( epsxSelStep_vec, Type(0), 1., true).sum();
@@ -1808,31 +1822,19 @@ Type objective_function<Type>::operator() ()
     mean   = pmlnxSelStep_sg.col(g);
     sel_nlp -= dnorm( value, mean, cvxSel, true).sum();
 
-    // Add IG prior for tauq_g and tauq_sg
-    for( int s = 0; s < nS; s++)
-    {
-      sel_nlp -= dinvgamma( pow(sigmaxSel50_sg(s,g),2), IGalphaSel, square(pmsigmaSel_g(g)) * (IGalphaSel + 1),1);
-      sel_nlp -= dinvgamma( pow(sigmaxSelStep_sg(s,g),2), IGalphaSel, square(pmsigmaSel_g(g)) * (IGalphaSel + 1),1);  
-    }
-  }
-
-  // catchability
-  Type qnlp_tv = 0;       // time varying catchability
-  Type qnlp_stock = 0;    // stock specific catchability devs
-  Type qnlp_gps = 0;      // species specific group level catchability devs
-
-  qnlp_tv -= dnorm( epslnq_vec, Type(0), Type(1), true).sum();
-  qnlp_stock -= dnorm( deltaqspf_vec, Type(0), Type(1), true).sum();
-  for( int g = 0; g < nGroups; g++)
-  {
+    // Catchability
     vector<Type> qDevVec = deltaq_sg.col(g);
     qnlp_gps -= dnorm( qDevVec, Type(0), Type(1), true).sum();
     qnlp_gps -= dinvgamma( pow(tauq_g(g),2), IGalphaq, square(pmtauq_g(g)) * (IGalphaq + 1), 1);
-    for( int s = 0; s < nS; s++ )
-      qnlp_gps -= dinvgamma( pow(tauq_sg(s,g),2), IGalphaq, square(pmtauq_g(g)) * (IGalphaq + 1), 1);
-  }
 
-  qnlp_gps -= dnorm( lnq_g, log(mq_g), sdq_g, true).sum();
+    // Add IG prior for tauq_g and tauq_sg
+    for( int s = 0; s < nS; s++)
+    {
+      sel_nlp   -= dinvgamma( pow(sigmaxSel50_sg(s,g),2), IGalphaSel, square(pmsigmaSel_g(g)) * (IGalphaSel + 1),1);
+      sel_nlp   -= dinvgamma( pow(sigmaxSelStep_sg(s,g),2), IGalphaSel, square(pmsigmaSel_g(g)) * (IGalphaSel + 1),1);  
+      qnlp_gps  -= dinvgamma( pow(tauq_sg(s,g),2), IGalphaq, square(pmtauq_g(g)) * (IGalphaq + 1), 1);
+    }
+  }
 
   // VonB priors
   vector<Type>  L1nlp_s(nS);
@@ -1844,14 +1846,6 @@ Type objective_function<Type>::operator() ()
   L2nlp_s   -= dnorm( log(L2_s), pmlnL2_s, cvL2, true);
   vonKnlp_s -= dnorm( lnvonK_s, pmlnVonK, cvVonK, true);
 
-  // Initial biomass weakly penalised
-  // from total catch
-  array<Type> B0nlp_sp(nS,nP);
-  B0nlp_sp.setZero();
-  for( int s = 0; s < nS; s++ )
-    for( int p = 0; p < nP; p++ ) 
-      B0nlp_sp(s,p) -= dnorm( B_spt(s,p,0), 0.5 * totCatch_sp(s,p), lambdaB0 * totCatch_sp(s,p), true );
-  
   
   // Observations
   // f += Ctnll_sp.sum();       // Catch

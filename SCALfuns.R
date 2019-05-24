@@ -280,9 +280,14 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   # CAAL data - Lee et al 2019+ (shared privately)
   ALfleetNames    <- dimnames(ALFreq_spalftx)[[5]]
   growthFleetIdx  <- which(ALfleetNames %in% dataObj$growthFleets)
+
+  growthYears     <- dataObj$growthYears[1]:dataObj$growthYears[2]
+  growthYrIdx     <- growthYears - fYear + 1
+
   
   # Set all observations outside those fleets to 0
-  ALFreq_spalftx[,,,,-growthFleetIdx,,] <- 0
+  ALFreq_spalftx[,,,,-growthFleetIdx,-growthYrIdx,] <- 0
+
 
 
   # Load age and length compositions

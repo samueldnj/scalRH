@@ -25,28 +25,28 @@ cplx$cplx5 'Arrowtooth'
 #
 cplx$cplx6 c("Dover","English","Rock","Petrale","Arrowtooth")
 #
-# Cplx 7: DERP
-#
-cplx$cplx7 c("Dover","English","Rock","Petrale")
-#
-# Cplx 8: ERPA
-#
-cplx$cplx8 c("English","Rock","Petrale","Arrowtooth")
-#
-# Cplx 9: DRPA
-#
-cplx$cplx9 c("Dover","Rock","Petrale","Arrowtooth")
-#
-# Cplx 10: DEPA
-#
-cplx$cplx10 c("Dover","English","Petrale","Arrowtooth")
-#
-# Cplx 11: DERA
-#
-cplx$cplx11 c("Dover","English","Rock","Arrowtooth")
-#
-# Cplx 12: DER
-#
-cplx$cplx12 c("Dover","English","Rock")
+## Cplx 7: DERP
+##
+#cplx$cplx7 c("Dover","English","Rock","Petrale")
+##
+## Cplx 8: ERPA
+##
+#cplx$cplx8 c("English","Rock","Petrale","Arrowtooth")
+##
+## Cplx 9: DRPA
+##
+#cplx$cplx9 c("Dover","Rock","Petrale","Arrowtooth")
+##
+## Cplx 10: DEPA
+##
+#cplx$cplx10 c("Dover","English","Petrale","Arrowtooth")
+##
+## Cplx 11: DERA
+##
+#cplx$cplx11 c("Dover","English","Rock","Arrowtooth")
+##
+## Cplx 12: DER
+##
+#cplx$cplx12 c("Dover","English","Rock")
 #
 # <End File>
