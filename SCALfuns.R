@@ -679,7 +679,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
     # species
   }
 
-  if( hypoObj$IWscale == "specCorr" )
+  if( hypoObj$IWscale == "distCorr" )
   {
     # Create a striped correlation matrix
     # that correlates the recruitments 
@@ -728,7 +728,8 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 calcStockSelDevs_spf  = calcStockSelDevs_spf,
                 calcStockQDevs_spf    = calcStockQDevs_spf,
                 boundRecDevs          = hypoObj$boundRecDevs,
-                recruitVariance       = hypoObj$recModel   )
+                recruitVariance       = hypoObj$recModel,
+                debugMode             = ctrlObj$debugMode   )
 
   # Generate parameter list
   pars <- list( ## Leading biological pars ##

@@ -16,6 +16,7 @@ ctrl$mcChains 1
 ctrl$nBaranovIter 8
 ctrl$lambdaBaranovStep 0.5
 ctrl$savePhases TRUE
+ctrl$debugMode 0
 data$commNames_g c("comm.hist","comm.mod")
 data$survNames_g c("HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
 data$nA_s c(Dover=35,English=15,Rock=20,Petrale=25,Arrowtooth=25)
@@ -30,7 +31,7 @@ data$fYearIdx 1954
 data$lYearIdx 2016
 data$sexStructure "Explicit"
 data$idxFleets c("comm.hist","comm.mod","HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
-data$species c("Dover","English","Rock","Petrale")
+data$species c("Dover")
 data$stocks c("HSHG","QCS","WCVI")
 data$idxFiles c("surveyBio.RData","commCPUE.RData")
 data$catchData c(survey="surveyCatch.RData",comm="catch_by_maj.csv")
