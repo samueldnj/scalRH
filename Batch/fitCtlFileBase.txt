@@ -80,9 +80,9 @@ hypo$recModel "uncorr"
 hypo$IWnu 2
 hypo$IWscale "identity"
 hypo$regFfleets c()
-hypo$regFPhases c(1:9)
+hypo$regFPhases c(1:10)
 hypo$mF .2
-hypo$sdF 0.05
+hypo$sdF 0.01
 hypo$mM 0.3
 hypo$sdM 0.01
 hypo$pmsigmaM 0.1
