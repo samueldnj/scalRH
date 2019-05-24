@@ -55,7 +55,7 @@ data$minLenProp 0.02
 data$minPAAL 0.02
 data$minAgeSampSize 50
 data$minLenSampSize 100
-data$lambdaB0 4
+data$lambdaB0 2
 hypo$initVonK c(Dover=.3,English=.3,Rock=.3,Petrale=.3,Arrowtooth=.3)
 hypo$matX "age"
 hypo$selX "length"

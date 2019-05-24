@@ -1341,6 +1341,10 @@ Type objective_function<Type>::operator() ()
   array<Type> aDist_aspftx_hat(nA,nS,nP,nF,nT,nX);
   array<Type> lDist_lspftx_hat(nL,nS,nP,nF,nT,nX);
   I_spft_hat.fill(-1);
+  
+  array<Type> simI_spft(nS,nP,nF,nT);
+  simI_spft.fill(-1);
+  
   for(int s = 0; s < nS; s++ )
     for( int p = 0; p < nP; p++ )
     {
@@ -1354,6 +1358,11 @@ Type objective_function<Type>::operator() ()
           if( calcIndex_spf(s,p,f) == 1)
           {
             I_spft_hat(s,p,f,t) = q_spft(s,p,f,t) * Bv_spft(s,p,f,t);  
+            
+            // Simulate some index data
+            SIMULATE{
+              simI_spft(s,p,f,t) = I_spft(s,p,f,t) * exp(rnorm(Type(0),tauObs_spg(s,p,group_f(f))));
+            }
           }
 
           for( int x = 0; x < nX; x++)
@@ -1468,6 +1477,11 @@ Type objective_function<Type>::operator() ()
   vonBnll_spf.setZero();
   ageAtLenResids_alspftx.setZero();
 
+  // Simulate the age-at-length data
+  array<Type> simAgeLen_alspftx(nA,nL,nS,nP,nF,nT,nX);
+  simAgeLen_alspftx.fill(0);
+
+
   // Now loop and compute
   for( int s = 0; s < nS; s++ )
   {
@@ -1506,6 +1520,20 @@ Type objective_function<Type>::operator() ()
                                                                                                                                 nResidsAgeAtLen_spf(s,p,f) );
 
                 nObsAgeAtLen_spf(s,p,f) += 1;
+
+                // SIMULATE{
+                //   // Create a logistic-normal residual
+                //   vector<Type> simResid(A_s(s));
+                //   vector<Type> simPred(A_s(s));
+                //   simResid  = rnorm( Type(0), sqrt(tau2AgeAtLenObs_spf(s,p,f) ) );
+                //   simPred   = log(pred + 1e-9) + simResid;
+                //   simPred   = exp(simPred);
+                //   simPred   /= simPred.sum();
+                //   // Now add to simAgeLen and renormalise, and convert to frequency using
+                //   // the observation vector
+                //   simAgeLen_alspftx.col(x).col(t).col(f).col(p).col(s).col(l).segment(0,A_s(s)) = simPred * obs.sum();
+                // }
+
               }
             }
           } 
@@ -2101,6 +2129,12 @@ Type objective_function<Type>::operator() ()
     REPORT( lambdaB0 );
     REPORT( minTimeIdx_spf );
     REPORT( maxSel_spf );
+  }
+
+  // Return simulated data
+  SIMULATE{
+    REPORT( simI_spft );
+    REPORT( simAgeLen_alspftx );
   }
 
 
