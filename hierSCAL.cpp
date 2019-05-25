@@ -2048,15 +2048,15 @@ Type objective_function<Type>::operator() ()
   REPORT( lenRes_lspftx );
   REPORT( tau2Len_spf );
   REPORT( recCorrMat_sp );
+  REPORT( tau2Obs_spg );
+  REPORT( tauObs_spg );
+  REPORT( tau2Obs_spf );
+  REPORT( tauObs_spf );
   if( debugMode == 1 )
   {
     REPORT( recnlp );
     REPORT( vonBnll_spf );
     REPORT( CPUEnll_spf );
-    REPORT( tau2Obs_spg );
-    REPORT( tauObs_spg );
-    REPORT( tau2Obs_spf );
-    REPORT( tauObs_spf );
     REPORT( tauObsnlp_g );
     REPORT( validIdxObs_spf );
     REPORT( residCPUE_spft );
