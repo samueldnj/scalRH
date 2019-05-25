@@ -1799,8 +1799,8 @@ Type objective_function<Type>::operator() ()
     for( int p = 0; p < nP; p ++)
     {
       // Unfished biomass
-      B0nlp_sp(s,p) -= dnorm( B0_sp(s,p), totCatch_sp(s,p), lambdaB0 * totCatch_sp(s,p), true );
-      pospen += 1e3 * posfun( B0_sp(s,p) - B_spt(s,p,0), Type(1e-4), pospen );
+      B0nlp_sp(s,p)  -= dnorm( B0_sp(s,p), totCatch_sp(s,p), lambdaB0 * totCatch_sp(s,p), true );
+      Type tmp        = posfun( B0_sp(s,p) - B_spt(s,p,0), Type(1e-4), pospen );
 
       // Steepness
       steepnessnlp_sp(s,p)  -= dnorm( epsSteep_sp(s,p), Type(0), Type(1), true);
@@ -1907,7 +1907,7 @@ Type objective_function<Type>::operator() ()
   f += steepnessnlp_s.sum() + steepnessnlp_sp.sum() + steepnessnlp;
   f += Mnlp_s.sum() + Mnlp_sp.sum() + Mnlp;
   f += B0nlp_sp.sum();
-  f += pospen;
+  f += 1e3 * pospen;
   // joint_nlp += pop_nlp + spec_nlp;
 
   joint_nlp += f;
