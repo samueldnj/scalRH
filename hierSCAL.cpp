@@ -119,6 +119,14 @@ Type dinvgamma( Type x,
   return(dens);
 }
 
+// posfun
+template<class Type>
+Type posfun(Type x, Type eps, Type &pen){
+  pen += CppAD::CondExpLt(x, eps, Type(0.01) * pow(x-eps,2), Type(0));
+  return CppAD::CondExpGe(x, eps, x, eps/(Type(2)-x/eps));
+}
+
+
 // calcLogistNormLikelihood()
 // Calculates the logistic normal likelihood for compositional data.
 // Automatically accumulates proportions below a given threshold. Takes
@@ -1773,6 +1781,7 @@ Type objective_function<Type>::operator() ()
   // from total catch
   array<Type> B0nlp_sp(nS,nP);
   B0nlp_sp.setZero();
+  Type pospen = 0;
 
   // Biological parameters
   for( int s = 0; s < nS; s++ )
@@ -1791,6 +1800,7 @@ Type objective_function<Type>::operator() ()
     {
       // Unfished biomass
       B0nlp_sp(s,p) -= dnorm( B0_sp(s,p), totCatch_sp(s,p), lambdaB0 * totCatch_sp(s,p), true );
+      pospen += 1e3 * posfun( B0_sp(s,p) - B_spt(s,p,0), Type(1e-4), pospen );
 
       // Steepness
       steepnessnlp_sp(s,p)  -= dnorm( epsSteep_sp(s,p), Type(0), Type(1), true);
@@ -1897,6 +1907,7 @@ Type objective_function<Type>::operator() ()
   f += steepnessnlp_s.sum() + steepnessnlp_sp.sum() + steepnessnlp;
   f += Mnlp_s.sum() + Mnlp_sp.sum() + Mnlp;
   f += B0nlp_sp.sum();
+  f += pospen;
   // joint_nlp += pop_nlp + spec_nlp;
 
   joint_nlp += f;
