@@ -46,10 +46,10 @@ data$matFiles c("matAgeLen.csv")
 data$wtLenFile c("wtLen.csv")
 data$growthFiles c(alFreq="ALfreq.RData")
 data$commCPUEscalar 1e2
-data$idxLikeWt_g c(comm=1,Ass=1,Syn=1)
-data$ageLikeWt_g c(comm=1,Ass=1,Syn=1)
-data$lenLikeWt_g c(comm=1,Ass=1,Syn=1)
-data$growthLikeWt .1
+data$idxLikeWt_g c(comm=.1,Ass=1,Syn=1)
+data$ageLikeWt_g c(comm=.1,Ass=1,Syn=1)
+data$lenLikeWt_g c(comm=.1,Ass=1,Syn=1)
+data$growthLikeWt .2
 data$minAgeProp 0.02
 data$minLenProp 0.02
 data$minPAAL 0.02
