@@ -426,7 +426,7 @@ Type objective_function<Type>::operator() ()
   DATA_INTEGER(boundRecDevs);           // Switch for bounding recruitment deviations between +/- 5 sds
   DATA_STRING(recruitVariance);         // Character-switch for recruitment variance model
   DATA_INTEGER(debugMode);              // 1 = debug mode on, return all arrays, 0 = fit mode, return only relevant arrays
-  // DATA_INTEGER(debugMode);              // Turn on debug mode (will return more in the report object and calculate quantities)
+  DATA_SCALAR(posPenFactor);            // posPenfactor for penalising initial biomass above B0
 
   // Fixed values
   DATA_IVECTOR(A1_s);                   // Age at which L1_s is estimated
@@ -1781,7 +1781,7 @@ Type objective_function<Type>::operator() ()
   // from total catch
   array<Type> B0nlp_sp(nS,nP);
   B0nlp_sp.setZero();
-  Type pospen = 0;
+  Type posPen = 0;
 
   // Biological parameters
   for( int s = 0; s < nS; s++ )
@@ -1800,7 +1800,7 @@ Type objective_function<Type>::operator() ()
     {
       // Unfished biomass
       B0nlp_sp(s,p)  -= dnorm( B0_sp(s,p), totCatch_sp(s,p), lambdaB0 * totCatch_sp(s,p), true );
-      Type tmp        = posfun( B0_sp(s,p) - B_spt(s,p,0), Type(1e-4), pospen );
+      Type tmp        = posfun( B0_sp(s,p) - B_spt(s,p,0), Type(1e-4), posPen );
 
       // Steepness
       steepnessnlp_sp(s,p)  -= dnorm( epsSteep_sp(s,p), Type(0), Type(1), true);
@@ -1907,7 +1907,7 @@ Type objective_function<Type>::operator() ()
   f += steepnessnlp_s.sum() + steepnessnlp_sp.sum() + steepnessnlp;
   f += Mnlp_s.sum() + Mnlp_sp.sum() + Mnlp;
   f += B0nlp_sp.sum();
-  f += 1e3 * pospen;
+  f += posPenFactor * posPen;
   // joint_nlp += pop_nlp + spec_nlp;
 
   joint_nlp += f;

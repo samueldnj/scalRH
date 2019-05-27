@@ -729,7 +729,8 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 calcStockQDevs_spf    = calcStockQDevs_spf,
                 boundRecDevs          = hypoObj$boundRecDevs,
                 recruitVariance       = hypoObj$recModel,
-                debugMode             = ctrlObj$debugMode   )
+                debugMode             = ctrlObj$debugMode,
+                posPenFactor          = dataObj$posPenFactor   )
 
   # Generate parameter list
   pars <- list( ## Leading biological pars ##
