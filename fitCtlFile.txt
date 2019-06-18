@@ -38,7 +38,7 @@ data$catchData c(survey="surveyCatch.RData",comm="catch_by_maj.csv")
 data$modelDisc FALSE
 data$ageData c("ageComps.RData")
 data$lenData c("lenComps.RData")
-data$growthFleets c("HSAss","HSSyn","QCSSyn","WCVISyn")
+data$growthFleets c("HSAss","HSSyn","QCSSyn","WCVISyn","WCHGSyn")
 data$growthYears c(2000,2010)
 data$posPenFactor 1e2
 data$matFiles c("matAgeLen.csv")

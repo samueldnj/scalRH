@@ -45,6 +45,11 @@
 //        from different fleets
 // - Discarding - need to talk to fisheries about discarding behaviour
 //     - "Grading length" for fisheries with no size limit
+// - Two catch equation solution options
+//     - Pope's approximation for age structured populations and
+//        multifleet systems implemented
+//     - NR solver for Baranov equation: can be turned on in last
+//        phase, will use Pope's approx as initial value.
 // 
 // ><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><><>><><>><><>><>
 
@@ -124,6 +129,104 @@ template<class Type>
 Type posfun(Type x, Type eps, Type &pen){
   pen += CppAD::CondExpLt(x, eps, Type(0.01) * pow(x-eps,2), Type(0));
   return CppAD::CondExpGe(x, eps, x, eps/(Type(2)-x/eps));
+}
+
+
+// calcPopesApprox()
+// Takes numbers at age/species/pop/sex, and fleet/spec/pop
+// catch and selectivity and produces pope's approximations 
+// of fishing mortality rates.
+// inputs:    N_aspx    = Numbers at age/spec/pop/sex
+//            sel_aspfx = selectivity at age/spec/pop/fleet/sex
+//            C_spf     = catch in biomass for spec/pop/fleet
+//            M_spx     = Natural mortality by spec/pop/sex
+//            A_s       = Number of age classes for each species
+//            wt_aspx    = weight at age/species/pop/sex
+template<class Type>
+array<Type> calcPopesApprox(  array<Type> N_aspx,     // Numbers at age/spec/pop/sex
+                              array<Type> sel_aspfx,  // Selectivity-at-age (spec/pop/fleet/sex)
+                              array<Type> C_spf,      // Catch in biomass units
+                              array<Type> M_spx,      // Natural mortality
+                              vector<int> A_s,        // number of age classes by species
+                              array<Type> wt_aspx,    // Mean weight at age
+                              array<Type> vB_aspfx,   // Vulnerable biomass at age/spec/pop/fleet/sex
+                              array<Type>& F_spf)     // Fishing mortality for each spec/pop/fleet
+{
+  // Get dimensions
+  int nA = N_aspx.dim(0);
+  int nS = N_aspx.dim(1);
+  int nP = N_aspx.dim(2);
+  int nX = N_aspx.dim(3);
+  int nF = vB_aspfx.dim(3);
+
+  array<Type> remN_aspx(nA,nS,nP,nX);
+  array<Type> newN_aspx(nA,nS,nP,nX);
+  array<Type> Z_aspx(nA,nS,nP,nX);
+  remN_aspx.setZero();
+  newN_aspx.setZero();
+  array<Type> pvB_xaspf(nX,nA,nS,nP,nF);
+  pvB_xaspf.setZero();
+
+  newN_aspx = N_aspx;
+
+  array<Type> vBtmp_xa(nX,nA);
+  vBtmp_xa.setZero();
+
+  array<Type> catNumAge_xa(nX,nA);
+  catNumAge_xa.setZero();
+
+  for( int sIdx = 0; sIdx < nS; sIdx ++ )
+  {
+    for( int pIdx = 0; pIdx < nP; pIdx++ )
+    {
+      for( int fIdx = 0; fIdx < nF; fIdx++ )
+      {
+        // Pull biomass at age, convert to proportions
+        vBtmp_xa = vB_aspfx.rotate(1).col(fIdx).col(pIdx).col(sIdx);
+        vBtmp_xa /= vBtmp_xa.sum();
+        pvB_xaspf.col(fIdx).col(pIdx).col(sIdx) = vBtmp_xa;
+
+        // Calculate numbers to remove by converting catch to weight
+        catNumAge_xa = C_spf(sIdx, pIdx, fIdx) * vBtmp_xa / wt_aspx.rotate(1).col(pIdx).col(sIdx);
+
+        // Now add the catch at age in numbers to the removed fish
+        remN_aspx.rotate(1).col(pIdx).col(sIdx) += catNumAge_xa;
+
+        // Now reset the temp variables to zero
+        vBtmp_xa.setZero();
+        catNumAge_xa.setZero();
+      }
+      for( int xIdx = 0; xIdx < nX; xIdx++ )
+        newN_aspx.col(xIdx).col(pIdx).col(sIdx) *= exp(-M_spx(sIdx,pIdx,xIdx)/2);
+
+      // Remove the catch
+      
+      // Apply remaining mortality
+      for( int xIdx = 0; xIdx < nX; xIdx++ )
+      {
+        newN_aspx.col(xIdx).col(pIdx).col(sIdx) -= remN_aspx.col(xIdx).col(pIdx).col(sIdx);
+        newN_aspx.col(xIdx).col(pIdx).col(sIdx) *= exp(-M_spx(sIdx,pIdx,xIdx)/2);
+      }
+    }
+  }
+
+  Z_aspx = log(newN_aspx / N_aspx);
+
+
+  for( int sIdx = 0; sIdx < nS; sIdx ++ )
+  {
+    for( int pIdx = 0; pIdx < nP; pIdx++ )
+    {
+      for( int fIdx = 0; fIdx < nF; fIdx++ )
+      {
+        F_spf(sIdx,pIdx,fIdx) = C_spf(sIdx,pIdx,fIdx) * pvB_xaspf(nX-1,A_s(sIdx),sIdx,pIdx,fIdx) * Z_aspx(A_s(sIdx),sIdx,pIdx,nX-1);
+        F_spf(sIdx,pIdx,fIdx) /= vB_aspfx(A_s(sIdx),sIdx,pIdx,fIdx,nX-1)/(1 - exp(-Z_aspx(A_s(sIdx),sIdx,pIdx,nX-1)));
+      }
+    }
+  }
+
+  
+  return(newN_aspx);
 }
 
 
@@ -233,6 +336,7 @@ vector<Type> calcLogistNormLikelihood(  vector<Type>& yObs,
 // fleets
 // inputs:    nIter = number of NR iterations
 //            Bstep = fraction of NR step (Jacobian) to take at each iteration
+//            A_s = number of age classes by species
 //            C_spf = Catch
 //            M_spx = natural mortality
 //            B_aspx = Biomass at age/sex
@@ -240,7 +344,7 @@ vector<Type> calcLogistNormLikelihood(  vector<Type>& yObs,
 //            sel_aspfx = selectivity for each age/sex in each fleet
 //            & Z = total mortality (external variable)
 //            & F = Fishing mortality (external variable)
-// returns:   NA, void function
+// returns:   C_xaspf, NR solver estimate of catch at sex/age/spec/pop/fleet
 // Side-effs: variables passed as Z, F overwritten with total, fishing mortality
 // Author:    Modified by S. D. N. Johnson from S. Rossi and S. P. Cox
 template<class Type>
@@ -1799,8 +1903,8 @@ Type objective_function<Type>::operator() ()
     for( int p = 0; p < nP; p ++)
     {
       // Unfished biomass
-      B0nlp_sp(s,p)  -= dnorm( B0_sp(s,p), totCatch_sp(s,p), lambdaB0 * totCatch_sp(s,p), true );
-      Type tmp        = posfun( B0_sp(s,p) - B_spt(s,p,0), Type(1e-4), posPen );
+      // B0nlp_sp(s,p)  -= dnorm( B0_sp(s,p), totCatch_sp(s,p), lambdaB0 * totCatch_sp(s,p), true );
+      // Type tmp        = posfun( B0_sp(s,p) - B_spt(s,p,0), Type(1e-4), posPen );
 
       // Steepness
       steepnessnlp_sp(s,p)  -= dnorm( epsSteep_sp(s,p), Type(0), Type(1), true);
