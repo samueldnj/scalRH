@@ -235,6 +235,16 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   # Sum catch for initial B0 estimate
   sumCat_sp <- apply( X = C_spft, FUN = sum, MARGIN = c(1,2) )
 
+  # Create an array of mean "effort" in a stock
+  # area by fleet and time
+  E_spft  <- C_spft / I_spft
+  E_spft[E_spft < 0] <- NA
+  E_pft   <- apply( X = E_spft, FUN = mean, MARGIN = c(2,3,4),
+                    na.rm = TRUE)
+  E_pft[is.na(E_pft)] <- -1
+
+  browser()
+
   # Now use C_spft to weed out fleets that shouldn't be included
   # for now
   noFleetCatch <- c()
@@ -496,7 +506,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
     xSel50_sf <- xSel50_sf[useSpecIdx,useFleetsIdx]
 
     # length at SelStep_sf initial value
-    xSelStep_sf <- matrix(  5, 
+    xSelStep_sf <- matrix(  0.5, 
                             nrow = length(allSpecies),
                             ncol = length(allFleets), 
                             byrow = TRUE )
@@ -686,14 +696,21 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
     # as a function of distance (GMRF style)
   }  
 
+  maxL          <- max(nL_s)
+  lenBinWidth   <- dataObj$lenBinWidth
+  lenBinMids_l  <- seq(from = lenBinWidth/2, to = maxL, by = lenBinWidth)
+
 
   # Generate the data list
   data <- list( I_spft                = I_spft,
                 C_spft                = C_spft,
                 D_spft                = D_spft,
+                E_pft                 = E_pft,
                 ALK_spalftx           = ALFreq_spalftx,
                 age_aspftx            = age_aspftx,
                 len_lspftx            = len_lspftx,
+                lenBinMids_l          = lenBinMids_l,
+                lenBinWidth           = lenBinWidth,
                 group_f               = as.integer(group_f - 1),
                 A_s                   = as.integer(nA_s[useSpecies]),
                 minA_s                = as.integer(minA_s[useSpecies]),
@@ -722,6 +739,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 minTimeIdx_spf        = minTimeIdx_spf,
                 nBaranovIter          = ctrlObj$nBaranovIter,
                 lambdaBaranovStep     = ctrlObj$lambdaBaranovStep,
+                calcFmethod           = ctrlObj$calcFmethod,
                 A1_s                  = A1_s[useSpecies],
                 A2_s                  = A2_s[useSpecies],
                 calcStockGrowth_sp    = calcStockGrowth,

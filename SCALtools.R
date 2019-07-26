@@ -195,18 +195,18 @@ renameReportArrays <- function( repObj = repInit, datObj = data )
   dimnames(repObj$lDist_lspftx_hat) <- dimnames(datObj$len_lspftx)
   # State arrays
   dimnames(repObj$B_asptx)          <- dimnames(datObj$age_aspftx)[c(1:3,5)]
-  dimnames(repObj$N_asptx)          <- dimnames(datObj$age_aspftx)[c(1:3,5)]
+  dimnames(repObj$N_axspt)          <- dimnames(datObj$age_aspftx)[c(1,6,2:3,5)]
   dimnames(repObj$B_spt)            <- dimnames(datObj$age_aspftx)[c(2:3,5)]
   dimnames(repObj$R_spt)            <- dimnames(datObj$age_aspftx)[c(2:3,5)]
   dimnames(repObj$SB_spt)           <- dimnames(datObj$age_aspftx)[c(2:3,5)]
-  dimnames(repObj$Bv_spft)          <- list(  species = specNames,
+  dimnames(repObj$vB_spft)          <- list(  species = specNames,
                                               stock = stockNames,
                                               fleet = gearNames,
                                               year = yearNames )
   dimnames(repObj$predC_spft)       <- dimnames(datObj$age_aspftx)[c(2:5)]
   dimnames(repObj$predCw_spft)      <- dimnames(datObj$age_aspftx)[c(2:5)]
-  dimnames(repObj$C_aspftx)         <- dimnames(datObj$age_aspftx)[c(1:5)]
-  dimnames(repObj$Cw_xaspft)        <- dimnames(datObj$age_aspftx)[c(6,1:5)]
+  dimnames(repObj$C_axspft)         <- dimnames(datObj$age_aspftx)[c(1,6,2:5)]
+  dimnames(repObj$Cw_axspft)        <- dimnames(datObj$age_aspftx)[c(1,6,2:5)]
   dimnames(repObj$F_spft)           <- dimnames(datObj$age_aspftx)[c(2:5)]
   dimnames(repObj$Z_aspxt)          <- dimnames(datObj$age_aspftx)[c(1:3,6,5)]
   # Biological parameters

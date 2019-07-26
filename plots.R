@@ -171,7 +171,7 @@ plotFspft <- function( repObj = repInit,
 plotScaledIdxGrid <- function(repObj = repOpt )
 {
   # Load vulnerable biomass
-  Bv_spft <- repObj$Bv_spft
+  Bv_spft <- repObj$vB_spft
   I_spft  <- repObj$I_spft
   q_spft  <- repObj$q_spft
 
@@ -216,7 +216,7 @@ plotScaledIdxGrid <- function(repObj = repOpt )
 plotIdxResidsGrid <- function(repObj = repOpt )
 {
   # Load vulnerable biomass, indices and catchability scalar
-  Bv_spft <- repObj$Bv_spft
+  Bv_spft <- repObj$vB_spft
   I_spft  <- repObj$I_spft
   q_spft  <- repObj$q_spft
 
@@ -348,17 +348,21 @@ plotRecDevCorrMat <- function( repObj )
   maxFirst <- max( tFirstRecDev_s )
   minLast  <- min( tLastRecDev_s )
 
-  if( !is.null(recCorrMat) & any(recDevMat != 0) )
-  {
-    if( recCorrMat[1,2] != 0 )
-      corrMat <- recCorrMat
-    else {
+  if( nS * nP > 1)
+    if( !is.null(recCorrMat) & any(recDevMat != 0) )
+    {
+      if( recCorrMat[1,2] != 0 )
+        corrMat <- recCorrMat
+      else {
+        recDevMat <- recDevMat[, maxFirst:minLast ]
+        corrMat <- cor(t(recDevMat))
+      }
+    } else {
       recDevMat <- recDevMat[, maxFirst:minLast ]
       corrMat <- cor(t(recDevMat))
     }
-  } else {
-    recDevMat <- recDevMat[, maxFirst:minLast ]
-    corrMat <- cor(t(recDevMat))
+  else { 
+    corrMat <- matrix(1,nrow = 1, ncol = 1)
   }
 
   if( all( recDevMat == 0 ) )
@@ -368,6 +372,9 @@ plotRecDevCorrMat <- function( repObj )
 
   dimnames(corrMat) <- list(  specStock = specStock,
                               specStock = specStock )
+
+  if(all(dim(corrMat) == 1))
+    return()
 
   # Now plot correlation matrix
   corrplot.mixed( corrMat )
@@ -1114,7 +1121,7 @@ plotSBt <- function(  repObj = repInit,
   B0    <- round(repObj$B0_sp[sIdx,pIdx],2)
   M_x   <- round(repObj$M_spx[sIdx,pIdx,],2)
   C_ft  <- repObj$C_spft[sIdx, pIdx, , ]
-  Bv_ft <- repObj$Bv_spft[sIdx,pIdx,,]
+  Bv_ft <- repObj$vB_spft[sIdx,pIdx,,]
   q_ft  <- repObj$q_spft[sIdx,pIdx,,]
   I_ft  <- repObj$I_spft[sIdx,pIdx,,]
 
@@ -1707,7 +1714,7 @@ plotIdxFits <- function ( repObj = repInit,
                           sIdx = 1, pIdx = 1 )
 {
   # Pull vulnerable biomass and indices
-  Bv_ft       <- repObj$Bv_spft[sIdx,pIdx,,]
+  Bv_ft       <- repObj$vB_spft[sIdx,pIdx,,]
   # vulnNtg     <- repObj$vulnN_tg
   I_ft        <- repObj$I_spft[sIdx,pIdx,,]
   q_f         <- repObj$q_spf[sIdx,pIdx,]

@@ -27,6 +27,10 @@
 //     - Selectivity is length based at fleet/species level,
 //        but a random stock effect for each species/stock combo
 //        is added - could correlate if time-varying
+//     - Fishing mortality for commercial fleets is effort
+//        based, with a single effort index for each 
+//        fleet/stock-area combo being converted to species
+//        specific F by comm fleet catchability
 // - Multi-level RH priors on:
 //     - Growth (vonB)
 //     - Fishing mortality (correlation in REs if estimated)
@@ -43,6 +47,7 @@
 // - Integrated growth model to predict length dist when age data missing
 //     - RAL likelihood, to explicitly account for biased sampling
 //        from different fleets
+//     - This is too much, need to switch to an ALK
 // - Discarding - need to talk to fisheries about discarding behaviour
 //     - "Grading length" for fisheries with no size limit
 // - Two catch equation solution options
@@ -128,7 +133,7 @@ Type dinvgamma( Type x,
 template<class Type>
 Type posfun(Type x, Type eps, Type &pen){
   pen += CppAD::CondExpLt(x, eps, Type(0.01) * pow(x-eps,2), Type(0));
-  return CppAD::CondExpGe(x, eps, x, eps/(Type(2)-x/eps));
+  return CppAD::CondExpGe(x, eps, x, eps/(Type(2)-eps/x));
 }
 
 
@@ -136,44 +141,40 @@ Type posfun(Type x, Type eps, Type &pen){
 // Takes numbers at age/species/pop/sex, and fleet/spec/pop
 // catch and selectivity and produces pope's approximations 
 // of fishing mortality rates.
-// inputs:    N_aspx    = Numbers at age/spec/pop/sex
+// inputs:    N_axsp    = Numbers at age/spec/pop/sex
 //            sel_aspfx = selectivity at age/spec/pop/fleet/sex
 //            C_spf     = catch in biomass for spec/pop/fleet
 //            M_spx     = Natural mortality by spec/pop/sex
 //            A_s       = Number of age classes for each species
 //            wt_aspx    = weight at age/species/pop/sex
 template<class Type>
-array<Type> calcPopesApprox(  array<Type> N_aspx,     // Numbers at age/spec/pop/sex
+array<Type> calcPopesApprox(  array<Type> N_axsp,     // Numbers at age/spec/pop/sex
                               array<Type> sel_aspfx,  // Selectivity-at-age (spec/pop/fleet/sex)
                               array<Type> C_spf,      // Catch in biomass units
                               array<Type> M_spx,      // Natural mortality
                               vector<int> A_s,        // number of age classes by species
-                              array<Type> wt_aspx,    // Mean weight at age
-                              array<Type> vB_aspfx,   // Vulnerable biomass at age/spec/pop/fleet/sex
-                              array<Type>& F_spf)     // Fishing mortality for each spec/pop/fleet
+                              array<Type> wt_axsp,    // Mean weight at age
+                              array<Type> vB_axspf,   // Vulnerable biomass at age/spec/pop/fleet/sex
+                              array<Type> vB_spf,     // Total vulnerable biomass for each spec/pop/fleet
+                              array<Type>& F_spf,     // Fishing mortality for each spec/pop/fleet
+                              array<Type>& Z_aspx,    // Total mortality for each age/spec/pop/sex
+                              array<Type>& Cw_axspf,  // Catch weight at sex/age/spec/pop/fleet
+                              array<Type>& C_axspf )  // Catch in numbers at sex/age/spec/pop/fleet
 {
   // Get dimensions
-  int nA = N_aspx.dim(0);
-  int nS = N_aspx.dim(1);
-  int nP = N_aspx.dim(2);
-  int nX = N_aspx.dim(3);
-  int nF = vB_aspfx.dim(3);
+  int nA = N_axsp.dim(0);
+  int nX = N_axsp.dim(1);
+  int nS = N_axsp.dim(2);
+  int nP = N_axsp.dim(3);
+  int nF = vB_axspf.dim(4);
 
-  array<Type> remN_aspx(nA,nS,nP,nX);
-  array<Type> newN_aspx(nA,nS,nP,nX);
-  array<Type> Z_aspx(nA,nS,nP,nX);
-  remN_aspx.setZero();
-  newN_aspx.setZero();
-  array<Type> pvB_xaspf(nX,nA,nS,nP,nF);
-  pvB_xaspf.setZero();
-
-  newN_aspx = N_aspx;
-
-  array<Type> vBtmp_xa(nX,nA);
-  vBtmp_xa.setZero();
-
-  array<Type> catNumAge_xa(nX,nA);
-  catNumAge_xa.setZero();
+  array<Type> remN_axsp(nA,nX,nS,nP);
+  array<Type> newN_axsp(nA,nX,nS,nP);
+  remN_axsp.setZero();
+  newN_axsp.setZero();
+  array<Type> pvB_axspf(nA,nX,nS,nP,nF);
+  pvB_axspf.setZero();
+  pvB_axspf = vB_axspf;
 
   for( int sIdx = 0; sIdx < nS; sIdx ++ )
   {
@@ -182,35 +183,29 @@ array<Type> calcPopesApprox(  array<Type> N_aspx,     // Numbers at age/spec/pop
       for( int fIdx = 0; fIdx < nF; fIdx++ )
       {
         // Pull biomass at age, convert to proportions
-        vBtmp_xa = vB_aspfx.rotate(1).col(fIdx).col(pIdx).col(sIdx);
-        vBtmp_xa /= vBtmp_xa.sum();
-        pvB_xaspf.col(fIdx).col(pIdx).col(sIdx) = vBtmp_xa;
+        pvB_axspf.col(fIdx).col(pIdx).col(sIdx) /= vB_spf(sIdx,pIdx,fIdx);
 
         // Calculate numbers to remove by converting catch to weight
-        catNumAge_xa = C_spf(sIdx, pIdx, fIdx) * vBtmp_xa / wt_aspx.rotate(1).col(pIdx).col(sIdx);
+        Cw_axspf.col(fIdx).col(pIdx).col(sIdx) = C_spf(sIdx, pIdx, fIdx) * pvB_axspf.col(fIdx).col(pIdx).col(sIdx);
+        C_axspf.col(fIdx).col(pIdx).col(sIdx) = Cw_axspf.col(fIdx).col(pIdx).col(sIdx) / wt_axsp.col(pIdx).col(sIdx);
 
         // Now add the catch at age in numbers to the removed fish
-        remN_aspx.rotate(1).col(pIdx).col(sIdx) += catNumAge_xa;
+        remN_axsp.col(pIdx).col(sIdx) += C_axspf.col(fIdx).col(pIdx).col(sIdx);
 
-        // Now reset the temp variables to zero
-        vBtmp_xa.setZero();
-        catNumAge_xa.setZero();
       }
       for( int xIdx = 0; xIdx < nX; xIdx++ )
-        newN_aspx.col(xIdx).col(pIdx).col(sIdx) *= exp(-M_spx(sIdx,pIdx,xIdx)/2);
+        newN_axsp.col(pIdx).col(sIdx).col(xIdx) = N_axsp.col(pIdx).col(sIdx).col(xIdx) * exp(-M_spx(sIdx,pIdx,xIdx)/2);
 
       // Remove the catch
+      newN_axsp -= remN_axsp;
       
       // Apply remaining mortality
       for( int xIdx = 0; xIdx < nX; xIdx++ )
-      {
-        newN_aspx.col(xIdx).col(pIdx).col(sIdx) -= remN_aspx.col(xIdx).col(pIdx).col(sIdx);
-        newN_aspx.col(xIdx).col(pIdx).col(sIdx) *= exp(-M_spx(sIdx,pIdx,xIdx)/2);
-      }
+        newN_axsp.col(pIdx).col(sIdx).col(xIdx) *= exp(-M_spx(sIdx,pIdx,xIdx)/2);
     }
   }
 
-  Z_aspx = log(newN_aspx / N_aspx);
+  Z_aspx = log(N_axsp / newN_axsp);
 
 
   for( int sIdx = 0; sIdx < nS; sIdx ++ )
@@ -219,14 +214,14 @@ array<Type> calcPopesApprox(  array<Type> N_aspx,     // Numbers at age/spec/pop
     {
       for( int fIdx = 0; fIdx < nF; fIdx++ )
       {
-        F_spf(sIdx,pIdx,fIdx) = C_spf(sIdx,pIdx,fIdx) * pvB_xaspf(nX-1,A_s(sIdx),sIdx,pIdx,fIdx) * Z_aspx(A_s(sIdx),sIdx,pIdx,nX-1);
-        F_spf(sIdx,pIdx,fIdx) /= vB_aspfx(A_s(sIdx),sIdx,pIdx,fIdx,nX-1)/(1 - exp(-Z_aspx(A_s(sIdx),sIdx,pIdx,nX-1)));
+        F_spf(sIdx,pIdx,fIdx) = C_axspf(A_s(sIdx)-1,nX-1,sIdx,pIdx,fIdx) * Z_aspx(A_s(sIdx)-1,sIdx,pIdx,nX-1);
+        F_spf(sIdx,pIdx,fIdx) /= N_axsp(A_s(sIdx)-1,nX-1,sIdx,pIdx) / sel_aspfx(A_s(sIdx)-1,sIdx,pIdx,fIdx,nX-1)/(1 - exp(-Z_aspx(A_s(sIdx)-1,sIdx,pIdx,nX-1)));
       }
     }
   }
 
   
-  return(newN_aspx);
+  return(newN_axsp);
 }
 
 
@@ -353,26 +348,28 @@ array<Type> solveBaranov_spf( int   nIter,
                               vector<int>  A_s,         // number of age classes by species
                               array<Type>  C_spf,       // Total observed catch
                               array<Type>  M_spx,       // Mortality rate
-                              array<Type>  B_aspx,      // Biomass at age/sex
-                              array<Type>  vB_aspfx,    // vuln biomass at age
+                              array<Type>  B_axsp,      // Biomass at age/sex
+                              array<Type>  vB_axspf,    // vuln biomass at age
                               array<Type>  vB_spfx,     // vuln biomass for each sex
                               array<Type>  vB_spf,      // vuln biomass in each fleet
                               array<Type>  sel_aspfx,   // selectivity at age/sex
                               array<Type>& Z_aspx,      // total mortality at age/se
-                              array<Type>& F_spf )       // fleet F
+                              array<Type>& F_spf,       // fleet F
+                              array<Type>  N_axsp,      // Numbers at age
+                              array<Type>  wt_axsp )    // Weight at age
 {
   int nS = C_spf.dim(0);
   int nP = C_spf.dim(1);
   int nF = C_spf.dim(2);
-  int nA = B_aspx.dim(0);
-  int nX = B_aspx.dim(3);
+  int nA = B_axsp.dim(0);
+  int nX = B_axsp.dim(1);
 
   array<Type> f_spf(nS,nP,nF);              // Function value
   array<Type> J_spf(nS,nP,nF);              // Jacobian
   array<Type> newZ_aspx(nA,nS,nP,nX);       // Updated Z
   array<Type> tmpZ_aspx(nA,nS,nP,nX);       // Updated Z
   array<Type> tmp_spf(nS,nP,nF);            // predicted catch given F
-  array<Type> tmp_xaspf(nX,nA,nS,nP,nF);    // predicted catch-at-age/sex given F
+  array<Type> tmp_axspf(nA,nX,nS,nP,nF);    // predicted catch-at-age/sex given F
   array<Type> F_aspfx(nA,nS,nP,nF,nX);      // Fishing mortality at age/sex
 
   F_aspfx.setZero();
@@ -381,10 +378,29 @@ array<Type> solveBaranov_spf( int   nIter,
   f_spf.setZero();
   J_spf.setZero();
   tmp_spf.setZero();
-  tmp_xaspf.setZero();
+  tmp_axspf.setZero();
 
+  array<Type> newN_axsp(nA,nX,nS,nP);       // End of time step N
+  newN_axsp.setZero();
+  array<Type> C_axspf(nA,nX,nS,nP,nF);      // Array to hold catch at age in numbers
+  C_axspf.setZero();
 
-  
+  // // Initialise F using Pope's approximation
+  // newN_axsp = calcPopesApprox(  N_axsp,       // Numbers at age/spec/pop/sex
+  //                               sel_aspfx,    // Selectivity-at-age (spec/pop/fleet/sex)
+  //                               C_spf,        // Catch in biomass units
+  //                               M_spx,        // Natural mortality
+  //                               A_s,          // number of age classes by species
+  //                               wt_axsp,      // Mean weight at age
+  //                               vB_axspf,     // Vulnerable biomass at age/spec/pop/fleet
+  //                               vB_spf,       // Vulnerable biomass at spec/pop/fleet
+  //                               F_spf,        // Fishing mortality for each spec/pop/fleet  
+  //                               Z_aspx,       // Total mortality at age/spec/pop/sex
+  //                               tmp_axspf,    // Estimated catch in biomass for sex/age/spec/pop/fleet
+  //                               C_axspf );    // Catch in numbers 
+
+  F_spf = C_spf / vB_spf;
+
   // Initial approximation of F
   for( int s = 0; s < nS; s++ )
     for( int p = 0; p < nP; p++)
@@ -394,78 +410,81 @@ array<Type> solveBaranov_spf( int   nIter,
 
       for( int f = 0; f < nF; f++ )
       {
-        // Use catch plus bio for years where bio is dangerously small
-        F_spf(s,p,f) = C_spf(s,p,f) / (vB_spf(s,p,f));
+
         for( int x = 0; x < nX; x++)
           newZ_aspx.col(x).col(p).col(s) +=  F_spf(s,p,f) * sel_aspfx.col(x).col(f).col(p).col(s);
       }
     }
   
-
-  // Refine F
-  for( int i=0; i<nIter; i++ )
+  // Only run this calculation if nIter > 0
+  if( nIter > 0)
   {
-    // Now reset newZ
-    tmp_spf.setZero();
-    tmp_xaspf.setZero();
-    J_spf.setZero();
-    f_spf.setZero();
-    tmpZ_aspx.setZero();
+    // Refine F
+    for( int i=0; i<nIter; i++ )
+    {
+      // Now reset newZ
+      tmp_spf.setZero();
+      tmp_axspf.setZero();
+      J_spf.setZero();
+      f_spf.setZero();
+      tmpZ_aspx.setZero();
 
 
-    // Reset objective function and Z
-    f_spf += C_spf;
+      // Reset objective function and Z
+      f_spf += C_spf;
 
 
-    // Calculate predicted catch and Jacobian
-    for( int s = 0; s < nS; s++ )
-      for( int p = 0; p < nP; p++ )
-      {
-        for( int x = 0; x < nX; x++ )
+      // Calculate predicted catch and Jacobian
+      for( int s = 0; s < nS; s++ )
+        for( int p = 0; p < nP; p++ )
         {
-          for( int a = 0; a < A_s(s); a++ )
+          for( int x = 0; x < nX; x++ )
           {
-            for(int f = 0; f < nF; f++ )  
-            {  
-              tmp_xaspf(x,a,s,p,f) += B_aspx(a,s,p,x) * (1 - exp(-newZ_aspx(a,s,p,x)) ) * sel_aspfx(a,s,p,f,x) *  F_spf(s,p,f) / newZ_aspx(a,s,p,x);
-              tmp_spf(s,p,f) += tmp_xaspf(x,a,s,p,f);
+            for( int a = 0; a < A_s(s); a++ )
+            {
+              for(int f = 0; f < nF; f++ )  
+              {  
+                tmp_axspf(a,x,s,p,f) += B_axsp(a,x,s,p) * (1 - exp(-newZ_aspx(a,s,p,x)) ) * sel_aspfx(a,s,p,f,x) *  F_spf(s,p,f) / newZ_aspx(a,s,p,x);
+                tmp_spf(s,p,f) += tmp_axspf(a,x,s,p,f);
 
-              // Calculate jacobian
-              Type tmpJ1  = vB_aspfx(a,s,p,f,x) / newZ_aspx(a,s,p,x);
-              Type tmpJ2  = F_spf(s,p,f) * sel_aspfx(a,s,p,f,x) * exp( - newZ_aspx(a,s,p,x));
-              Type tmpJ3  = (1 - exp( -newZ_aspx(a,s,p,x)));
-              Type tmpJ4  = (newZ_aspx(a,s,p,x) - F_spf(s,p,f) * sel_aspfx(a,s,p,f,x))/newZ_aspx(a,s,p,x);
+                // Calculate jacobian
+                Type tmpJ1  = vB_axspf(a,x,s,p,f) / newZ_aspx(a,s,p,x);
+                Type tmpJ2  = F_spf(s,p,f) * sel_aspfx(a,s,p,f,x) * exp( - newZ_aspx(a,s,p,x));
+                Type tmpJ3  = (1 - exp( -newZ_aspx(a,s,p,x)));
+                Type tmpJ4  = (newZ_aspx(a,s,p,x) - F_spf(s,p,f) * sel_aspfx(a,s,p,f,x))/newZ_aspx(a,s,p,x);
 
-              J_spf(s,p,f) -= tmpJ1 * ( tmpJ2 + tmpJ3 * tmpJ4);
+                J_spf(s,p,f) -= tmpJ1 * ( tmpJ2 + tmpJ3 * tmpJ4);
+              }
             }
           }
         }
-      }
 
-    // Subtract predicted catch
-    f_spf -= tmp_spf;
+      // Subtract predicted catch
+      f_spf -= tmp_spf;
 
-    // Updated fishing mortality
-    F_spf -= Bstep * f_spf / J_spf;
+      // Updated fishing mortality
+      F_spf -= Bstep * f_spf / J_spf;
 
-    newZ_aspx.setZero();
+      newZ_aspx.setZero();
 
-    // Updated total mortality
-    for( int s = 0; s < nS; s++ )
-      for( int p = 0; p < nP; p++ )
-        for( int x = 0; x < nX; x++ )
-        {
-          newZ_aspx.col(x).col(p).col(s).fill(M_spx(s,p,x));
-          for( int f= 0 ; f < nF; f ++)
-            newZ_aspx.col(x).col(p).col(s) += sel_aspfx.col(x).col(f).col(p).col(s) * F_spf(s,p,f) ;  
-        }
+      // Updated total mortality
+      for( int s = 0; s < nS; s++ )
+        for( int p = 0; p < nP; p++ )
+          for( int x = 0; x < nX; x++ )
+          {
+            newZ_aspx.col(x).col(p).col(s).fill(M_spx(s,p,x));
+            for( int f= 0 ; f < nF; f ++)
+              newZ_aspx.col(x).col(p).col(s) += sel_aspfx.col(x).col(f).col(p).col(s) * F_spf(s,p,f) ;  
+          }
 
-  }  // end i
+    }  // end i
 
-  // Now save the tmpZ_aspx array out to the Z_aspx input
-  Z_aspx = newZ_aspx;
+    // Now save the tmpZ_aspx array out to the Z_aspx input
+    Z_aspx = newZ_aspx;
+  }
 
-  return( tmp_xaspf );
+
+  return( tmp_axspf );
 
 }  // end solveBaranov_spfx()
 
@@ -482,12 +501,15 @@ Type objective_function<Type>::operator() ()
   DATA_ARRAY(I_spft);                   // CPUE data
   DATA_ARRAY(C_spft);                   // Catch data (biomass)
   DATA_ARRAY(D_spft);                   // Discard data (biomass)
+  DATA_ARRAY(E_pft);                    // Mean effective effort by stock/fleet/time
   DATA_ARRAY(ALK_spalftx);              // Age-length observations (in freq) by pop, separated by fleet and year
   DATA_ARRAY(age_aspftx);               // Age observations for each population and fleet over time (-1 missing)
   DATA_ARRAY(len_lspftx);               // Length observations for each population and fleet over time (-1 missing)
+  DATA_VECTOR(lenBinMids_l);            // Midpoints of length bins
+  DATA_SCALAR(lenBinWidth);             // Width of length bins (UB - LB)
   DATA_IVECTOR(group_f);                // Fleet group (0=comm, 1=HSAss,2=Synoptic)
   DATA_IVECTOR(A_s);                    // +Group age by species
-  DATA_IVECTOR(L_s);                    // +Group length by species
+  DATA_IVECTOR(L_s);                    // Max observed length by species
   DATA_IVECTOR(minA_s);                 // Min age class by species
   DATA_IVECTOR(minL_s);                 // Min length bin (cm) by species
   DATA_IVECTOR(lenD_s);                 // Discard length by species
@@ -524,6 +546,7 @@ Type objective_function<Type>::operator() ()
   DATA_ARRAY(minTimeIdx_spf);           // array of earliest times for each index
   DATA_INTEGER(nBaranovIter);           // number of baranov steps
   DATA_SCALAR(lambdaBaranovStep);       // fractional step size for Newton-Rhapson Baranov iteration
+  DATA_STRING(calcFmethod);             // Indicator for F calculation method ("popesApprox" or "solveBaranov")
   DATA_ARRAY(calcStockGrowth_sp);       // Switch for calculating stock-specific growth parameters
   DATA_ARRAY(calcStockSelDevs_spf);     // Switch for calculating stock-specific selectivity parameters
   DATA_ARRAY(calcStockQDevs_spf);       // Switch for calculating stock-specific catchability parameters
@@ -688,7 +711,6 @@ Type objective_function<Type>::operator() ()
   vector<Type>  deltaVonKbar_p(nP);
   vector<Type>  deltaL2bar_p(nP);
 
-
   array<Type>   deltaL2_sp(nS,nP);
   array<Type>   deltaVonK_sp(nS,nP);
   deltaL2_sp.setZero();
@@ -712,7 +734,7 @@ Type objective_function<Type>::operator() ()
   array<Type>   Wlen_ls(nL,nS);                 // weight-at-length by species
   array<Type>   lenAge_aspx(nA,nS,nP,nX);           // Mean length-at-age by population
   array<Type>   probLenAge_laspx(nL,nA,nS,nP,nX);
-  array<Type>   meanWtAge_aspx(nA,nS,nP,nX);
+  array<Type>   meanWtAge_axsp(nA,nX,nS,nP);
   array<Type>   probAgeLen_alspftx(nA,nL,nS,nP,nF,nT,nX);
 
   // Maturity //
@@ -751,6 +773,7 @@ Type objective_function<Type>::operator() ()
   array<Type>   q_spft(nS,nP,nF,nT);
   // Fishing mortality
   array<Type>   F_spft(nS,nP,nF,nT);
+  array<Type>   paF_spft(nS,nP,nF,nT);
   array<Type>   totCatch_sp(nS,nP);
   array<Type>   Fbar_spf(nS,nP,nF);
   array<Type>   calcSel_spf(nS,nP,nF);
@@ -793,6 +816,7 @@ Type objective_function<Type>::operator() ()
   epsxSelStep_spft.setZero();
   epslnq_spft.setZero();
   F_spft.setZero();
+  paF_spft.setZero();
   Fbar_spf.setZero();
   calcSel_spf.setZero();
 
@@ -864,8 +888,8 @@ Type objective_function<Type>::operator() ()
   // Steepness
   vector<Type>  sigmah_s      = exp(lnsigmah_s);
   Type          sigmah        = exp(lnsigmah);
-  vector<Type>  h_s           = .2 + Type(0.78) / (1 + exp( -1 * ( logitSteep + sigmah * epsSteep_s ) ));
-  Type          h             = .2 + .78 * invlogit(logitSteep);           
+  vector<Type>  h_s           = .21 + Type(0.78) / (1 + exp( -1 * ( logitSteep + sigmah * epsSteep_s ) ));
+  Type          h             = .21 + .78 * invlogit(logitSteep);           
 
   // Natural mortality
   Type          sigmaM        = exp(lnsigmaM);
@@ -894,7 +918,7 @@ Type objective_function<Type>::operator() ()
   for( int pIdx = 0; pIdx < nP; pIdx++ )
   {
     M_sp.col(pIdx)       = exp(lnM) * exp( sigmaM * epsM_s + sigmaM_s * epsM_sp.col(pIdx) );
-    h_sp.col(pIdx)       = .2 + 0.78 / (1 + exp(-1 * (logitSteep + sigmah * epsSteep_s + sigmah_s * epsSteep_sp.col(pIdx) ) ));
+    h_sp.col(pIdx)       = .21 + 0.78 / (1 + exp(-1 * (logitSteep + sigmah * epsSteep_s + sigmah_s * epsSteep_sp.col(pIdx) ) ));
     L1_sp.col(pIdx)      = L1_s;
     L2_sp.col(pIdx)      = L2_s * exp(sigmaL2_s * deltaL2_sp.col(pIdx));
     vonK_sp.col(pIdx)    = vonK_s * exp(sigmavonK_s * deltaVonK_sp.col(pIdx));
@@ -1060,17 +1084,19 @@ Type objective_function<Type>::operator() ()
   
   // Set up model state arrays
   array<Type> B_asptx(nA,nS,nP,nT,nX);      // Biomass at age-pop-time
-  array<Type> N_asptx(nA,nS,nP,nT,nX);      // Numbers at age-pop-time
+  array<Type> N_axspt(nA,nX,nS,nP,nT);      // Numbers at age-pop-time
   array<Type> R_spt(nS,nP,nT);              // Recruits by pop-time
   array<Type> F_aspftx(nA,nS,nP,nF,nT,nX);  // Fishing mortality by age, fleet, population and time
   array<Type> Z_aspxt(nA,nS,nP,nX,nT);      // Total mortality by age, population and time
-  array<Type> C_aspftx(nA,nS,nP,nF,nT,nX);  // Predicted catch-at-age (in numbers), fleet, population and time
-  array<Type> Cw_xaspft(nX,nA,nS,nP,nF,nT); // Predicted catch-at-age (in weight), population and time
+  array<Type> paZ_aspxt(nA,nS,nP,nX,nT);    // Approximate total mortality by age, population and time
+  array<Type> C_axspft(nA,nX,nS,nP,nF,nT);  // Predicted catch-at-age (in numbers), fleet, population and time
+  array<Type> paC_axspft(nA,nX,nS,nP,nF,nT);// Predicted catch-at-age (in numbers), fleet, population and time by Pope's Approx
+  array<Type> Cw_axspft(nA,nX,nS,nP,nF,nT); // Predicted catch-at-age (in weight), population and time
   array<Type> predCw_spft(nS,nP,nF,nT);     // Predicted catch (in weight) by population and time
   array<Type> predC_spft(nS,nP,nF,nT);      // Predicted catch (in numbers) by population and time
   array<Type> B_spt(nS,nP,nT);              // Total biomass by species, pop, time
   array<Type> SB_spt(nS,nP,nT);             // Spawning biomass by species, pop, time
-  array<Type> Bv_spft(nS,nP,nF,nT);         // Vulnerable biomass by species, pop, time
+  array<Type> vB_spft(nS,nP,nF,nT);         // Vulnerable biomass by species, pop, time
   array<Type> Nv_spft(nS,nP,nF,nT);         // Vulnerable numbers by species, pop, time
   array<Type> Nv_aspftx(nA,nS,nP,nF,nT,nX); // Vulnerable numbers at age by species, pop, time
   array<Type> Surv_aspx(nA,nS,nP,nX);       // Eqbm survival at age
@@ -1097,19 +1123,22 @@ Type objective_function<Type>::operator() ()
   // for each stock
   lenAge_aspx.setZero();
   probLenAge_laspx.setZero();
-  meanWtAge_aspx.setZero();
+  meanWtAge_axsp.setZero();
   phi_sp.setZero();
   Surv_aspx.setZero();
   SSBpr_asp.setZero();
   matAge_asp.setZero();
 
-  for( int x = 0; x < nX; x++)
-    for( int s = 0; s < nS; s++)
+  
+  for( int s = 0; s < nS; s++)
+  {
+    int A1 = A1_s(s);
+    int A2 = A2_s(s);
+    for( int p = 0; p < nP; p++ )
     {
-      int A1 = A1_s(s);
-      int A2 = A2_s(s);
-      for( int p = 0; p < nP; p++ )
+      for( int x = 0; x < nX; x++)
       {
+
         lenAge_aspx.col(x).col(p).col(s) += L2_spx(s,p,x) - L1_sp(s,p);
         lenAge_aspx.col(x).col(p).col(s) *= (exp(-vonK_spx(s,p,x) * A1 ) - exp(-vonK_spx(s,p,x) * age) );
         lenAge_aspx.col(x).col(p).col(s) /= (exp(-vonK_spx(s,p,x) * A1 ) - exp(-vonK_spx(s,p,x) * A2) );
@@ -1142,7 +1171,7 @@ Type objective_function<Type>::operator() ()
               probLenAge_laspx(l,a,s,p,x) = Type(1.0) - sumProbs;
 
             // Calculate mean weight at age from probLenAge
-            meanWtAge_aspx(a,s,p,x) += probLenAge_laspx(l,a,s,p,x) * Wlen_ls(l,s);
+            meanWtAge_axsp(a,x,s,p) += probLenAge_laspx(l,a,s,p,x) * Wlen_ls(l,s);
             // Calculate maturity at age from probLenAge if maturity
             // is length based
             if( matX == "length")
@@ -1160,13 +1189,17 @@ Type objective_function<Type>::operator() ()
           Surv_aspx(a,s,p,x) = exp(-a * M_spx(s,p,x));        
           if( a == A_s(s) - 1 ) 
             Surv_aspx(a,s,p,x) /= (1. - exp( -M_spx(s,p,x)) );
-          // Compute ssbpr
+      
+
           
         }
       }
+      // Compute ssbpr
+      SSBpr_asp.col(p).col(s) = Surv_aspx.col(nX-1).col(p).col(s) * matAge_asp.col(p).col(s) * meanWtAge_axsp.col(p).col(s).col(nX-1) / nX;
     }
+  }
 
-  SSBpr_asp = Surv_aspx.col(nX-1) * matAge_asp * meanWtAge_aspx.col(nX-1) / nX;
+  
 
   // --------- Selectivity -------- //
   array<Type> sel_lfspt(nL,nF,nS,nP,nT);
@@ -1251,34 +1284,36 @@ Type objective_function<Type>::operator() ()
 
   // Set all state arrays to zero
   B_asptx.setZero();
-  N_asptx.setZero();
   R_spt.setZero();
   F_aspftx.setZero();
   Z_aspxt.setZero();
-  C_aspftx.setZero();
-  Cw_xaspft.setZero();
+  paZ_aspxt.setZero();
+  C_axspft.setZero();
+  paC_axspft.setZero();
+  Cw_axspft.setZero();
   B_spt.setZero();
   SB_spt.setZero();
-  Bv_spft.setZero();
+  vB_spft.setZero();
   Nv_spft.setZero();
   Nv_aspftx.setZero();
-  N_asptx.setZero();
+  N_axspt.setZero();
   predCw_spft.setZero();
   predC_spft.setZero();
 
 
   // Copies of state arrays for testing Baranov solver
-  array<Type> B_aspxt(nA,nS,nP,nX,nT);
+  array<Type> B_axspt(nA,nX,nS,nP,nT);
   array<Type> B_spxt(nS,nP,nX,nT);
-  array<Type> vB_aspfxt(nA,nS,nP,nF,nX,nT);
+  array<Type> vB_axspft(nA,nX,nS,nP,nF,nT);
   array<Type> vB_spfxt(nS,nP,nF,nX,nT);
-  array<Type> vB_spft(nS,nP,nF,nT);
   array<Type> sel_aspfxt(nA,nS,nP,nF,nX,nT);
   array<Type> U_spft(nS,nP,nF,nT);
+  array<Type> endN_axspt(nA,nX,nS,nP,nT);
 
-  B_aspxt.setZero();
+  B_axspt.setZero();
+  endN_axspt.setZero();
   B_spxt.setZero();
-  vB_aspfxt.setZero();
+  vB_axspft.setZero();
   vB_spfxt.setZero();
   vB_spft.setZero();
   sel_aspfxt.setZero();
@@ -1304,11 +1339,11 @@ Type objective_function<Type>::operator() ()
             // Initialise population either at unfished
             // or using the estimated fished initialisation
             // Populate first year - split into nX groups
-            N_asptx.col(x).col(t).col(p).col(s) += R0_sp(s,p) * Surv_aspx.col(x).col(p).col(s) / nX;
+            N_axspt.col(t).col(p).col(s).col(x) += R0_sp(s,p) * Surv_aspx.col(x).col(p).col(s) / nX;
 
             // // Non-eqbm initialisation
             if(swRinit_s(s) == 1)
-              N_asptx.col(x).col(t).col(p).col(s) *= exp( sigmaR_sp(s,p) * omegaRinit_asp.col(p).col(s) );
+              N_axspt.col(t).col(p).col(s).col(x) *= exp( sigmaR_sp(s,p) * omegaRinit_asp.col(p).col(s) );
 
           }
 
@@ -1318,52 +1353,63 @@ Type objective_function<Type>::operator() ()
           {
             // Generate recruitment
             Type SBt = SB_spt(s,p,t-1);
-            N_asptx(0,s,p,t,x) = reca_sp(s,p) * SBt / (1 + recb_sp(s,p) * SBt)/nX;
-            N_asptx(0,s,p,t,x) *= exp( sigmaR_sp(s,p) * omegaR_spt(s,p,t) );
+            N_axspt(0,x,s,p,t) = reca_sp(s,p) * SBt / (1 + recb_sp(s,p) * SBt)/nX;
+            N_axspt(0,x,s,p,t) *= exp( sigmaR_sp(s,p) * omegaR_spt(s,p,t) );
 
             // Now loop over ages and apply fishing mortality (no discarding yet)
             for( int a = 1; a < A; a ++ )
             {
-              // Update numbers according to age
-              if( a > 0 )     
-                N_asptx(a,s,p,t,x) = N_asptx( a-1, s, p, t-1 ,x) *  exp( - Z_aspxt(a,s,p,x,t-1) );
-              if( a == A - 1) 
-                N_asptx(a,s,p,t,x) += N_asptx(a,s, p, t-1 ,x) *  exp( - Z_aspxt(a,s,p,x,t-1) );
+              // Update numbers at age using Pope's Approximation
+              if( calcFmethod == "calcPopesApprox" )
+              {
+                if( a > 0 )
+                  N_axspt(a,x,s,p,t) = endN_axspt( a-1, x, s, p, t-1);
+                if( a == A - 1 )
+                  N_axspt(a,x,s,p,t) += endN_axspt( a, x, s, p, t-1);
+              }
+              // Update numbers at age using mortality
+              if( calcFmethod == "solveBaranov")
+              {
+                if( a > 0 )     
+                  N_axspt(a,x,s,p,t) = N_axspt( a-1, x, s, p, t-1) *  exp( - Z_aspxt(a,s,p,x,t-1) );
+                if( a == A - 1) 
+                  N_axspt(a,x,s,p,t) += N_axspt(a, x, s, p, t-1) *  exp( - Z_aspxt(a,s,p,x,t-1) );
+              }
+
+              
             }
           }
 
+
           // Save recruits in R_pt
-          R_spt(s,p,t) += N_asptx(0,s,p,t,x);
+          R_spt(s,p,t) += N_axspt(0,x,s,p,t);
 
           // Compute biomass at age and total biomass
-          B_aspxt.col(t).col(x).col(p).col(s) += N_asptx.col(x).col(t).col(p).col(s) * meanWtAge_aspx.col(x).col(p).col(s);
+          B_axspt.col(t).col(p).col(s).col(x) += N_axspt.col(t).col(p).col(s).col(x) * meanWtAge_axsp.col(p).col(s).col(x);
 
-          B_spxt(s,p,x,t) += B_aspxt.col(t).col(x).col(p).col(s).sum();
+          B_spxt(s,p,x,t) += B_axspt.col(t).col(p).col(s).col(x).sum();
 
 
           // Loop over fleets and compute catch
           for( int f =0; f < nF; f++ )
           {
             // Calculate vulnerable numbers and biomass for this fleet
-            Nv_aspftx.col(x).col(t).col(f).col(p).col(s) = N_asptx.col(x).col(t).col(p).col(s) * sel_afsptx.col(x).col(t).col(p).col(s).col(f);
+            Nv_aspftx.col(x).col(t).col(f).col(p).col(s) = N_axspt.col(t).col(p).col(s).col(x) * sel_afsptx.col(x).col(t).col(p).col(s).col(f);
             Nv_spft(s,p,f,t) += Nv_aspftx.col(x).col(t).col(f).col(p).col(s).sum();
 
-            vB_aspfxt.col(t).col(x).col(f).col(p).col(s) += B_aspxt.col(t).col(x).col(p).col(s) * sel_afsptx.col(x).col(t).col(p).col(s).col(f);
-            vB_spfxt(s,p,f,x,t) = vB_aspfxt.col(t).col(x).col(f).col(p).col(s).sum();
+            vB_axspft.col(t).col(f).col(p).col(s).col(x) += B_axspt.col(t).col(p).col(s).col(x) * sel_afsptx.col(x).col(t).col(p).col(s).col(f);
+            vB_spfxt(s,p,f,x,t) = vB_axspft.col(t).col(f).col(p).col(s).col(x).sum();
             vB_spft(s,p,f,t) += vB_spfxt(s,p,f,x,t);
             
-            
-            // Calculate vulnerable biomass
-            Bv_spft(s,p,f,t) += (Nv_aspftx.col(x).col(t).col(f).col(p).col(s) * meanWtAge_aspx.col(x).col(p).col(s)).sum();
 
             // Have to loop over ages here to avoid adding NaNs
             for(int a = 0; a < A; a++ )
             {
-              vB_aspfxt(a,s,p,f,x,t) = sel_afsptx(a,f,s,p,t,x) * B_aspxt(a,s,p,x,t);
+              vB_axspft(a,x,s,p,f,t) = sel_afsptx(a,f,s,p,t,x) * B_axspt(a,x,s,p,t);
               sel_aspfxt(a,s,p,f,x,t) = sel_afsptx(a,f,s,p,t,x);
               // Compute probAgeAtLen for each time step
               for( int l = minL_s(s) - 1; l < L_s(s); l++ )
-                probAgeLen_alspftx(a,l,s,p,f,t,x) += probLenAge_laspx(l,a,s,p,x) * N_asptx(a,s,p,t,x) * sel_lfspt(l,f,s,p,t);
+                probAgeLen_alspftx(a,l,s,p,f,t,x) += probLenAge_laspx(l,a,s,p,x) * N_axspt(a,x,s,p,t) * sel_lfspt(l,f,s,p,t);
             }
 
             
@@ -1380,7 +1426,7 @@ Type objective_function<Type>::operator() ()
           }
 
           // Compute total and spawning biomass
-          B_asptx.col(x).col(t).col(p).col(s) = N_asptx.col(x).col(t).col(p).col(s) * meanWtAge_aspx.col(x).col(p).col(s);
+          B_asptx.col(x).col(t).col(p).col(s) = N_axspt.col(t).col(p).col(s).col(x) * meanWtAge_axsp.col(p).col(s).col(x);
           B_spt(s,p,t) += B_asptx.col(x).col(t).col(p).col(s).sum();
           // The females are the only important
           // mature individuals
@@ -1394,51 +1440,80 @@ Type objective_function<Type>::operator() ()
     }
 
     array<Type> tmpZ_aspx(nA,nS,nP,nX);
+    array<Type> tmp_paZ_aspx(nA,nS,nP,nX);
     tmpZ_aspx = Z_aspxt.col(t);
+    tmp_paZ_aspx.setZero();
 
     array<Type> tmpF_spf(nS,nP,nF);
+    array<Type> tmp_paF_spf(nS,nP,nF);
     tmpF_spf = F_spft.col(t);
+    tmp_paF_spf = paF_spft.col(t);
 
-    array<Type> tmpCw_xaspf(nX,nA,nS,nP,nF);
-    tmpCw_xaspf.setZero();
+    // Catch in biomass
+    array<Type> tmpCw_axspf(nA,nX,nS,nP,nF);
+    tmpCw_axspf.setZero();
+    // Catch in numbers
+    array<Type> tmpC_axspf(nA,nX,nS,nP,nF);
+    tmpC_axspf.setZero();
 
-    // Switch Baranov solver to return predicted catch
-    tmpCw_xaspf += solveBaranov_spf(  nBaranovIter,
-                                      lambdaBaranovStep,
-                                      A_s,
-                                      C_spft.col(t),
-                                      M_spx,
-                                      B_aspxt.col(t),
-                                      vB_aspfxt.col(t),
-                                      vB_spfxt.col(t),
-                                      vB_spft.col(t),
-                                      sel_aspfxt.col(t),
-                                      tmpZ_aspx,
-                                      tmpF_spf);
-    Cw_xaspft.col(t)  += tmpCw_xaspf;
-    Z_aspxt.col(t)    += tmpZ_aspx;
-    F_spft.col(t)     += tmpF_spf;
+    // if( calcFmethod == "calcPopesApprox" )
+    // {
+    endN_axspt.col(t) = calcPopesApprox(  N_axspt.col(t),  
+                                          sel_aspfxt.col(t),
+                                          C_spft.col(t),   
+                                          M_spx,   
+                                          A_s,     
+                                          meanWtAge_axsp, 
+                                          vB_axspft.col(t),
+                                          vB_spft.col(t),
+                                          tmp_paF_spf,  
+                                          tmp_paZ_aspx,
+                                          tmpCw_axspf,
+                                          tmpC_axspf );
+
+
+    // }
+    paF_spft.col(t) = tmp_paF_spf;
+    paZ_aspxt.col(t) = tmp_paZ_aspx;
+    paC_axspft.col(t) = tmpC_axspf;
+
+    if( calcFmethod == "solveBaranov")
+    {
+      // Baranov solver returns predicted catch in biomass units
+      tmpCw_axspf += solveBaranov_spf(  nBaranovIter,
+                                        lambdaBaranovStep,
+                                        A_s,
+                                        C_spft.col(t),
+                                        M_spx,
+                                        B_axspt.col(t),
+                                        vB_axspft.col(t),
+                                        vB_spfxt.col(t),
+                                        vB_spft.col(t),
+                                        sel_aspfxt.col(t),
+                                        tmpZ_aspx,
+                                        tmpF_spf,
+                                        N_axspt.col(t),      // Numbers at age
+                                        meanWtAge_axsp );
+    }
+    
+    // Save outputs from F calculation
+    Cw_axspft.col(t)  = tmpCw_axspf;
+    Z_aspxt.col(t)    = tmpZ_aspx;
+    F_spft.col(t)     = tmpF_spf;
 
     
 
     for( int s = 0; s < nS; s++)
       for( int p = 0; p < nP; p++ )
         for( int f = 0; f < nF; f++ )
-        {
-          for( int x = 0; x < nX; x++ )
-            for( int a = 0; a < A_s(s); a++)
-            {
-              C_aspftx(a,s,p,f,t,x)  = Cw_xaspft(x,a,s,p,f,t) / meanWtAge_aspx(a,s,p,x);  
-              // Generate predicted total catch in weight and numbers
-              predCw_spft(s,p,f,t) += Cw_xaspft(x,a,s,p,f,t);
-              predC_spft(s,p,f,t)  += C_aspftx(a,s,p,f,t,x);
-
-
-            }
-         
-          if( predC_spft(s,p,f,t) > 0 )
+          if( C_spft(s,p,f,t) > 0 )
+          {
+            C_axspft.col(t).col(f).col(p).col(s)  = Cw_axspft.col(t).col(f).col(p).col(s) / meanWtAge_axsp.col(p).col(s);  
+            predCw_spft(s,p,f,t) = Cw_axspft.col(t).col(f).col(p).col(s).sum();
+            predC_spft(s,p,f,t)  = C_axspft.col(t).col(f).col(p).col(s).sum();
+          
             nPosCatch_spf(s,p,f) += 1;
-        }
+          }
 
     Fbar_spf += F_spft.col(t) / (1e-9 + nPosCatch_spf);
   }
@@ -1469,7 +1544,7 @@ Type objective_function<Type>::operator() ()
           // Predict CPUE for surveys
           if( calcIndex_spf(s,p,f) == 1)
           {
-            I_spft_hat(s,p,f,t) = q_spft(s,p,f,t) * Bv_spft(s,p,f,t);  
+            I_spft_hat(s,p,f,t) = q_spft(s,p,f,t) * vB_spft(s,p,f,t);  
             
             // Simulate some index data
             SIMULATE{
@@ -1481,11 +1556,11 @@ Type objective_function<Type>::operator() ()
           {
             // Create array of predicted age distributions - this should just be catch-at-age props
             // Calculate total catch
-            Type totCatch = C_aspftx.col(x).col(t).col(f).col(p).col(s).sum();
+            Type totCatch = C_axspft.col(t).col(f).col(p).col(s).col(x).sum();
               
             // Convert catch-at-age to proportions-at-age
             if(totCatch > 0)
-              aDist_aspftx_hat.col(x).col(t).col(f).col(p).col(s) = C_aspftx.col(x).col(t).col(f).col(p).col(s) / totCatch;
+              aDist_aspftx_hat.col(x).col(t).col(f).col(p).col(s) = C_axspft.col(t).col(f).col(p).col(s).col(x) / totCatch;
                 
 
             // Create array of predicted length distributions
@@ -1493,7 +1568,7 @@ Type objective_function<Type>::operator() ()
             // Probability of being harvested at age
             vector<Type> probHarvAge(nA);
             probHarvAge.setZero();
-            probHarvAge = Nv_aspftx.col(x).col(t).col(f).col(p).col(s) / N_asptx.col(x).col(t).col(p).col(s).sum();
+            probHarvAge = Nv_aspftx.col(x).col(t).col(f).col(p).col(s) / N_axspt.col(t).col(p).col(s).col(x).sum();
             
             // Probability of sampling a given length bin
             vector<Type> probHarvLen(L);
@@ -1510,7 +1585,7 @@ Type objective_function<Type>::operator() ()
               if( lenComps == "Francis" )
               {
                 for( int a = 0; a < A; a++ )
-                  probHarvLen(l) += probLenAge_laspx(l,a,s,p,x) * N_asptx(a,s,p,t,x) * sel_lfspt(l,f,s,p,t); 
+                  probHarvLen(l) += probLenAge_laspx(l,a,s,p,x) * N_axspt(a,x,s,p,t) * sel_lfspt(l,f,s,p,t); 
               }
 
               // Save to length dists
@@ -1885,6 +1960,7 @@ Type objective_function<Type>::operator() ()
   // from total catch
   array<Type> B0nlp_sp(nS,nP);
   B0nlp_sp.setZero();
+  B0nlp_sp += lnB0_sp;
   Type posPen = 0;
 
   // Biological parameters
@@ -2051,6 +2127,7 @@ Type objective_function<Type>::operator() ()
   REPORT( xSel95_sf );      // length at 95% sel by species/fleet
   REPORT( xSelStep_sf );    // length at 95% sel by species/fleet
   REPORT( F_spft );         // Fishing mortality
+  REPORT( paF_spft );         // Fishing mortality
   REPORT( U_spft );         // Harvest rate
   REPORT( sel_lfspt );      // Selectivity at length
   REPORT( sel_afsptx );     // Selectivity at age
@@ -2062,18 +2139,21 @@ Type objective_function<Type>::operator() ()
 
   // Model states
   REPORT( B_asptx );
-  REPORT( N_asptx );
+  REPORT( N_axspt );
   REPORT( R_spt );
-  REPORT( C_aspftx );
-  REPORT( Cw_xaspft );
+  REPORT( C_axspft );
+  REPORT( paC_axspft );
+  REPORT( Cw_axspft );
   REPORT( predCw_spft );
   REPORT( predC_spft );
-  REPORT( Bv_spft );
+  REPORT( vB_spft );
   REPORT( Nv_spft );
   REPORT( Nv_aspftx );
   REPORT( SB_spt );
   REPORT( B_spt );
   REPORT( Z_aspxt );
+  REPORT( paZ_aspxt );
+  REPORT( endN_axspt );
 
 
   // Stock recruit parameters
@@ -2093,7 +2173,7 @@ Type objective_function<Type>::operator() ()
   REPORT( matAge_asp );
   REPORT( xMat50_s );
   REPORT( xMat95_s );
-  REPORT( meanWtAge_aspx );
+  REPORT( meanWtAge_axsp );
   REPORT( ageAtLenResids_alspftx );
   REPORT( nObsAgeAtLen_spf );
   if( debugMode == 1)
@@ -2213,12 +2293,14 @@ Type objective_function<Type>::operator() ()
   REPORT( aDist_aspftx_hat );
   REPORT( I_spft_hat );
 
+  REPORT( vB_axspft );
+  REPORT( vB_spfxt );
+
   // Reordered arrays
   if( debugMode == 1)
   {
-    REPORT( B_aspxt );
-    REPORT( vB_aspfxt );
-    REPORT( vB_spfxt );
+    REPORT( B_axspt );
+    
     REPORT( vB_spft );
     REPORT( sel_aspfxt );
   }

@@ -212,7 +212,7 @@ calcRefPts <- function( obj )
   # Life history schedules
   matAge_asp        <- obj$matAge_asp
   lenAge_aspx       <- obj$lenAge_aspx
-  wtAge_aspx        <- obj$meanWtAge_aspx
+  wtAge_axsp        <- obj$meanWtAge_axsp
   probLenAge_laspx  <- obj$probLenAge_laspx
   selAge_aspx       <- obj$selAge_aspx
 
@@ -241,7 +241,9 @@ calcRefPts <- function( obj )
       }
 
   # Calculate yield-per-recruit
-  C_aspx    <- Surv_aspx * wtAge_aspx * selAge_aspx * f * (1 - exp(-Z_aspx))/Z_aspx
+  C_aspx <- array(0, dim = dim(Surv_aspx))
+  for( x in 1:nX)
+    C_aspx[,,,x]    <- Surv_aspx[,,,x] * wtAge_axsp[,x,,] * selAge_aspx[,,,x] * f * (1 - exp(-Z_aspx[,,,x]))/Z_aspx[,,,x]
   # Replace NAs with 0 (unmodeled ages)
   Z_aspx[is.na(Z_aspx)] <- 0
   Surv_aspx[is.na(Surv_aspx)] <- 0
@@ -251,7 +253,7 @@ calcRefPts <- function( obj )
   ypr_sp    <- apply( X = C_aspx, FUN = sum, MARGIN = c(2,3),na.rm = T)
 
   # spawning biomass per recruit
-  ssbpr_asp  <- Surv_aspx[,,,nX,drop = FALSE] * wtAge_aspx[,,,nX,drop = FALSE] * matAge_aspx[,,,nX,drop = FALSE]
+  ssbpr_asp  <- Surv_aspx[,,,nX,drop = FALSE] * wtAge_axsp[,nX,,,drop = FALSE] * matAge_aspx[,,,nX,drop = FALSE]
   ssbpr_sp   <- apply( X = ssbpr_asp, FUN = sum, MARGIN = c(2,3), na.rm = T )
 
   expbpr_asp  <- Surv_aspx[,,,,drop = FALSE] * selAge_aspx[,,,,drop = FALSE]
