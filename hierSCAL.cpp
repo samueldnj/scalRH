@@ -488,6 +488,175 @@ array<Type> solveBaranov_spf( int   nIter,
 
 }  // end solveBaranov_spfx()
 
+// solveBaranov_spfx()
+// Newton-Rhapson solver for Baranov catch equation for a multi-stock
+// multi-species, age and sex structured population fished by multiple
+// fleets
+// inputs:    nIter = number of NR iterations
+//            Bstep = fraction of NR step (Jacobian) to take at each iteration
+//            A_s = number of age classes by species
+//            C_spf = Catch
+//            M_spx = natural mortality
+//            B_aspx = Biomass at age/sex
+//            B_spx = biomass for each sex
+//            sel_aspfx = selectivity for each age/sex in each fleet
+//            & Z = total mortality (external variable)
+//            & F = Fishing mortality (external variable)
+// returns:   C_xaspf, NR solver estimate of catch at sex/age/spec/pop/fleet
+// Side-effs: variables passed as Z, F overwritten with total, fishing mortality
+// Author:    Modified by S. D. N. Johnson from S. Rossi and S. P. Cox
+template<class Type>
+array<Type> solveBaranovEff_spf(  int   nIter,
+                                  Type  Bstep,
+                                  vector<int>  A_s,         // number of age classes by species
+                                  array<Type>  C_spf,       // Total observed catch
+                                  array<Type>  M_spx,       // Mortality rate
+                                  array<Type>  B_axsp,      // Biomass at age/sex
+                                  array<Type>  vB_axspf,    // vuln biomass at age
+                                  array<Type>  vB_spfx,     // vuln biomass for each sex
+                                  array<Type>  vB_spf,      // vuln biomass in each fleet
+                                  array<Type>  sel_aspfx,   // selectivity at age/sex
+                                  array<Type>& Z_aspx,      // total mortality at age/se
+                                  array<Type>& F_spf,       // fleet F
+                                  array<Type>& E_pf,        // Fleet effort on stock p
+                                  array<Type>& q_spf,       // Fleet catchability for species/stock
+                                  array<Type>  N_axsp,      // Numbers at age
+                                  array<Type>  wt_axsp )    // Weight at age
+{
+  int nS = C_spf.dim(0);
+  int nP = C_spf.dim(1);
+  int nF = C_spf.dim(2);
+  int nA = B_axsp.dim(0);
+  int nX = B_axsp.dim(1);
+
+  array<Type> f_spf(nS,nP,nF);              // Function value
+  array<Type> J_spf(nS,nP,nF);              // Jacobian
+  array<Type> newZ_aspx(nA,nS,nP,nX);       // Updated Z
+  array<Type> tmpZ_aspx(nA,nS,nP,nX);       // Updated Z
+  array<Type> tmp_spf(nS,nP,nF);            // predicted catch given F
+  array<Type> tmp_axspf(nA,nX,nS,nP,nF);    // predicted catch-at-age/sex given F
+  array<Type> F_aspfx(nA,nS,nP,nF,nX);      // Fishing mortality at age/sex
+
+  F_aspfx.setZero();
+  newZ_aspx.setZero();
+  tmpZ_aspx.setZero();
+  f_spf.setZero();
+  J_spf.setZero();
+  tmp_spf.setZero();
+  tmp_axspf.setZero();
+
+  array<Type> newN_axsp(nA,nX,nS,nP);       // End of time step N
+  newN_axsp.setZero();
+  array<Type> C_axspf(nA,nX,nS,nP,nF);      // Array to hold catch at age in numbers
+  C_axspf.setZero();
+
+  // // Initialise F using Pope's approximation
+  // newN_axsp = calcPopesApprox(  N_axsp,       // Numbers at age/spec/pop/sex
+  //                               sel_aspfx,    // Selectivity-at-age (spec/pop/fleet/sex)
+  //                               C_spf,        // Catch in biomass units
+  //                               M_spx,        // Natural mortality
+  //                               A_s,          // number of age classes by species
+  //                               wt_axsp,      // Mean weight at age
+  //                               vB_axspf,     // Vulnerable biomass at age/spec/pop/fleet
+  //                               vB_spf,       // Vulnerable biomass at spec/pop/fleet
+  //                               F_spf,        // Fishing mortality for each spec/pop/fleet  
+  //                               Z_aspx,       // Total mortality at age/spec/pop/sex
+  //                               tmp_axspf,    // Estimated catch in biomass for sex/age/spec/pop/fleet
+  //                               C_axspf );    // Catch in numbers 
+
+  F_spf = C_spf / vB_spf;
+
+
+  // Initial approximation of F
+  for( int s = 0; s < nS; s++ )
+  {
+    q_spf.col(s) = F_spf.col(s) / E_pf
+    for( int p = 0; p < nP; p++)
+    {
+      for( int x = 0; x < nX; x++)
+        newZ_aspx.col(x).col(p).col(s).fill(M_spx(s,p,x));
+
+      for( int f = 0; f < nF; f++ )
+      {
+
+        for( int x = 0; x < nX; x++)
+          newZ_aspx.col(x).col(p).col(s) +=  F_spf(s,p,f) * sel_aspfx.col(x).col(f).col(p).col(s);
+      }
+    }
+  }
+  
+  // Only run this calculation if nIter > 0
+  if( nIter > 0)
+  {
+    // Refine F
+    for( int i=0; i<nIter; i++ )
+    {
+      // Now reset newZ
+      tmp_spf.setZero();
+      tmp_axspf.setZero();
+      J_spf.setZero();
+      f_spf.setZero();
+      tmpZ_aspx.setZero();
+
+
+      // Reset objective function and Z
+      f_spf += C_spf;
+
+
+      // Calculate predicted catch and Jacobian
+      for( int s = 0; s < nS; s++ )
+        for( int p = 0; p < nP; p++ )
+        {
+          for( int x = 0; x < nX; x++ )
+          {
+            for( int a = 0; a < A_s(s); a++ )
+            {
+              for(int f = 0; f < nF; f++ )  
+              {  
+                tmp_axspf(a,x,s,p,f) += B_axsp(a,x,s,p) * (1 - exp(-newZ_aspx(a,s,p,x)) ) * sel_aspfx(a,s,p,f,x) *  F_spf(s,p,f) / newZ_aspx(a,s,p,x);
+                tmp_spf(s,p,f) += tmp_axspf(a,x,s,p,f);
+
+                // Calculate jacobian
+                Type tmpJ1  = vB_axspf(a,x,s,p,f) / newZ_aspx(a,s,p,x);
+                Type tmpJ2  = F_spf(s,p,f) * sel_aspfx(a,s,p,f,x) * exp( - newZ_aspx(a,s,p,x));
+                Type tmpJ3  = (1 - exp( -newZ_aspx(a,s,p,x)));
+                Type tmpJ4  = (newZ_aspx(a,s,p,x) - F_spf(s,p,f) * sel_aspfx(a,s,p,f,x))/newZ_aspx(a,s,p,x);
+
+                J_spf(s,p,f) -= tmpJ1 * ( tmpJ2 + tmpJ3 * tmpJ4);
+              }
+            }
+          }
+        }
+
+      // Subtract predicted catch
+      f_spf -= tmp_spf;
+
+      // Updated fishing mortality
+      F_spf -= Bstep * f_spf / J_spf;
+
+      newZ_aspx.setZero();
+
+      // Updated total mortality
+      for( int s = 0; s < nS; s++ )
+        for( int p = 0; p < nP; p++ )
+          for( int x = 0; x < nX; x++ )
+          {
+            newZ_aspx.col(x).col(p).col(s).fill(M_spx(s,p,x));
+            for( int f= 0 ; f < nF; f ++)
+              newZ_aspx.col(x).col(p).col(s) += sel_aspfx.col(x).col(f).col(p).col(s) * F_spf(s,p,f) ;  
+          }
+
+    }  // end i
+
+    // Now save the tmpZ_aspx array out to the Z_aspx input
+    Z_aspx = newZ_aspx;
+  }
+
+
+  return( tmp_axspf );
+
+}  // end solveBaranov_spfx()
+
 
 // objective function
 template<class Type>
