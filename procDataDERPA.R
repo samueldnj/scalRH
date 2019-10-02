@@ -13,20 +13,20 @@
 rm(list = ls())
 
 library( dplyr )
-library( ggmap )
+# library( ggmap )
 library( maptools )
 library( rgdal )
 library( PBSmapping ) 
 library( RColorBrewer )
-library( RgoogleMaps)
+# library( RgoogleMaps)
 library( sp )
 library( raster )
 library( MASS )
-library( psyphy )
+# library( psyphy )
 library( boot )
 library( RCurl )
 library( scales )
-library( rgeos )
+# library( rgeos )
 
 
 
@@ -89,21 +89,21 @@ commSpecNames <- c( Dover = "dover-sole",
                     Petrale = "petrale-sole",
                     Arrowtooth = "arrowtooth-flounder" )
 
-loadCRS()
+# loadCRS()
 
-surveys     <- c("HS", "QCS", "WCHG", "WCVI")
-shapeFiles  <- paste(surveys,"_Synoptic_Survey_Active_Blocks",sep = "")
-shapePath   <- file.path("./Data/ShapeFiles/SynSurveyBlocks")
+# surveys     <- c("HS", "QCS", "WCHG", "WCVI")
+# shapeFiles  <- paste(surveys,"_Synoptic_Survey_Active_Blocks",sep = "")
+# shapePath   <- file.path("./Data/ShapeFiles/SynSurveyBlocks")
 
 # Load grids in a list
-grids <- lapply(X = shapeFiles, FUN = openShapeFile, path = shapePath)
-names(grids) <- surveys
+# grids <- lapply(X = shapeFiles, FUN = openShapeFile, path = shapePath)
+# names(grids) <- surveys
 
 # These have been coerced to UTM so the grids are nice
 # and rectangular.
 
 # Make shrunken biomass indices by removing small fish
-source("removeSmallFish.R")
+# source("removeSmallFish.R")
 
 # Plots that we want to make - and may not
 # need to reinvent the code for...
@@ -132,29 +132,29 @@ bioData <- lapply(  X = survSpecNames,
 names(bioData) <- names(commSpecNames)
 save(bioData, file = "./Data/Proc/bioData.RData")
 
-# 2. Length at age plots - stock and sex - spit out age-length freq array
-ALfreq <- lapply( X = bioData, FUN = makeALFreq_FleetYear )
-names(ALfreq) <- names(commSpecNames)
-# Save data out
-save(ALfreq, file = "./Data/Proc/ALfreq.RData")
+# # 2. Length at age plots - stock and sex - spit out age-length freq array
+# ALfreq <- lapply( X = bioData, FUN = makeALFreq_FleetYear )
+# names(ALfreq) <- names(commSpecNames)
+# # Save data out
+# save(ALfreq, file = "./Data/Proc/ALfreq.RData")
 
-# 3. Length/wt plots - stock and sex
-wtLen <- lapply( X = bioData, FUN = makeWtLen, stocks = names(stocksCommBio))
-names(wtLen) <- names(commSpecNames)
-# Save data out
-save(wtLen, file = "./Data/Proc/wtLen.RData")
-wtLen.df <- makeWtLenDF(wtLen)
-write.csv(wtLen.df, file = "./Data/Proc/wtLen.csv")
-# plotWtLen(save = TRUE)
+# # 3. Length/wt plots - stock and sex
+# wtLen <- lapply( X = bioData, FUN = makeWtLen, stocks = names(stocksCommBio))
+# names(wtLen) <- names(commSpecNames)
+# # Save data out
+# save(wtLen, file = "./Data/Proc/wtLen.RData")
+# wtLen.df <- makeWtLenDF(wtLen)
+# write.csv(wtLen.df, file = "./Data/Proc/wtLen.csv")
+# # plotWtLen(save = TRUE)
 
-# 4. Catch and discards - Species and area
-catchData <- read.csv(  "./Data/Raw/catch_by_maj.csv", header = TRUE,
-                        stringsAsFactors = FALSE )
-plotCatch(save = TRUE)
-# Get survey removals
-surveyCatch <- lapply( X = survSpecNames, FUN = makeSurveyCatchStocks )
-names(surveyCatch) <- names(survSpecNames)
-save( surveyCatch, file = "./Data/Proc/surveyCatch.RData" )
+# # 4. Catch and discards - Species and area
+# catchData <- read.csv(  "./Data/Raw/catch_by_maj.csv", header = TRUE,
+#                         stringsAsFactors = FALSE )
+# plotCatch(save = TRUE)
+# # Get survey removals
+# surveyCatch <- lapply( X = survSpecNames, FUN = makeSurveyCatchStocks )
+# names(surveyCatch) <- names(survSpecNames)
+# save( surveyCatch, file = "./Data/Proc/surveyCatch.RData" )
 
 # 5a. Age compositions by fleet, stock, and species - spit out comp data array
 ageComps <- lapply( X = bioData, FUN = makeAgeComps )

@@ -243,8 +243,6 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                     na.rm = TRUE)
   E_pft[is.na(E_pft)] <- -1
 
-  browser()
-
   # Now use C_spft to weed out fleets that shouldn't be included
   # for now
   noFleetCatch <- c()
@@ -305,7 +303,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   load(file.path("./Data/Proc",dataObj$lenData))
 
   # Create compositional arrays
-  age_aspftx <- makeCompsArray(  compList = ageComps,
+  age_aspftx <- makeCompsArray( compList = ageComps,
                                 plusGroups = nA_s,
                                 minX = minA_s,
                                 collapseComm = FALSE,
@@ -319,12 +317,17 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   len_lspftx <- makeCompsArray( compList = lenComps,
                                 plusGroups = nL_s,
                                 minX = minL_s,
+                                binWidth = dataObj$lenBinWidth,
                                 collapseComm = FALSE,
                                 fleetIDs = useFleets,
                                 years = fYear:lYear,
                                 xName = "length",
                                 minSampSize = dataObj$minLenSampSize )
   len_lspftx <- len_lspftx[,useSpecies,useStocks,useFleets,,, drop = FALSE]
+  
+  lenBinMids  <- as.numeric(dimnames(len_lspftx)[[1]])
+  maxLenBin_s <- ceiling( nL_s[useSpecies] / dataObj$lenBinWidth )
+  minLenBin_s <- ceiling( minL_s[useSpecies] / dataObj$lenBinWidth )
 
   nX <- 2
 
@@ -333,9 +336,9 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   {
     ALFreq_spalftx <- ALFreq_spalftx[,,,,,,1,drop = FALSE] + ALFreq_spalftx[,,,,,,2,drop = FALSE]
     dimnames(ALFreq_spalftx)[[7]] <- "both"
-    age_aspftx <- age_aspftx[,,,,,1,drop = FALSE] + age_aspftx[,,,,,2,drop = FALSE] 
+    age_aspftx <- age_aspftx[,,,,,1,drop = FALSE] + age_aspftx[,,,,,2,drop = FALSE] + age_aspftx[,,,,,3,drop = FALSE] 
     dimnames(age_aspftx)[[6]] <- "both"
-    len_lspftx <- len_lspftx[,,,,,1,drop = FALSE] + len_lspftx[,,,,,2,drop = FALSE] 
+    len_lspftx <- len_lspftx[,,,,,1,drop = FALSE] + len_lspftx[,,,,,2,drop = FALSE] + len_lspftx[,,,,,3,drop = FALSE] 
     dimnames(len_lspftx)[[6]] <- "both"
 
     nX <- 1
@@ -696,9 +699,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
     # as a function of distance (GMRF style)
   }  
 
-  maxL          <- max(nL_s)
-  lenBinWidth   <- dataObj$lenBinWidth
-  lenBinMids_l  <- seq(from = lenBinWidth/2, to = maxL, by = lenBinWidth)
+  browser()
 
 
   # Generate the data list
@@ -709,14 +710,15 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 ALK_spalftx           = ALFreq_spalftx,
                 age_aspftx            = age_aspftx,
                 len_lspftx            = len_lspftx,
-                lenBinMids_l          = lenBinMids_l,
-                lenBinWidth           = lenBinWidth,
+                lenBinMids_l          = lenBinMids,
+                lenBinWidth           = dataObj$lenBinWidth,
                 group_f               = as.integer(group_f - 1),
                 A_s                   = as.integer(nA_s[useSpecies]),
                 minA_s                = as.integer(minA_s[useSpecies]),
-                L_s                   = as.integer(nL_s[useSpecies]),
-                minL_s                = as.integer(minL_s[useSpecies]),
+                L_s                   = maxLenBin_s,
+                minL_s                = minLenBin_s,
                 lenD_s                = rep(0,nS),
+                nX                    = nX,
                 swRinit_s             = as.integer(initFished_s[useSpecies]),
                 parSwitch             = 0,
                 calcIndex_spf         = calcIndex_spf,
@@ -1153,8 +1155,14 @@ TMBphase <- function( data,
     {
       checkInitNaN    <- lapply( X = repInit, FUN = .checkNaN )
       checkInitFinite <- lapply( X = repInit, FUN = .checkFinite )
-      if(any(unlist(checkInitNaN)) | any(checkInitFinite))
+      if(any(unlist(checkInitNaN)) | any(unlist(checkInitFinite)))
+      {
         browser(beep(expr=cat("NaN or Inf items in initial rep\n")))
+
+        whichNaN <- which(unlist(checkInitNaN))
+        whichInf <- which(unlist(checkInitFinite))
+
+      }
     }
 
     cat("\nStarting optimisation for phase ", phase_cur, "\n\n")

@@ -21,6 +21,22 @@ calcRefPts <- function( obj )
   # Calculate selectivity
   obj <- .calcSel_spx(obj, fleetIdx = 2)
 
+  # Calculate R0_sp
+  # To get things moving, let's fix
+  # steepness at .78
+  h_sp      <- matrix(.78, nrow = nS, ncol = nP)
+  B0_sp     <- obj$B0_sp
+
+  # temporarily use calcPerRecruit to recalc R0
+  tmp       <- .calcPerRecruit( f = f, obj = obj )
+  yprList   <- tmp$yprList
+  R0_sp     <- B0_sp / yprList$ssbpr_sp
+
+  # Beverton-Holt a/b parameters
+  obj$rec.a_sp <- 4.*h_sp*R0_sp/(B0_sp*(1.-h_sp))
+  obj$rec.b_sp <- (5.*h_sp-1.)/(B0_sp*(1.-h_sp))
+
+
   # Calculate reference curves
   refCurves <- .calcRefCurves( obj )
 
@@ -105,27 +121,12 @@ calcRefPts <- function( obj )
   nP  <- obj$nP
   A_s <- obj$A_s
 
-  # Recover recruitment pars
-  h_sp          <- obj$h_sp
-  rec.a_sp      <- obj$reca_sp
-  rec.b_sp      <- obj$recb_sp
-
-  # To get things moving, let's fix
-  # steepness at .78
-  h_sp      <- matrix(.78, nrow = nS, ncol = nP)
-  B0_sp     <- obj$B0_sp
-  R0_sp     <- obj$R0_sp
-
-  # Beverton-Holt a/b parameters
-  rec.a_sp <- 4.*h_sp*R0_sp/(B0_sp*(1.-h_sp))
-  rec.b_sp <- (5.*h_sp-1.)/(B0_sp*(1.-h_sp))
-
 
   # Now calculate eqbm recruitment at given f value
   tmp <- .calcPerRecruit( f = f, obj = obj )
   yprList <- tmp$yprList
 
-  recruits_sp <- ( rec.a_sp * yprList$ssbpr_sp - 1) / (rec.b_sp * yprList$ssbpr_sp)
+  recruits_sp <- ( obj$rec.a_sp * yprList$ssbpr_sp - 1) / (obj$rec.b_sp * yprList$ssbpr_sp)
   
 
   equil <- list()
@@ -253,7 +254,7 @@ calcRefPts <- function( obj )
   ypr_sp    <- apply( X = C_aspx, FUN = sum, MARGIN = c(2,3),na.rm = T)
 
   # spawning biomass per recruit
-  ssbpr_asp  <- Surv_aspx[,,,nX,drop = FALSE] * wtAge_axsp[,nX,,,drop = FALSE] * matAge_aspx[,,,nX,drop = FALSE]
+  ssbpr_asp  <- Surv_aspx[,,,nX] * wtAge_axsp[,nX,,] * matAge_aspx[,,,nX]
   ssbpr_sp   <- apply( X = ssbpr_asp, FUN = sum, MARGIN = c(2,3), na.rm = T )
 
   expbpr_asp  <- Surv_aspx[,,,,drop = FALSE] * selAge_aspx[,,,,drop = FALSE]

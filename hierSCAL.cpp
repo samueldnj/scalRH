@@ -570,7 +570,7 @@ array<Type> solveBaranovEff_spf(  int   nIter,
   // Initial approximation of F
   for( int s = 0; s < nS; s++ )
   {
-    q_spf.col(s) = F_spf.col(s) / E_pf
+    q_spf.col(s) = F_spf.col(s) / E_pf;
     for( int p = 0; p < nP; p++)
     {
       for( int x = 0; x < nX; x++)
@@ -638,6 +638,8 @@ array<Type> solveBaranovEff_spf(  int   nIter,
 
       // Updated total mortality
       for( int s = 0; s < nS; s++ )
+      {
+        q_spf.col(s) = F_spf.col(s) / E_pf;
         for( int p = 0; p < nP; p++ )
           for( int x = 0; x < nX; x++ )
           {
@@ -645,6 +647,7 @@ array<Type> solveBaranovEff_spf(  int   nIter,
             for( int f= 0 ; f < nF; f ++)
               newZ_aspx.col(x).col(p).col(s) += sel_aspfx.col(x).col(f).col(p).col(s) * F_spf(s,p,f) ;  
           }
+      }
 
     }  // end i
 
@@ -678,10 +681,11 @@ Type objective_function<Type>::operator() ()
   DATA_SCALAR(lenBinWidth);             // Width of length bins (UB - LB)
   DATA_IVECTOR(group_f);                // Fleet group (0=comm, 1=HSAss,2=Synoptic)
   DATA_IVECTOR(A_s);                    // +Group age by species
-  DATA_IVECTOR(L_s);                    // Max observed length by species
+  DATA_IVECTOR(L_s);                    // Max length bin by species
   DATA_IVECTOR(minA_s);                 // Min age class by species
-  DATA_IVECTOR(minL_s);                 // Min length bin (cm) by species
+  DATA_IVECTOR(minL_s);                 // Min length bin by species
   DATA_IVECTOR(lenD_s);                 // Discard length by species
+  DATA_INTEGER(nX);                     // Number of sex classes
 
   // Model dimensions
   int nS = I_spft.dim(0);               // No. of species
@@ -690,7 +694,8 @@ Type objective_function<Type>::operator() ()
   int nT = I_spft.dim(3);               // No of time steps
   int nL = len_lspftx.dim(0);           // max no of length bins (for creating state arrays)
   int nA = age_aspftx.dim(0);           // max no of age bins (for creating state arrays)
-  int nX = age_aspftx.dim(5);           // No of sex classes (0 == male, 1 == female)
+
+
 
   // Model switches - fill these in when we know what we want
   DATA_IVECTOR(swRinit_s);              // species fished initialisation switch (0 == unfished, 1 == fished)
@@ -1033,9 +1038,6 @@ Type objective_function<Type>::operator() ()
   // Make a vector of ages/lengths for use in 
   // age and length based quantities later
   vector<Type> age(nA);
-  vector<Type> len(nL);
-  for( int l = 0; l < nL; l++)
-    len(l) = l+1;
 
   for( int a = 0; a < nA; a++)
     age(a) = a+1;
@@ -1279,11 +1281,11 @@ Type objective_function<Type>::operator() ()
   for( int s = 0; s < nS; s++ )
   {
     // weight-at-length for each length bin midpoint
-    Wlen_ls.col(s) = LWa_s(s) * pow( len, LWb_s(s) );
+    Wlen_ls.col(s) = LWa_s(s) * pow( lenBinMids_l, LWb_s(s) );
     
     // proportion mature-at-length
     if(matX == "length")
-      matLen_ls.col(s) = 1/(1 + exp( -1. * log(Type(19.0)) * ( len - xMat50_s(s)) / (xMat95_s(s) - xMat50_s(s)) ) );  
+      matLen_ls.col(s) = 1/(1 + exp( -1. * log(Type(19.0)) * ( lenBinMids_l - xMat50_s(s)) / (xMat95_s(s) - xMat50_s(s)) ) );  
   }
 
   // Now produce the probability of length-at-age matrix for each stock
@@ -1320,8 +1322,8 @@ Type objective_function<Type>::operator() ()
           for( int l = 0; l < L_s(s); l++ )
           {
             // Get length bin ranges
-            Type lenHi = len(l) + .5;
-            Type lenLo = len(l) - .5;
+            Type lenHi = lenBinMids_l(l) + .5*lenBinWidth;
+            Type lenLo = lenBinMids_l(l) - .5*lenBinWidth;
             // Compute density in each bin
             // Compute LH tail of the distribution
             
@@ -1388,7 +1390,7 @@ Type objective_function<Type>::operator() ()
           if( selX == "length" )
           {
             sel_lfspt.col(t).col(p).col(s).col(f).fill(1.);
-            sel_lfspt.col(t).col(p).col(s).col(f) /= ( 1 + exp( - log(Type(19.)) * ( len - xSel50_spft(s,p,f,t) ) / xSelStep_spft(s,p,f,t)  ) );
+            sel_lfspt.col(t).col(p).col(s).col(f) /= ( 1 + exp( - log(Type(19.)) * ( lenBinMids_l - xSel50_spft(s,p,f,t) ) / xSelStep_spft(s,p,f,t)  ) );
             // reduce selectivity below min L to 0
             sel_lfspt.col(t).col(p).col(s).col(f).segment(0,minL_s(s)).fill(0);
             // convert selectivity-at-length to selectivity-at-age using probability matrix
@@ -1839,68 +1841,71 @@ Type objective_function<Type>::operator() ()
 
 
   // Now loop and compute
-  for( int s = 0; s < nS; s++ )
+  if( growthLikeWt > 0 )
   {
-    // containers for a given year/fleet/length/species/pop - function
-    // expects vector<Type>
-    vector<Type> obs(A_s(s));
-    vector<Type> pred(A_s(s));
-    vector<Type> resids(nA);
-    for( int p = 0; p < nP; p++ )
-      for( int f = 0; f < nF; f++)
-      {
-        for( int t = 0; t < nT; t++)
+    for( int s = 0; s < nS; s++ )
+    {
+      // containers for a given year/fleet/length/species/pop - function
+      // expects vector<Type>
+      vector<Type> obs(A_s(s));
+      vector<Type> pred(A_s(s));
+      vector<Type> resids(nA);
+      for( int p = 0; p < nP; p++ )
+        for( int f = 0; f < nF; f++)
         {
-          for( int l = minL_s(s) - 1; l < L_s(s); l++ )
+          for( int t = 0; t < nT; t++)
           {
-            for( int x = 0;  x < nX; x ++)
+            for( int l = minL_s(s) - 1; l < L_s(s); l++ )
             {
-              // Zero init containers
-              obs.setZero();
-              pred.setZero();
-              resids.setZero();
-
-              // Fill containers
-              for(int a = 0; a < A_s(s); a++)
+              for( int x = 0;  x < nX; x ++)
               {
-                obs(a) += ALK_spalftx(s,p,a,l,f,t,x);
-                pred(a) += probAgeLen_alspftx(a,l,s,p,f,t,x);
+                // Zero init containers
+                obs.setZero();
+                pred.setZero();
+                resids.setZero();
+
+                // Fill containers
+                for(int a = 0; a < A_s(s); a++)
+                {
+                  obs(a) += ALK_spalftx(s,p,a,l,f,t,x);
+                  pred(a) += probAgeLen_alspftx(a,l,s,p,f,t,x);
+                }
+                // Compute resids etc. if observations aren't missing
+                if(obs.sum() > 0 &  pred.sum() > 0)
+                {
+                  ageAtLenResids_alspftx.col(x).col(t).col(f).col(p).col(s).col(l).segment(0,A_s(s)) = calcLogistNormLikelihood(  obs, 
+                                                                                                                                  pred,
+                                                                                                                                  minPAAL,
+                                                                                                                                  etaSumSqAgeAtLen_spf(s,p,f),
+                                                                                                                                  nResidsAgeAtLen_spf(s,p,f) );
+
+                  nObsAgeAtLen_spf(s,p,f) += 1;
+
+                  // SIMULATE{
+                  //   // Create a logistic-normal residual
+                  //   vector<Type> simResid(A_s(s));
+                  //   vector<Type> simPred(A_s(s));
+                  //   simResid  = rnorm( Type(0), sqrt(tau2AgeAtLenObs_spf(s,p,f) ) );
+                  //   simPred   = log(pred + 1e-9) + simResid;
+                  //   simPred   = exp(simPred);
+                  //   simPred   /= simPred.sum();
+                  //   // Now add to simAgeLen and renormalise, and convert to frequency using
+                  //   // the observation vector
+                  //   simAgeLen_alspftx.col(x).col(t).col(f).col(p).col(s).col(l).segment(0,A_s(s)) = simPred * obs.sum();
+                  // }
+
+                }
               }
-              // Compute resids etc. if observations aren't missing
-              if(obs.sum() > 0 &  pred.sum() > 0)
-              {
-                ageAtLenResids_alspftx.col(x).col(t).col(f).col(p).col(s).col(l).segment(0,A_s(s)) = calcLogistNormLikelihood(  obs, 
-                                                                                                                                pred,
-                                                                                                                                minPAAL,
-                                                                                                                                etaSumSqAgeAtLen_spf(s,p,f),
-                                                                                                                                nResidsAgeAtLen_spf(s,p,f) );
-
-                nObsAgeAtLen_spf(s,p,f) += 1;
-
-                // SIMULATE{
-                //   // Create a logistic-normal residual
-                //   vector<Type> simResid(A_s(s));
-                //   vector<Type> simPred(A_s(s));
-                //   simResid  = rnorm( Type(0), sqrt(tau2AgeAtLenObs_spf(s,p,f) ) );
-                //   simPred   = log(pred + 1e-9) + simResid;
-                //   simPred   = exp(simPred);
-                //   simPred   /= simPred.sum();
-                //   // Now add to simAgeLen and renormalise, and convert to frequency using
-                //   // the observation vector
-                //   simAgeLen_alspftx.col(x).col(t).col(f).col(p).col(s).col(l).segment(0,A_s(s)) = simPred * obs.sum();
-                // }
-
-              }
-            }
-          } 
+            } 
+          }
+          if( nResidsAgeAtLen_spf(s,p,f) > 0)
+          {
+            tau2AgeAtLenObs_spf(s,p,f) += etaSumSqAgeAtLen_spf(s,p,f) / nResidsAgeAtLen_spf(s,p,f);
+            vonBnll_spf(s,p,f) += 0.5 * (nResidsAgeAtLen_spf(s,p,f) - nObsAgeAtLen_spf(s,p,f));
+            vonBnll_spf(s,p,f) *= log(tau2AgeAtLenObs_spf(s,p,f));
+          }
         }
-        if( nResidsAgeAtLen_spf(s,p,f) > 0)
-        {
-          tau2AgeAtLenObs_spf(s,p,f) += etaSumSqAgeAtLen_spf(s,p,f) / nResidsAgeAtLen_spf(s,p,f);
-          vonBnll_spf(s,p,f) += 0.5 * (nResidsAgeAtLen_spf(s,p,f) - nObsAgeAtLen_spf(s,p,f));
-          vonBnll_spf(s,p,f) *= log(tau2AgeAtLenObs_spf(s,p,f));
-        }
-      }
+    }
   }
 
   // Observation likelihoods
