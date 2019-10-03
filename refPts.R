@@ -24,11 +24,11 @@ calcRefPts <- function( obj )
   # Calculate R0_sp
   # To get things moving, let's fix
   # steepness at .78
-  h_sp      <- matrix(.78, nrow = nS, ncol = nP)
+  h_sp      <- obj$h_sp
   B0_sp     <- obj$B0_sp
 
   # temporarily use calcPerRecruit to recalc R0
-  tmp       <- .calcPerRecruit( f = f, obj = obj )
+  tmp       <- .calcPerRecruit( f = 0, obj = obj )
   yprList   <- tmp$yprList
   R0_sp     <- B0_sp / yprList$ssbpr_sp
 
@@ -58,7 +58,7 @@ calcRefPts <- function( obj )
 .calcRefCurves <- function( obj, nFs = 1000 )
 {
   # First, compute max F (tolerance of 1e-5)
-  maxF <- max( 3*obj$M_sp )
+  maxF <- max( 5*obj$M_sp )
 
   # We're going to need to fill each species' ref curves,
   # so labeling and dimensions are needed
@@ -213,7 +213,7 @@ calcRefPts <- function( obj )
   # Life history schedules
   matAge_asp        <- obj$matAge_asp
   lenAge_aspx       <- obj$lenAge_aspx
-  wtAge_axsp        <- obj$meanWtAge_axsp
+  wtAge_aspx        <- obj$meanWtAge_aspx
   probLenAge_laspx  <- obj$probLenAge_laspx
   selAge_aspx       <- obj$selAge_aspx
 
@@ -244,7 +244,9 @@ calcRefPts <- function( obj )
   # Calculate yield-per-recruit
   C_aspx <- array(0, dim = dim(Surv_aspx))
   for( x in 1:nX)
-    C_aspx[,,,x]    <- Surv_aspx[,,,x] * wtAge_axsp[,x,,] * selAge_aspx[,,,x] * f * (1 - exp(-Z_aspx[,,,x]))/Z_aspx[,,,x]
+    C_aspx[,,,x]    <- Surv_aspx[,,,x,drop = FALSE] * wtAge_aspx[,,,x,drop = FALSE] * 
+                          selAge_aspx[,,,x,drop = FALSE] * f * 
+                          (1 - exp(-Z_aspx[,,,x,drop = FALSE]))/Z_aspx[,,,x,drop = FALSE]
   # Replace NAs with 0 (unmodeled ages)
   Z_aspx[is.na(Z_aspx)] <- 0
   Surv_aspx[is.na(Surv_aspx)] <- 0
@@ -254,7 +256,7 @@ calcRefPts <- function( obj )
   ypr_sp    <- apply( X = C_aspx, FUN = sum, MARGIN = c(2,3),na.rm = T)
 
   # spawning biomass per recruit
-  ssbpr_asp  <- Surv_aspx[,,,nX] * wtAge_axsp[,nX,,] * matAge_aspx[,,,nX]
+  ssbpr_asp  <- Surv_aspx[,,,nX,drop = FALSE] * wtAge_aspx[,,,nX,drop = FALSE] * matAge_aspx[,,,nX,drop = FALSE]
   ssbpr_sp   <- apply( X = ssbpr_asp, FUN = sum, MARGIN = c(2,3), na.rm = T )
 
   expbpr_asp  <- Surv_aspx[,,,,drop = FALSE] * selAge_aspx[,,,,drop = FALSE]

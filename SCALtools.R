@@ -185,8 +185,6 @@ renameReportArrays <- function( repObj = repInit, datObj = data )
       specStock[(s-1) * nP + p] <- paste( specNames[s],"_", stockNames[p],sep = "")
 
 
-
-
   # Ok, that's the data taken care of. There are still all the
   # new arrays that we created
   # Predicted data
@@ -221,6 +219,18 @@ renameReportArrays <- function( repObj = repInit, datObj = data )
                                             year = yearNames )
   dimnames(repObj$recCorrMat_sp)  <- list(  specStock = specStock,
                                             specStock = specStock )
+
+  dimnames(repObj$L1_spx)         <- list(  species = specNames,
+                                            stock = stockNames,
+                                            sex = sexNames )
+
+  dimnames(repObj$L2_spx)         <- list(  species = specNames,
+                                            stock = stockNames,
+                                            sex = sexNames )
+
+  dimnames(repObj$vonK_spx)       <- list(  species = specNames,
+                                            stock = stockNames,
+                                            sex = sexNames )
 
   # Observation models
   dimnames(repObj$q_spf)        <- dimnames(datObj$age_aspftx)[c(2:4)]  
@@ -264,44 +274,28 @@ renameReportArrays <- function( repObj = repInit, datObj = data )
                                             stock = stockNames,
                                             fleet = gearNames,
                                             year = yearNames,
-                                            sex = sexNames ) 
+                                            sex = c(sexNames,"unsexed") ) 
   dimnames(repObj$tau2Len_spf)   <- list( species = specNames,
                                           stock = stockNames,
                                           fleet = gearNames )  
 
-  # Growth model quants
-  dimnames(repObj$probLenAge_laspx) <- list( len = lenNames, 
-                                              age = ageNames,
-                                              species = specNames,
-                                              stock = stockNames,
-                                              sex = sexNames )
+  dimnames(repObj$probLenAge_laspx)      <- list( len = lenNames,
+                                                  age = ageNames,
+                                                  species = specNames,
+                                                  stock = stockNames,
+                                                  sex = sexNames )
 
-  dimnames(repObj$lenAge_aspx) <- list(     age = ageNames,
-                                            species = specNames,
-                                            stock = stockNames,
-                                            sex = sexNames  )
+  dimnames(repObj$lenAge_aspx) <- list( age = ageNames,
+                                        species = specNames,
+                                        stock = stockNames,
+                                        sex = sexNames )
 
-  dimnames(repObj$probAgeLen_alspftx) <- list(  age = ageNames,
-                                                len = lenNames,
-                                                species = specNames,
-                                                stock = stockNames,
-                                                fleet = gearNames,
-                                                year = yearNames,
-                                                sex = sexNames  ) 
-
-  dimnames(repObj$ageAtLenResids_alspftx) <- list(  age = ageNames,
-                                                    len = lenNames,
-                                                    species = specNames,
-                                                    stock = stockNames,
-                                                    fleet = gearNames,
-                                                    year = yearNames,
-                                                    sex = sexNames  )
   # Growth model parameters
   # vectors
   names(repObj$A1_s)      <- specNames
   names(repObj$A2_s)      <- specNames
   names(repObj$L1_s)      <- specNames
-  names(repObj$L2_s)      <- specNames
+  
   names(repObj$sigmaLa_s) <- specNames
   names(repObj$sigmaLb_s) <- specNames
   # arrays
@@ -464,13 +458,13 @@ savePlots <- function(  fitObj = reports,
     if(!dir.exists(specPath))
       dir.create(specPath)
 
-    fileName <- paste("plotAgeLenResids_",specDir,".png",sep = "")
-    png(  file.path(specPath,fileName),
-        width = 11, height = 8.5, units = "in", res = 300)
-    plotHeatmapAgeLenResids(  repObj = report, 
-                              sIdx = sIdx, pIdx = 1:nP,
-                              fIdx = 1:nF )
-    dev.off()  
+    # fileName <- paste("plotAgeLenResids_",specDir,".png",sep = "")
+    # png(  file.path(specPath,fileName),
+    #     width = 11, height = 8.5, units = "in", res = 300)
+    # plotHeatmapAgeLenResids(  repObj = report, 
+    #                           sIdx = sIdx, pIdx = 1:nP,
+    #                           fIdx = 1:nF )
+    # dev.off()  
 
     fileName <- paste("plotAgeResids_",specDir,".png",sep = "")
     png(  file.path(specPath,fileName),
@@ -621,13 +615,13 @@ savePlots <- function(  fitObj = reports,
           dir.create(file.path(stockPath,"resids"))
         
         fleetID <- fleetNames[fIdx]
-        fileName <- paste("plotAgeLenResids_",fleetID,".png",sep = "")
-        png(  file.path(stockPath,"resids",fileName),
-            width = 11, height = 8.5, units = "in", res = 300)
-        plotHeatmapAgeLenResids(  repObj = report, 
-                                  sIdx = 1:nS, pIdx = 1:nP,
-                                  fIdx = fIdx )
-        dev.off()  
+        # fileName <- paste("plotAgeLenResids_",fleetID,".png",sep = "")
+        # png(  file.path(stockPath,"resids",fileName),
+        #     width = 11, height = 8.5, units = "in", res = 300)
+        # plotHeatmapAgeLenResids(  repObj = report, 
+        #                           sIdx = 1:nS, pIdx = 1:nP,
+        #                           fIdx = fIdx )
+        # dev.off()  
 
         fileName <- paste("plotAgeResids_",fleetID,".png",sep = "")
         png(  file.path(stockPath,"resids",fileName),

@@ -631,7 +631,7 @@ plotCatchFit_ft <- function(  repObj = repInit,
 plotCompFitYrs <- function( repObj = repInit,
                             initYear = fYear,
                             sIdx = 1, pIdx = 1,
-                            sex = "female",
+                            sex = "girls",
                             comps = "age",
                             save = FALSE,
                             savePath = "plotFitYrs" )
@@ -645,15 +645,22 @@ plotCompFitYrs <- function( repObj = repInit,
     obs_xftsex  <- repObj$age_aspftx[1:max,sIdx,pIdx,,,1:nX]  
     xLab        <- "Age"
     minProp     <- repObj$minAgeProp
+    binMids     <- dimnames(repObj$age_aspftx)[[1]]
   }
   if( comps == "length" )
   {
-    max         <- repObj$L_s[sIdx]  
-    pred_xftsex <- repObj$lDist_lspftx_hat[1:max,sIdx,pIdx,,,1:nX]
-    obs_xftsex  <- repObj$len_lspftx[1:max,sIdx,pIdx,,,1:nX] 
-    xLab        <- "Length"
-    minProp     <- repObj$minLenProp
+    if(nX == 2)
+      nX <- 3
+    binMids       <- repObj$lenBinMids_l
+    max           <- repObj$L_s[sIdx]
+    pred_xftsex   <- repObj$lDist_lspftx_hat[1:max,sIdx,pIdx,,,(1:nX)]
+    obs_xftsex    <- repObj$len_lspftx[1:max,sIdx,pIdx,,,(1:nX)] 
+    xLab          <- "Length"
+    minProp       <- repObj$minLenProp
   }
+
+  if( sIdx == 2 & comps == "age" )
+    browser()
 
   dimNames  <- dimnames(pred_xftsex)
   compNames <- dimNames[[1]]
@@ -714,10 +721,12 @@ plotCompFitYrs <- function( repObj = repInit,
     }
 
     
+    xTickLocs <- seq(0,max, by = 5)
+    xTickLabs <- c(0,binMids[xTickLocs])
 
 
     # Fix sex colours
-    sexcols <- c("steelblue","salmon")
+    sexcols <- c("steelblue","salmon","grey60")
 
     par(  mfcol = c(nRows,nCols), 
           mar = c(1,1,1,1),
@@ -738,7 +747,10 @@ plotCompFitYrs <- function( repObj = repInit,
       }
 
       plot( x = c(1,max), y = c(0,max(compObsProp_xsex,compPred_xsex,na.rm = T) ),
-            xlab = "", ylab = "", type = "n", las = 1 )
+            xlab = "", ylab = "", type = "n", las = 1,
+            axes = FALSE )
+        axis( side = 1, at = xTickLocs,
+              labels = xTickLabs )
         for( sex in 1:nX)
         {
           rect( xleft = 1:max - .3 + (sex - 1) * .3, xright = 1:max + (sex - 1) * .3,
@@ -784,6 +796,8 @@ plotCompFitAvg <- function( repObj = repInit,
   }
   if( comps == "length" )
   {
+    if( nX == 2 )
+      nX <- 3
     max         <- repObj$L_s[sIdx]  
     pred_xftsex <- repObj$lDist_lspftx_hat[1:max,sIdx,pIdx,,,1:nX]
     obs_xftsex  <- repObj$len_lspftx[1:max,sIdx,pIdx,,,1:nX] 
@@ -803,7 +817,7 @@ plotCompFitAvg <- function( repObj = repInit,
 
   # Make colours vector
   cols    <- brewer.pal( n = nF, "Dark2" )
-  sexcols <- c("steelblue","salmon")
+  sexcols <- c("steelblue","salmon","grey60")
 
   # Make years vector
   years   <- seq(initYear, length = nT+1, by = 1)
@@ -1554,7 +1568,7 @@ plotHeatmapAgeLenResids <- function(  repObj = repInit,
 # from age or length compositions
 plotCompResids <- function( repObj = repInit,
                             sIdx = 1, pIdx = 1,
-                            fIdx = 1, sex = "male",
+                            fIdx = 1, sex = "boys",
                             comps = "age" )
 {
   # First, get residuals
@@ -1617,7 +1631,7 @@ plotCompResids <- function( repObj = repInit,
 # plotMatAge()
 plotMatAge <- function( repObj = repInit,
                         sIdx = 1, pIdx = 1,
-                        sex = "male" )
+                        sex = "boys" )
 {
   # Get probability matrix
   probLenAge_la <- repObj$probLenAge_laspx[,,sIdx,pIdx,sex]
@@ -1668,7 +1682,7 @@ plotWtAge <- function(  repObj = repInit,
                         sIdx = 1, pIdx = 1 )
 {
   # Get probability matrix
-  meanWtAge_ax <- repObj$meanWtAge_aspx[,sIdx,pIdx,]
+  meanWtAge_ax <- repObj$meanWtAge_axsp[,,sIdx,pIdx, drop = FALSE]
 
   # Get max age classes
   A <- repObj$A_s[sIdx]
@@ -1682,7 +1696,7 @@ plotWtAge <- function(  repObj = repInit,
         xlab = "Age",
         ylab = "Weight (kg)", las = 1 )
     for( x in 1:nX)
-      lines(  x = 1:A, y = meanWtAge_ax[1:A,x],
+      lines(  x = 1:A, y = meanWtAge_ax[1:A,x,,],
               col = sexCols[x], lwd = 2 )
 } # END plotWtAge()
 
@@ -1697,7 +1711,7 @@ plotLenAge <- function( repObj = repInit,
   A <- repObj$A_s[sIdx]
 
   nX <- repObj$nX
-  sexCols <- c("steelblue","salmon")
+  sexCols <- c("steelblue","salmon","grey60")
 
   # Open plotting window
   plot( x = c(0,A), y = c(0,max(lenAge_ax,na.rm =T)), type = "n", 

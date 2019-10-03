@@ -271,9 +271,23 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   for( i in 1:length(growthFiles))
     load(growthFilePaths[i])
 
-  # Set growth CV ~ length coefficients
-  sigmaLa_s = rep(hypoObj$sigmaL,nS)
-  sigmaLb_s = rep(0,nS)
+
+  # Growth parameters come from vonBFits
+  L1_s        <- vonBFits$L1_s
+  L2_spx      <- vonBFits$L2_spx
+  A1_s        <- vonBFits$A1_s
+  A2_s        <- vonBFits$A2_s
+  sigA_s      <- vonBFits$sigA_s 
+  sigB_s      <- vonBFits$sigB_s 
+  vonK_spx    <- vonBFits$VonK_spx
+
+  # Calculate L2step_spx
+  L2step_spx <- L2_spx
+
+  for( sIdx in 1:length(L1_s) )
+    L2step_spx[sIdx,,] <- L2_spx[sIdx,,] - L1_s[sIdx] 
+
+
 
   # Make the age-length key - this might be useful,
   # or we can include it so we can integrate a growth
@@ -311,7 +325,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                                 years = fYear:lYear,
                                 xName = "ages",
                                 minSampSize = dataObj$minAgeSampSize )
-  age_aspftx <- age_aspftx[,useSpecies,useStocks,useFleets,,, drop = FALSE]
+  age_aspftx <- age_aspftx[,useSpecies,useStocks,useFleets,,1:2, drop = FALSE]
 
 
   len_lspftx <- makeCompsArray( compList = lenComps,
@@ -399,7 +413,6 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
         if(nObs > 0)
           nqDevs <- nqDevs + nObs
       }
-
 
 
 
@@ -629,50 +642,6 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   # IG Prior on recruitment variance
   sigma2R_mode        <- (hypoObj$IGsigmaRmode)^2
   IGbsigmaR           <- (hypoObj$IGasigmaR + 1) * sigma2R_mode
-
-  # Generate initial L1 and L2 values
-  initL1_s    <- numeric( length = nS )
-  initL2_s    <- numeric( length = nS )
-
-  survNames <- dataObj$survNames_g
-  survNames <- survNames[survNames %in% useFleets]
-
-  calcMeanLenAge <- function( sIdx = 1, ALK = ALFreq_spalftx,
-                              age = A1_s, fleets = survNames )
-  {
-    # Pull length at the given age
-    lenAtAge <- ALK[sIdx,,age[sIdx],,fleets,,,drop = FALSE]
-    lenAtAge <- apply(X = lenAtAge, FUN = sum, MARGIN = c(4))
-    # Calculate number of observations
-    nLenAtAge <- sum(lenAtAge,na.rm = T)
-    # Multiply length bin by freq
-    totLenAtAge <- sum((1:length(lenAtAge)) * lenAtAge )
-    # Calc mean
-    meanLenAge <- sum(totLenAtAge)/nLenAtAge
-
-    if(!is.finite(meanLenAge))
-    {
-      message("Non-finite mean length-at-age.\n")
-      browser()
-    }
-
-    meanLenAge
-  }
-
-  # Pull the fleets used for growth models
-  growthFleets <- dataObj$growthFleets
-
-  initL1_s <- sapply( X = 1:nS, 
-                      FUN = calcMeanLenAge, 
-                      ALK = ALFreq_spalftx, 
-                      age = A1_s[useSpecies],
-                      fleets = growthFleets[growthFleets %in% useFleets] )
-  initL2_s <- sapply( X = 1:nS, 
-                      FUN = calcMeanLenAge, 
-                      ALK = ALFreq_spalftx, 
-                      age = A2_s[useSpecies],
-                      fleets = growthFleets[growthFleets %in% useFleets]  )
-
   # data <- .loadData( ctlList = obj )
 
   # Recruitment correlations
@@ -698,8 +667,6 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
     # that correlates the recruitments 
     # as a function of distance (GMRF style)
   }  
-
-  browser()
 
 
   # Generate the data list
@@ -742,37 +709,26 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 nBaranovIter          = ctrlObj$nBaranovIter,
                 lambdaBaranovStep     = ctrlObj$lambdaBaranovStep,
                 calcFmethod           = ctrlObj$calcFmethod,
-                A1_s                  = A1_s[useSpecies],
-                A2_s                  = A2_s[useSpecies],
+                A1_s                  = A1_s[useSpecIdx],
+                A2_s                  = A2_s[useSpecIdx],
                 calcStockGrowth_sp    = calcStockGrowth,
                 calcStockSelDevs_spf  = calcStockSelDevs_spf,
                 calcStockQDevs_spf    = calcStockQDevs_spf,
                 boundRecDevs          = hypoObj$boundRecDevs,
                 recruitVariance       = hypoObj$recModel,
-                debugMode             = ctrlObj$debugMode,
-                posPenFactor          = dataObj$posPenFactor   )
+                debugMode             = ctrlObj$debugMode  )
 
   # Generate parameter list
   pars <- list( ## Leading biological pars ##
                 lnB0_sp             = log(sumCat_sp),
                 logitSteep          = log((mh - .2)/(1 - mh)),
                 lnM                 = log(mM),
-                lnL2step_s          = log(initL2_s - initL1_s),
-                lnvonK_s            = log(hypoObj$initVonK[useSpecies]),
-                lnL1_s              = log(initL1_s),
-                # Stock specific growth pars
-                deltaL2sp_vec       = rep(0,sum(calcStockGrowth)),
-                lnsigmaL2_s         = rep(log(hypoObj$pmsigmaL2),nS),
-                deltaVonKsp_vec     = rep(0,sum(calcStockGrowth)),
-                lnsigmavonK_s       = rep(log(hypoObj$pmsigmavonK),nS),
-                deltaL2_sx          = array(0,dim = c(nS,nX)),
-                deltaVonK_sx        = array(0,dim = c(nS,nX)),
-                pmsigmavonK         = hypoObj$pmsigmavonK,
-                pmsigmaL2           = hypoObj$pmsigmaL2,
-                IGalphaVonB         = hypoObj$IGalphaVonB,
+                lnL2step_spx        = log(L2step_spx[useSpecIdx,useStockIdx,,drop = FALSE]),
+                lnvonK_spx          = log(vonK_spx[useSpecIdx,useStockIdx,,drop=FALSE]),
+                lnL1_s              = log(L1_s[useSpecIdx]),
                 # process error in growth model
-                lnsigmaLa_s         = log(sigmaLa_s),
-                sigmaLb_s           = sigmaLb_s,
+                lnsigmaLa_s         = log(sigA_s[useSpecIdx]),
+                sigmaLb_s           = sigB_s[useSpecIdx],
                 # L-W conversion
                 LWa_s               = LWa_s,
                 LWb_s               = LWb_s,
@@ -854,12 +810,6 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 pmlnxSel50_sg       = lnxSel50_sg,
                 pmlnxSelStep_sg     = lnxSelStep_sg,
                 cvxSel              = hypoObj$cvxSel,
-                pmlnL2_s            = log(initL2_s),
-                pmlnL1_s            = log(initL1_s),
-                cvL2                = .1,
-                cvL1                = .1,
-                pmlnVonK            = log(.3),
-                cvVonK              = .1,
                 mF                  = hypoObj$mF,
                 sdF                 = hypoObj$sdF )
 
@@ -904,10 +854,6 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   {
     phases$epsSteep_sp        <- -1
     phases$epsM_sp            <- -1
-    phases$deltaL2sp_vec      <- -1
-    phases$deltaVonKsp_vec    <- -1
-    phases$lnsigmaL2_s        <- -1
-    phases$lnsigmavonK_s      <- -1
     phases$lnsigmah_s         <- -1
     phases$lntauq_sg          <- -1
   }
@@ -926,8 +872,6 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   # Turn off sexual dimorphism if nX == 1
   if( nX == 1 )
   {
-    phases$deltaL2_sx       <- -1
-    phases$deltaVonK_sx     <- -1
     phases$epsM_sx          <- -1
   }
   # Turn off recruitment correlation cholesky factor 
@@ -1121,6 +1065,10 @@ TMBphase <- function( data,
     if( phase_cur > 1 ) 
       params_use <- obj$env$parList( opt$par )
 
+
+    mapNames <- names(map_use)
+    parNames <- names(params_use)
+
     # Check names in map correspond to par names
     if( any( ! names(map_use) %in% names(params_use) ) )
     {
@@ -1153,6 +1101,8 @@ TMBphase <- function( data,
 
     if( phase_cur == 1 )
     {
+
+
       checkInitNaN    <- lapply( X = repInit, FUN = .checkNaN )
       checkInitFinite <- lapply( X = repInit, FUN = .checkFinite )
       if(any(unlist(checkInitNaN)) | any(unlist(checkInitFinite)))
