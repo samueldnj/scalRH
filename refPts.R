@@ -58,7 +58,7 @@ calcRefPts <- function( obj )
 .calcRefCurves <- function( obj, nFs = 1000 )
 {
   # First, compute max F (tolerance of 1e-5)
-  maxF <- max( 5*obj$M_sp )
+  maxF <- max( 10*obj$M_sp )
 
   # We're going to need to fill each species' ref curves,
   # so labeling and dimensions are needed
@@ -179,7 +179,7 @@ calcRefPts <- function( obj )
         {
           selAge_aspx[a,s,p,x] <- sum(probLenAge_laspx[,a,s,p,x] * selLen_lsp[,s,p])
         }
-        selAge_aspx[,s,p,x] <- selAge_aspx[,s,p,x] / max(selAge_aspx[,s,p,x],na.rm = T)
+        selAge_aspx[,s,p,x] <- selAge_aspx[,s,p,x] / max(selAge_aspx[,s,p,],na.rm = T)
       }
     }
 

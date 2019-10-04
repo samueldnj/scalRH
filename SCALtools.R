@@ -588,6 +588,14 @@ savePlots <- function(  fitObj = reports,
       dev.off()
 
 
+       # Plot length comp fits (average)
+      png(  file.path(stockPath,"tvqPlot.png"),
+            width = 8.5, height = 11, units = "in", res = 300)
+      plotTVq(  repObj = report,
+                sIdx = sIdx, pIdx = pIdx  )
+      dev.off()
+
+
       # Plot Catch fits by gear
       png(  file.path(stockPath,"plotCatchFit_ft.png"),
             width = 8.5, height = 11, units = "in", res = 300)

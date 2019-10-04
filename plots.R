@@ -659,8 +659,8 @@ plotCompFitYrs <- function( repObj = repInit,
     minProp       <- repObj$minLenProp
   }
 
-  if( sIdx == 2 & comps == "age" )
-    browser()
+  # if( sIdx == 2 & comps == "age" )
+  #   browser()
 
   dimNames  <- dimnames(pred_xftsex)
   compNames <- dimNames[[1]]

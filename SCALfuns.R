@@ -95,6 +95,8 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   if(controlList$ctrl$plots)
     savePlots(  fitObj = reports,
                 saveDir = path  )
+
+  beepr::beep("complete")
   
   # Done
 } # END fitHierSCAL()
@@ -116,8 +118,6 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   # Get model dimensions
   nA_s      <- dataObj$nA_s
   minA_s    <- dataObj$minA_s
-  A1_s      <- dataObj$A1_s
-  A2_s      <- dataObj$A2_s
   nL_s      <- dataObj$nL_s
   minL_s    <- dataObj$minL_s
   fYear     <- dataObj$fYearData
@@ -167,8 +167,6 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
     # Get model dimensions
     nA_s      <- dataObj$nA_s
     minA_s    <- dataObj$minA_s
-    A1_s      <- dataObj$A1_s
-    A2_s      <- dataObj$A2_s
     nL_s      <- dataObj$nL_s
     minL_s    <- dataObj$minL_s
     fYear     <- dataObj$fYearData
@@ -425,7 +423,17 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   # And the same for time-varying catchability
   tvqFleets <- rep(0,nF)
   names(tvqFleets) <- useFleets
-  tvqFleets[ useFleets %in% hypoObj$tvqFleets ] <- 1 
+  tvqFleets[ useFleets %in% names(hypoObj$tq50_vec) ] <- 1 
+
+  # Expand tq50 and tq95 into multiples for stock and species
+  tq50_vec <- c()
+  tq95_vec <- c()
+  # Loop and fill tq50 and tq95
+  for( f in 1:sum(tvqFleets))
+  {
+    tq50_vec <- c(tq50_vec, rep(hypoObj$tq50_vec[f], nS * nP) )
+    tq95_vec <- c(tq95_vec, rep(hypoObj$tq95_vec[f], nS * nP) )
+  }
 
   # And the same for F regularisation
   regFfleets <- rep(0,nF)
@@ -522,7 +530,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
     xSel50_sf <- xSel50_sf[useSpecIdx,useFleetsIdx]
 
     # length at SelStep_sf initial value
-    xSelStep_sf <- matrix(  0.5, 
+    xSelStep_sf <- matrix(  3, 
                             nrow = length(allSpecies),
                             ncol = length(allFleets), 
                             byrow = TRUE )
@@ -532,11 +540,20 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
 
 
     # Selectivity by group
-    xSel50_sg <- matrix(  25, 
+    xSel50_sg <- matrix(  c( 25, 18, 18,
+                             25, 18, 18,
+                             25, 18, 18,
+                             25, 18, 18,
+                             25, 18, 18 ), 
                           nrow = length(allSpecies),
                           ncol = nGroups, 
                           byrow = TRUE )
-    xSelStep_sg <- matrix(  3, 
+
+    xSelStep_sg <- matrix(  c(2, 2, 1,
+                              2, 2, 1,
+                              2, 2, 1,
+                              2, 2, 1,
+                              2, 2, 1 ), 
                             nrow = length(allSpecies),
                             ncol = nGroups, 
                             byrow = TRUE )
@@ -572,11 +589,12 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
 
   }
 
+  # by fleet
   lnxSel50_sf <- array(log(xSel50_sf),dim = c(nS,nF))
   lnxSelStep_sf <- array(log(xSelStep_sf),dim = c(nS,nF))
 
 
-
+  # by fleet group
   lnxSel50_sg <- array(log(xSel50_sg),dim = c(nS,nGroups))
   lnxSelStep_sg <- array(log(xSelStep_sg),dim = c(nS,nGroups))
 
@@ -631,14 +649,19 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   tau2ObsMode <- hypoObj$tau2ObsPriorMode[useFleetsIdx]
   tau2ObsIGb  <- (tau2ObsIGa + 1) * tau2ObsMode
 
-  # Selectivity hierarchical prior SD mode
-  sigma2xSelVarMode   <- (hypoObj$sigmaSelMode_g)^2
-  sigmaxSelIGb_g      <- (hypoObj$sigmaxSelIGa_g + 1) * sigma2xSelVarMode
-
   # Catchability group level SD IG prior
   tau2qMode_g         <- (hypoObj$tauqMode_g)^2
   IGbtauq_g           <- (hypoObj$IGatauq_g + 1) * tau2qMode_g
 
+  # Make shrinkage prior SD for 50% and step sel pars
+  lnsigmaxSel50_sg    <- array(0, dim = c(nS,nGroups))
+  lnsigmaxSelStep_sg    <- array(0, dim = c(nS,nGroups))
+
+  for( s in 1:nS )
+  {
+    lnsigmaxSel50_sg[s,]    <- log(hypoObj$pmsigmaSel_g)
+    lnsigmaxSelStep_sg[s,]  <- log(hypoObj$pmsigmaSel_g)
+  }
   # IG Prior on recruitment variance
   sigma2R_mode        <- (hypoObj$IGsigmaRmode)^2
   IGbsigmaR           <- (hypoObj$IGasigmaR + 1) * sigma2R_mode
@@ -695,12 +718,10 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 idxLikeWt_g           = dataObj$idxLikeWt_g,
                 ageLikeWt_g           = dataObj$ageLikeWt_g,
                 lenLikeWt_g           = dataObj$lenLikeWt_g,
-                growthLikeWt          = dataObj$growthLikeWt,
                 tFirstRecDev_s        = as.integer(tFirstRecDev_s),
                 tLastRecDev_s         = as.integer(tLastRecDev_s),
                 minAgeProp            = dataObj$minAgeProp,
                 minLenProp            = dataObj$minLenProp,
-                minPAAL               = dataObj$minPAAL,
                 matX                  = hypoObj$matX,
                 selX                  = hypoObj$selX,
                 lenComps              = hypoObj$lenCompMethod,
@@ -716,11 +737,13 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 calcStockQDevs_spf    = calcStockQDevs_spf,
                 boundRecDevs          = hypoObj$boundRecDevs,
                 recruitVariance       = hypoObj$recModel,
+                recOption             = hypoObj$recOption,
                 debugMode             = ctrlObj$debugMode  )
 
   # Generate parameter list
   pars <- list( ## Leading biological pars ##
                 lnB0_sp             = log(sumCat_sp),
+                lnRbar_sp           = array(3, dim = c(nS,nP)),
                 logitSteep          = log((mh - .2)/(1 - mh)),
                 lnM                 = log(mM),
                 lnL2step_spx        = log(L2step_spx[useSpecIdx,useStockIdx,,drop = FALSE]),
@@ -738,6 +761,8 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 ## Observation models ##
                 # fleet catchability and obs idx SD
                 lnq_g               = rep(0,max(group_f)),
+                lntq50_vec          = log(tq50_vec),
+                lntq95_vec          = log(tq95_vec),
                 lntauObs_spg        = array(-1,dim = c(nS,nP,nGroups)),
                 # Selectivity top level means and deviations for fleets/stocks
                 lnxSel50_sg         = lnxSel50_sg,
@@ -748,13 +773,13 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 lntauD_f            = rep(log(0.01),nF),
                 ## Multilevel priors ##
                 # Selectivity SDs
-                lnsigmaxSel50_sg    = array(log(hypoObj$cvxSel), dim = c(nS,nGroups)),
-                lnsigmaxSelStep_sg  = array(log(hypoObj$cvxSel), dim = c(nS,nGroups)),
+                lnsigmaxSel50_sg    = lnsigmaxSel50_sg,
+                lnsigmaxSelStep_sg  = lnsigmaxSelStep_sg,
                 pmsigmaSel_g        = hypoObj$pmsigmaSel_g,
                 IGalphaSel          = hypoObj$IGalphaSel,
                 # Catchability deviations and SDs
                 deltaq_sg           = array(0,dim=c(nS,nGroups)),
-                lntauq_g            = rep(log(sdq_g)),
+                lntauq_g            = rep(log(hypoObj$pmtauq_g)),
                 deltaqspf_vec       = rep(0, nStockqDevs),
                 lntauq_sg           = array(log(sdq_g),dim =c(nS,nGroups)),
                 mq_g                = mq_g,
@@ -808,7 +833,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 ## Single-level priors ##
                 # Priors on top level selectivity
                 pmlnxSel50_sg       = lnxSel50_sg,
-                pmlnxSelStep_sg     = lnxSelStep_sg,
+                pmlnxSelStep_sg     = log(3) + lnxSelStep_sg,
                 cvxSel              = hypoObj$cvxSel,
                 mF                  = hypoObj$mF,
                 sdF                 = hypoObj$sdF )
