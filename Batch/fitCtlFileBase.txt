@@ -68,7 +68,7 @@ hypo$pmsigmaSel_g c(.05,.05,.05)
 hypo$IGalphaSel 10
 hypo$initFished c(Dover=0,English=0,Rock=0,Petrale=1,Arrowtooth=0)
 hypo$tvq TRUE
-hypo$tvqFleets c("comm.hist")
+hypo$tvqFleets c("comm.hist","comm.mod")
 hypo$sigmaqdevs .2
 hypo$logitq TRUE
 hypo$tq50_vec c(comm.hist=5)
