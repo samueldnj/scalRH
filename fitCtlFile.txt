@@ -5,7 +5,7 @@ ctrl$modelHypName 'baseModel'
 ctrl$maxFunEval 10000
 ctrl$maxIterations 10000
 ctrl$quiet FALSE
-ctrl$maxPhase 11
+ctrl$maxPhase 4
 ctrl$calcSD FALSE
 ctrl$calcRefPts TRUE
 ctrl$plots TRUE
@@ -32,7 +32,7 @@ data$lYearIdx 2016
 data$lenBinWidth 2
 data$sexStructure "Explicit"
 data$idxFleets c("comm.hist","comm.mod","HSAss","HSSyn","QCSSyn","WCVISyn")
-data$species c('Dover')
+data$species c('Dover','English')
 data$stocks c("HSHG","QCS","WCVI")
 data$idxFiles c("surveyBio.RData","commCPUE.RData")
 data$catchData c(survey="surveyCatch.RData",comm="catch_by_maj.csv")
@@ -74,9 +74,9 @@ hypo$logitq TRUE
 hypo$tq50_vec c(comm.hist=5)
 hypo$tq95_vec c(comm.hist=13)
 hypo$mq_g c(.5,.5,.5)
-hypo$sdq_g c(1,1,1)
+hypo$sdq_g c(2,2,2)
 hypo$pmtauq_g c(5,5,5)
-hypo$IGalphaq 10
+hypo$IGalphaq 1
 hypo$recModel "uncorr"
 hypo$recOption "BH"
 hypo$postFitSR FALSE
@@ -107,8 +107,8 @@ hypo$boundRecDevs 1
 phases$lnq_g 1
 phases$deltaq_sg 1
 phases$deltaqspf_vec 1
-phases$lntauq_g -1
-phases$lntauq_sg -1
+phases$lntauq_g 1
+phases$lntauq_sg 1
 phases$lntauObs_spg 1
 phases$tq50_vec 1
 phases$tq95_vec -1

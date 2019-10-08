@@ -74,8 +74,8 @@ hypo$logitq TRUE
 hypo$tq50_vec c(comm.hist=5)
 hypo$tq95_vec c(comm.hist=13)
 hypo$mq_g c(.5,.5,.5)
-hypo$sdq_g c(.5,.5,.5)
-hypo$pmtauq_g c(5,5,5)
+hypo$sdq_g c(2,2,2)
+hypo$pmtauq_g c(10,2,2)
 hypo$IGalphaq 10
 hypo$recModel "uncorr"
 hypo$recOption "BH"
@@ -128,8 +128,8 @@ phases$epsxSelStepspf_vec 10
 phases$epsM_sp 11
 phases$epsSteep_s 9
 phases$epsSteep_sp 11
-phases$epsxSel50_vec 11
-phases$epsxSelStep_vec 11
+phases$epsxSel50_vec -11
+phases$epsxSelStep_vec -11
 phases$recCorr_vec -5
 phases$lnsigmaR_sp -5
 phases$lnsigmaM_s -7
