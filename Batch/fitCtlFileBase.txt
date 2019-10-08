@@ -116,8 +116,8 @@ phases$epslnq_vec 1
 phases$lnB0_sp 2
 phases$lnRbar_sp 2
 phases$omegaRinit_vec 2
-phases$lnM 3
-phases$logitSteep 3
+phases$lnM -3
+phases$logitSteep -3
 phases$omegaR_vec 4
 phases$lnxSel50_sg 5
 phases$lnxSelStep_sg 6
