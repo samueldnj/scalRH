@@ -164,10 +164,12 @@ save(ageComps, file = "./Data/Proc/ageComps.RData")
 lenComps <- lapply( X = bioData, FUN = makeLenComps )
 save(lenComps, file = "./Data/Proc/lenComps.RData")
 
+
+
 # 6. Maturity at age by stock and species
 matOgives <- lapply( X = bioData, FUN = makeSpecMat )
 save(matOgives, file = "./Data/Proc/matOgives.RData" )
-matAgeLen.df <- makeMatDF(matOgives)
-write.csv(matAgeLen.df, file = "./Data/Proc/matAgeLen.csv")
+# matAgeLen.df <- makeMatDF(matOgives)
+# write.csv(matAgeLen.df, file = "./Data/Proc/matAgeLen.csv")
 
 

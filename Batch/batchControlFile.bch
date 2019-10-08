@@ -6,74 +6,60 @@ parameter value
 #
 scenario$scenario1$ctrl$dataScenarioName '1954_allFleets'
 #
-# Scenario 2 : 1954_allFleets_ageOnly
-#
-scenario$scenario2$ctrl$dataScenarioName '1954_allFleets_ageOnly'
-scenario$scenario2$data$lenLikeWt_g rep(0,3)
-#
-# Scenario 3 : 1954_survIdx
-#
-scenario$scenario3$ctrl$dataScenarioName '1954_survIdx'
-scenario$scenario3$data$idxFleets c("HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
-#
-# Scenario 4 : 1984_allFleets
-#
-scenario$scenario4$ctrl$dataScenarioName '1984_allFleets'
-scenario$scenario4$data$fYearData 1984
-scenario$scenario4$hypo$initFished c(Dover=1,English=1,Rock=1,Petrale=1,Arrowtooth=1)
-#
-# Scenario 5 : 1984_allFleets_ageOnly
-#
-scenario$scenario5$ctrl$dataScenarioName '1984_allFleets_ageOnly'
-scenario$scenario5$data$fYearData 1984
-scenario$scenario5$data$lenLikeWt_g rep(0,3)
-scenario$scenario5$hypo$initFished c(Dover=1,English=1,Rock=1,Petrale=1,Arrowtooth=1)
-#
-# Scenario 6 : 1984_survIdx
-#
-scenario$scenario6$ctrl$dataScenarioName '1984_survIdx'
-scenario$scenario6$data$idxFleets c("HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
-scenario$scenario6$data$fYearData 1984
-scenario$scenario6$hypo$initFished c(Dover=1,English=1,Rock=1,Petrale=1,Arrowtooth=1)
-#
+## Scenario 2 : 1954_allFleets_ageOnly
+##
+#scenario$scenario2$ctrl$dataScenarioName '1954_allFleets_ageOnly'
+#scenario$scenario2$data$lenLikeWt_g rep(0,3)
+##
+## Scenario 3 : 1954_survIdx
+##
+#scenario$scenario3$ctrl$dataScenarioName '1954_survIdx'
+#scenario$scenario3$data$idxFleets c("HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
+##
+## Scenario 4 : 1984_allFleets
+##
+#scenario$scenario4$ctrl$dataScenarioName '1984_allFleets'
+#scenario$scenario4$data$fYearData 1984
+#scenario$scenario4$hypo$initFished c(Dover=1,English=1,Rock=1,Petrale=1,Arrowtooth=1)
+##
+## Scenario 5 : 1984_allFleets_ageOnly
+##
+#scenario$scenario5$ctrl$dataScenarioName '1984_allFleets_ageOnly'
+#scenario$scenario5$data$fYearData 1984
+#scenario$scenario5$data$lenLikeWt_g rep(0,3)
+#scenario$scenario5$hypo$initFished c(Dover=1,English=1,Rock=1,Petrale=1,Arrowtooth=1)
+##
+## Scenario 6 : 1984_survIdx
+##
+#scenario$scenario6$ctrl$dataScenarioName '1984_survIdx'
+#scenario$scenario6$data$idxFleets c("HSAss","HSSyn","WCHGSyn","QCSSyn","WCVISyn")
+#scenario$scenario6$data$fYearData 1984
+#scenario$scenario6$hypo$initFished c(Dover=1,English=1,Rock=1,Petrale=1,Arrowtooth=1)
+##
 # Management Procedures
 #
-# MP 1 : Base
+# MP 1 : firstRec1955
 #
-mp$mp1$ctrl$modelHypName 'baseModel'
+mp$mp1$ctrl$modelHypName 'firstRec1955'
+mp$mp1$hypo$yFirstRecDev c(Dover=1955,English=1955,Rock=1955,Petrale=1955,Arrowtooth=1955)
 #
-# MP 2 : tvSel
+# MP 1 : firstRec1965
 #
-mp$mp2$ctrl$modelHypName 'tvSel'
-mp$mp2$hypo$tvSel TRUE
-mp$mp2$hypo$sigmaSelDevs .05
+mp$mp2$ctrl$modelHypName 'firstRec1965'
+mp$mp2$hypo$yFirstRecDev c(Dover=1965,English=1965,Rock=1965,Petrale=1965,Arrowtooth=1965)
 #
-# MP 3 : lowtauqMode_g
+# MP 1 : firstRec1975
 #
-mp$mp3$ctrl$modelHypName 'lowtauqMode_g'
-mp$mp3$hypo$pmtauq_g c(1,.1,.1)
+mp$mp3$ctrl$modelHypName 'firstRec1975'
+mp$mp3$hypo$yFirstRecDev c(Dover=1975,English=1975,Rock=1975,Petrale=1975,Arrowtooth=1975)
 #
-# MP 4 : hitauqMode_g
+# MP 1 : firstRec1985
 #
-mp$mp4$ctrl$modelHypName 'hitauqMode_g'
-mp$mp4$hypo$pmtauq_g c(10,10,10)
+mp$mp4$ctrl$modelHypName 'firstRec1985'
+mp$mp4$hypo$yFirstRecDev c(Dover=1985,English=1985,Rock=1985,Petrale=1985,Arrowtooth=1985)
 #
-# MP 5 : lowSigmaSelMode_g
+# MP 1 : firstRec1995
 #
-mp$mp5$ctrl$modelHypName 'lowsigmaSelMode_g'
-mp$mp5$hypo$pmsigmaSel_g c(.01,.01,.01)
+mp$mp5$ctrl$modelHypName 'firstRec1995'
+mp$mp5$hypo$yFirstRecDev c(Dover=1995,English=1995,Rock=1995,Petrale=1995,Arrowtooth=1995)
 #
-# MP 6 : hiSigmaSelMode_g
-#
-mp$mp6$ctrl$modelHypName 'hisigmaSelMode_g'
-mp$mp6$hypo$pmsigmaSel_g c(.5,.5,.5)
-#
-# MP 7 : corrRec
-#
-mp$mp7$ctrl$modelHypName 'corrRec'
-mp$mp7$hypo$recModel "corr"
-mp$mp7$hypo$IWnu 25
-mp$mp7$hypo$IWscale "identity"
-#
-#
-# File Ends <not run>.

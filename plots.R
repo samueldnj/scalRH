@@ -684,13 +684,17 @@ plotCompFitYrs <- function( repObj = repInit,
   gearTimes <- vector(mode = "list", length = nF)
   for( fIdx in 1:nF )
   {
-    gearTimes[[fIdx]] <- 1:nT
     for( sex in 1:nX)
       if( any(obs_xftsex[1,fIdx,,sex] >= 0) )
       {
-        obsGears <- union(obsGears,fIdx)
-        gearTimes[[fIdx]] <- intersect(gearTimes[[fIdx]],which(obs_xftsex[1,fIdx,,sex] >= 0) )
+        obsGears <-  union(obsGears,fIdx)
+        obsTimes <-  which(obs_xftsex[1,fIdx,,sex] >= 0)
+        if( is.null(gearTimes[[fIdx]]))
+          gearTimes[[fIdx]] <- obsTimes
+        else gearTimes[[fIdx]] <- union(gearTimes[[fIdx]], obsTimes)
       }
+    if( is.null(gearTimes[[fIdx]]) )
+      gearTimes[[fIdx]] <- 1
   }
 
   obs_xftsex[obs_xftsex < 0] <- 0
@@ -742,7 +746,7 @@ plotCompFitYrs <- function( repObj = repInit,
       for( sex in 1:nX )
       {
         nObs[sex]               <- sum(obs_xftsex[,fIdx,tIdx,sex])
-        compObsProp_xsex[,sex]  <- obs_xftsex[,fIdx,tIdx,sex]/max(1,sum(obs_xftsex[,fIdx,tIdx,sex]))
+        compObsProp_xsex[,sex]  <- obs_xftsex[,fIdx,tIdx,sex]/max(1,nObs[sex])
         compPred_xsex[,sex]     <- pred_xftsex[,fIdx,tIdx,sex]
       }
 
@@ -751,6 +755,7 @@ plotCompFitYrs <- function( repObj = repInit,
             axes = FALSE )
         axis( side = 1, at = xTickLocs,
               labels = xTickLabs )
+        box()
         for( sex in 1:nX)
         {
           rect( xleft = 1:max - .3 + (sex - 1) * .3, xright = 1:max + (sex - 1) * .3,
@@ -783,7 +788,7 @@ plotCompFitAvg <- function( repObj = repInit,
                             initYear = fYear,
                             sIdx = 1, pIdx = 1,
                             sex = "female",
-                            comps = "age" )
+                            comps = "length" )
 {
   nX <- repObj$nX
   if( comps == "age" )
@@ -793,16 +798,20 @@ plotCompFitAvg <- function( repObj = repInit,
     obs_xftsex  <- repObj$age_aspftx[1:max,sIdx,pIdx,,,1:nX]  
     xLab        <- "Age"
     minProp     <- repObj$minAgeProp
+    binMids     <- 1:max
   }
   if( comps == "length" )
   {
     if( nX == 2 )
       nX <- 3
+
+    binMids     <- repObj$lenBinMids_l
     max         <- repObj$L_s[sIdx]  
     pred_xftsex <- repObj$lDist_lspftx_hat[1:max,sIdx,pIdx,,,1:nX]
     obs_xftsex  <- repObj$len_lspftx[1:max,sIdx,pIdx,,,1:nX] 
     xLab        <- "Length"
     minProp     <- repObj$minLenProp
+
   }
 
   dimNames  <- dimnames(pred_xftsex)
@@ -829,14 +838,17 @@ plotCompFitAvg <- function( repObj = repInit,
   gearTimes <- vector(mode = "list", length = nF)
   for( fIdx in 1:nF )
   {
-    gearTimes[[fIdx]] <- 1:nT
     for( sex in 1:nX)
       if( any(obs_xftsex[1,fIdx,,sex] >= 0) )
       {
         obsGears <- union(obsGears,fIdx)
-        gearTimes[[fIdx]] <- intersect(gearTimes[[fIdx]],which(obs_xftsex[1,fIdx,,sex] >= 0) )
+        obsTimes <- which(obs_xftsex[1,fIdx,,sex] >= 0)
+        if( is.null( gearTimes[[fIdx]]))
+          gearTimes[[fIdx]] <- obsTimes
+        else gearTimes[[fIdx]] <- union(gearTimes[[fIdx]],obsTimes)
       }
   }
+
 
   obs_xftsex[obs_xftsex<0] <- 0
 
@@ -848,6 +860,10 @@ plotCompFitAvg <- function( repObj = repInit,
   par(  mfcol = c(length(obsGears),1), 
         mar = c(1,1,1,1),
         oma = c(3,3,3,3) )
+
+  xTickLocs <- seq(0,max, by = 5)
+  xTickLabs <- c(0,binMids[xTickLocs])
+
 
 
   # ok, obsGears are the ones we want to plot,
@@ -869,7 +885,10 @@ plotCompFitAvg <- function( repObj = repInit,
     compPred_xsex     <- apply( X = fleetPred_xtsex, FUN = mean, MARGIN = c(1,4), na.rm = TRUE )
 
     plot( x = c(1,max), y = c(0,max(compObsProp_xsex,compPred_xsex,na.rm = T) ),
-            xlab = "", ylab = "", type = "n", las = 1 )
+            xlab = "", ylab = "", type = "n", las = 1,
+            axes = FALSE )
+      axis( side = 1, at = xTickLocs, labels = xTickLabs)
+      box()
       for( sex in 1:nX)
       {
         rect( xleft = 1:max - .3 + (sex - 1) * .3, xright = 1:max + (sex - 1) * .3,
@@ -1854,6 +1873,7 @@ plotSelLen <- function( repObj = repInit,
 {
   # Get selectivity functions
   sel_lft <- repObj$sel_lfspt[ , , sIdx, pIdx, ]
+  lenBinMids_l <- repObj$lenBinMids_l
 
   gearNames <- dimnames(sel_lft)[[2]]
 
@@ -1863,7 +1883,6 @@ plotSelLen <- function( repObj = repInit,
   nF <- repObj$nF
   L  <- repObj$L_s[sIdx]
   nT <- repObj$nT
-
 
   # Get species/stock/fleet selectivity parameter values
   xSel50_f    <- repObj$xSel50_spf[sIdx,pIdx,]
@@ -1890,10 +1909,10 @@ plotSelLen <- function( repObj = repInit,
 
   for( fIdx in 1:nF )
   {
-    sel_lf[,fIdx] <- 1 / (1 + exp(-log(19) * (1:L - xSel50_f[fIdx])/xSelStep_f[fIdx]))
-    pmSel_lf[,fIdx] <- 1 / (1 + exp(-log(19) * (1:L - pmxSel50_sg[group_f[fIdx]])/pmxSelStep_sg[group_f[fIdx]]))
+    sel_lf[,fIdx] <- 1 / (1 + exp(-log(19) * (lenBinMids_l[1:L] - xSel50_f[fIdx])/xSelStep_f[fIdx]))
+    pmSel_lf[,fIdx] <- 1 / (1 + exp(-log(19) * (lenBinMids_l[1:L] - pmxSel50_sg[group_f[fIdx]])/pmxSelStep_sg[group_f[fIdx]]))
     if(!is.null(sel_lfs))
-      sel_lfs[,fIdx] <- 1 / (1 + exp(-log(19) * (1:L - xSel50_sf[fIdx])/xSelStep_sf[fIdx]))
+      sel_lfs[,fIdx] <- 1 / (1 + exp(-log(19) * (lenBinMids_l[1:L] - xSel50_sf[fIdx])/xSelStep_sf[fIdx]))
   }
 
   par(  mfrow =c(nF,1), 
@@ -1901,7 +1920,7 @@ plotSelLen <- function( repObj = repInit,
         mar = c(0,1,0,1) )
   for( fIdx in 1:nF )
   {
-    plot( x = c(1,L), y = c(0,1), type = "n",
+    plot( x = lenBinMids_l[c(1,L)], y = c(0,1), type = "n",
           axes = FALSE, xlab = "", ylab = "" )
       # plot axes at the bottom and left sides
       mfg <- par("mfg")
@@ -1911,19 +1930,19 @@ plotSelLen <- function( repObj = repInit,
       box()
       # Plot time-varying selectivity for this fleet on this stock
       for( t in 1:nT )
-        lines(  x = 1:L, y = sel_lft[1:L,fIdx,t], col = "grey75",
+        lines(  x = lenBinMids_l, y = sel_lft[,fIdx,t], col = "grey75",
                 lwd = 1 )
       # Plot mean selectivity for this species/fleet
-      lines( x = 1:L, y = sel_lf[1:L,fIdx], col = "salmon", lwd = 2)
-      lines( x = 1:L, y = pmSel_lf[1:L,fIdx], col = "steelblue", lwd = 2, lty = 2 )
+      lines( x = lenBinMids_l[1:L], y = sel_lf[1:L,fIdx], col = "salmon", lwd = 2)
+      lines( x = lenBinMids_l[1:L], y = pmSel_lf[1:L,fIdx], col = "steelblue", lwd = 2, lty = 2 )
       if(!is.null(sel_lfs))
-        lines( x = 1:L, y = sel_lfs[1:L,fIdx], col = "grey50", lwd = 2, lty = 3 )
+        lines( x = lenBinMids_l[1:L], y = sel_lfs[1:L,fIdx], col = "grey50", lwd = 2, lty = 3 )
       mtext( side = 4, text = gearNames[fIdx], line = 2, font = 2)
       if(fIdx == 1)
         legend(x = "bottomright",
-                legend = c("Prior","Stock Estimate","Fleet Estimate"),
+                legend = c("Fleet group prior","Stock Estimate","Species Estimate"),
                 col = c("steelblue","salmon","grey50"),
-                lty = c(1,2,2),
+                lty = c(2,1,3),
                 lwd = c(2,2,2), bty = "n" )
   }
   mtext( side = 1, text= "Length", outer = T, line = 2)

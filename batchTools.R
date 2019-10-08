@@ -9,11 +9,11 @@
 # <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
 
 runComplexBatch <- function(  batchCtlFile = "batchControlFile.bch", 
-                              baseCtlFile = "fitCtlFileBase.txt",
+                              baseCtlFile = "../fitCtlFile.txt",
                               complexCtlFile = "complexCtlFile.cplx",
                               prjFld = ".",
                               batchFld = "Batch",
-                              nCores = 4,
+                              nCores = 5,
                               availMem = 16 )
 {
   .subChar <<- "__"
@@ -26,8 +26,8 @@ runComplexBatch <- function(  batchCtlFile = "batchControlFile.bch",
   cplxCtl <- .createList(cplxCtl)$cplx
 
   # Hardwire mem requirements, linearly growing from
-  # 1 species (5gb) to 5 (10gb):
-  memReqVec <- 15/4 + (1:5) * (10 - 5)/(5 - 1)
+  # 1 species (3gb) to 5 (10gb):
+  memReqVec <- 1 + (1:5) * (7 - 3)/(5 - 1)
 
   # Right now, there is only 1 line per complex
   # so we can just count the rows for the number of jobs
@@ -61,6 +61,8 @@ runComplexBatch <- function(  batchCtlFile = "batchControlFile.bch",
                           complex = cplxPrefix )
               
   names(cplxCtl) <- jobTable$complex
+
+  jobTable$status <- as.character(jobTable$status)
 
   # Now makeBatch to create the batch control files
   makeBatch(  batchCtlFile = batchCtlFile, 

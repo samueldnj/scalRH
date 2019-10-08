@@ -128,12 +128,18 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   years     <- fYear:lYear
   yrChar    <- as.character(years)
 
+
+  commNames_g <- dataObj$commNames_g
+  survNames_g <- dataObj$survNames_g 
+
   # Now load the fleetIDs
   loadStockSpecNameLists()
 
+  collapseSyn  <- dataObj$collapseSyn
+
   # Track used fleets
   allFleets     <- c( names(commFleetYrRange), names(surveyIDs) )
-  useFleets     <- c( dataObj$commNames_g, dataObj$survNames_g)
+  useFleets     <- c( commNames_g, survNames_g)
   useFleetsIdx  <- which( allFleets %in% useFleets )
   nF            <- length(useFleets)
   totF          <- length(allFleets)
@@ -149,34 +155,13 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   useStockIdx  <- which( allStocks %in% useStocks )
   nP           <- length(useStocks)  
 
+
   # Track fleets for which we'll use the index data
   # (this way we can turn off commercial indices)
   idxFleets    <- dataObj$idxFleets
 
   # Load data
   message("Loading data for assessment\n")
-
-  .loadData <- function( ctlList )
-  {
-    # Get data scenario and model hypothesis control lists
-    dataObj <- obj$data
-    hypoObj <- obj$hypo
-    ctrlObj <- obj$ctrl
-    phases  <- obj$phases
-
-    # Get model dimensions
-    nA_s      <- dataObj$nA_s
-    minA_s    <- dataObj$minA_s
-    nL_s      <- dataObj$nL_s
-    minL_s    <- dataObj$minL_s
-    fYear     <- dataObj$fYearData
-    lYear     <- dataObj$lYearData
-    fYearIdx  <- dataObj$fYearIdx
-    lYearIdx  <- dataObj$lYearIdx
-    nT        <- lYear - fYear + 1
-    years     <- fYear:lYear
-    yrChar    <- as.character(years)
-  }
 
   # Load index data
   idxDataFiles <- dataObj$idxFiles
@@ -190,6 +175,8 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                             nP = length(allStocks), years = fYear:lYear,
                             collapseComm = FALSE,
                             scaleComm = dataObj$commCPUEscalar )
+
+
   I_spft <- I_spft[useSpecies,useStocks,useFleets,, drop = FALSE]
 
   # Cut out indices from outside of idxFleets
@@ -314,6 +301,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   load(file.path("./Data/Proc",dataObj$ageData))
   load(file.path("./Data/Proc",dataObj$lenData))
 
+
   # Create compositional arrays
   age_aspftx <- makeCompsArray( compList = ageComps,
                                 plusGroups = nA_s,
@@ -341,6 +329,13 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   maxLenBin_s <- ceiling( nL_s[useSpecies] / dataObj$lenBinWidth )
   minLenBin_s <- ceiling( minL_s[useSpecies] / dataObj$lenBinWidth )
 
+  if( collapseSyn & (!"WCHGSyn" %in% survNames_g) )
+  {
+    # Collapse ages, lengths, ALfreq, indices and catch data
+    # First, ages
+  }
+
+
   nX <- 2
 
   # Combine sexes if not sex structured
@@ -364,16 +359,6 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
     len_lspftx <- len_lspftx[,,,,,2,drop = FALSE]
     nX <- 1
   }
-
-
-  # Need an array of switches for calculating 
-  # stock specific growth parameters
-  calcStockGrowth <- array( 0, dim = c(nS,nP) )
-  for( s in 1:nS )
-    for( p in 1:nP )
-      if( any( ALFreq_spalftx[s,p,,,,,] > 0 )  )
-        calcStockGrowth[s,p] <- 1
-  
 
 
 
@@ -423,13 +408,18 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   # And the same for time-varying catchability
   tvqFleets <- rep(0,nF)
   names(tvqFleets) <- useFleets
-  tvqFleets[ useFleets %in% names(hypoObj$tq50_vec) ] <- 1 
+  tvqFleets[ useFleets %in% hypoObj$tvqFleets ] <- 1 
+
+  # And the catchability learning rate
+  logitqFleets <- rep(0,nF)
+  names(logitqFleets) <- useFleets
+  logitqFleets[ useFleets %in% names(hypoObj$tq50_vec) ] <- 1 
 
   # Expand tq50 and tq95 into multiples for stock and species
   tq50_vec <- c()
   tq95_vec <- c()
   # Loop and fill tq50 and tq95
-  for( f in 1:sum(tvqFleets))
+  for( f in 1:sum(logitqFleets))
   {
     tq50_vec <- c(tq50_vec, rep(hypoObj$tq50_vec[f], nS * nP) )
     tq95_vec <- c(tq95_vec, rep(hypoObj$tq95_vec[f], nS * nP) )
@@ -540,23 +530,27 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
 
 
     # Selectivity by group
-    xSel50_sg <- matrix(  c( 25, 18, 18,
-                             25, 18, 18,
-                             25, 18, 18,
-                             25, 18, 18,
-                             25, 18, 18 ), 
+    xSel50_sg <- matrix(  c( 40, 23, 28,
+                             30, 28, 22,
+                             33, 35, 29,
+                             35, 29, 35,
+                             41, 35, 35 ), 
                           nrow = length(allSpecies),
                           ncol = nGroups, 
                           byrow = TRUE )
 
-    xSelStep_sg <- matrix(  c(2, 2, 1,
-                              2, 2, 1,
-                              2, 2, 1,
-                              2, 2, 1,
-                              2, 2, 1 ), 
+
+    xSelStep_sg <- matrix(  c(6, 6, 6,
+                              5, 4, 4,
+                              5, 5, 5,
+                              4, 5, 7,
+                              7, 15, 15 ), 
                             nrow = length(allSpecies),
                             ncol = nGroups, 
                             byrow = TRUE )
+
+    xSel50_sg   <- xSel50_sg[useSpecIdx,]
+    xSelStep_sg <- xSelStep_sg[useSpecIdx,]
 
   }
 
@@ -714,6 +708,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 calcIndex_spf         = calcIndex_spf,
                 tvSelFleets           = tvSelFleets,
                 tvqFleets             = tvqFleets,
+                logitqFleets          = logitqFleets,
                 regFfleets            = regFfleets,
                 idxLikeWt_g           = dataObj$idxLikeWt_g,
                 ageLikeWt_g           = dataObj$ageLikeWt_g,
@@ -726,13 +721,14 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 selX                  = hypoObj$selX,
                 lenComps              = hypoObj$lenCompMethod,
                 lambdaB0              = dataObj$lambdaB0,
+                lambdaPropF           = dataObj$lambdaPropF,
                 minTimeIdx_spf        = minTimeIdx_spf,
                 nBaranovIter          = ctrlObj$nBaranovIter,
                 lambdaBaranovStep     = ctrlObj$lambdaBaranovStep,
                 calcFmethod           = ctrlObj$calcFmethod,
                 A1_s                  = A1_s[useSpecIdx],
                 A2_s                  = A2_s[useSpecIdx],
-                calcStockGrowth_sp    = calcStockGrowth,
+                postFitSR             = hypoObj$postFitSR,
                 calcStockSelDevs_spf  = calcStockSelDevs_spf,
                 calcStockQDevs_spf    = calcStockQDevs_spf,
                 boundRecDevs          = hypoObj$boundRecDevs,
@@ -743,7 +739,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   # Generate parameter list
   pars <- list( ## Leading biological pars ##
                 lnB0_sp             = log(sumCat_sp),
-                lnRbar_sp           = array(3, dim = c(nS,nP)),
+                lnRbar_sp           = array(10, dim = c(nS,nP)),
                 logitSteep          = log((mh - .2)/(1 - mh)),
                 lnM                 = log(mM),
                 lnL2step_spx        = log(L2step_spx[useSpecIdx,useStockIdx,,drop = FALSE]),
@@ -763,7 +759,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 lnq_g               = rep(0,max(group_f)),
                 lntq50_vec          = log(tq50_vec),
                 lntq95_vec          = log(tq95_vec),
-                lntauObs_spg        = array(-1,dim = c(nS,nP,nGroups)),
+                lntauObs_spg        = array(0,dim = c(nS,nP,nGroups)),
                 # Selectivity top level means and deviations for fleets/stocks
                 lnxSel50_sg         = lnxSel50_sg,
                 lnxSelStep_sg       = lnxSelStep_sg,
@@ -781,7 +777,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 deltaq_sg           = array(0,dim=c(nS,nGroups)),
                 lntauq_g            = rep(log(hypoObj$pmtauq_g)),
                 deltaqspf_vec       = rep(0, nStockqDevs),
-                lntauq_sg           = array(log(sdq_g),dim =c(nS,nGroups)),
+                lntauq_sg           = matrix(log(hypoObj$pmtauq_g),nrow = nS, ncol = nGroups ,byrow = TRUE),
                 mq_g                = mq_g,
                 sdq_g               = sdq_g,
                 pmtauq_g            = hypoObj$pmtauq_g,
@@ -793,11 +789,11 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 pmsigmah            = hypoObj$pmsigmah,
                 IGalphah            = hypoObj$IGalphah,
                 # Mortality
-                lnsigmaM_s          = rep( log(sdM), nS ),
-                lnsigmaM            = log(sdM),
+                lnsigmaM_s          = rep( log(hypoObj$pmsigmaM), nS ),
+                lnsigmaM            = log(hypoObj$pmsigmaM),
                 ln_muM              = log(mM),
                 sdM                 = sdM,
-                pmsigmaM            = sdM,
+                pmsigmaM            = hypoObj$pmsigmaM,
                 IGalphaM            = hypoObj$IGalphaM,
                 # IG Prior on obs error SD
                 pmtauObs_g          = hypoObj$pmtauObs_g,
@@ -833,7 +829,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 ## Single-level priors ##
                 # Priors on top level selectivity
                 pmlnxSel50_sg       = lnxSel50_sg,
-                pmlnxSelStep_sg     = log(3) + lnxSelStep_sg,
+                pmlnxSelStep_sg     = lnxSelStep_sg,
                 cvxSel              = hypoObj$cvxSel,
                 mF                  = hypoObj$mF,
                 sdF                 = hypoObj$sdF )
@@ -863,6 +859,17 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   # generate base map for TMBphase()
   map <- list( )
 
+  # Adjust phase of B0/Rbar based on recOption
+  if( hypoObj$recOption == "BH" )
+    phases$lnRbar_sp  <- -1
+  if( hypoObj$recOption == "avgR" )
+  {
+    phases$lnB0_sp        <- -1
+    phases$logitSteep     <- -1
+    phases$epsSteep_s     <- -1
+    phases$epsSteep_sp    <- -1
+  }
+
   # Turn off tv sel deviations if not being used
   if( !hypoObj$tvSel | nSelDevs == 0 )
   {
@@ -873,6 +880,14 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   # Turn off tvq deviations if not used
   if( !hypoObj$tvq | nqDevs == 0 )
     phases$epslnq_vec       <- -1
+
+  # Turn off tvq deviations if not used
+  if( !hypoObj$logitq )
+  {
+    phases$tq50_vec       <- -1
+    phases$tq95_vec       <- -1
+    data$logitqFleets     <- rep(0, nF)
+  }
 
   # Turn off stock specific devs if nP == 1
   if( nP == 1)

@@ -23,7 +23,7 @@ cplx$cplx5 'Arrowtooth'
 #
 # Cplx 6: DERPA
 #
-cplx$cplx6 c("Dover","English","Rock","Petrale","Arrowtooth")
+#cplx$cplx6 c("Dover","English","Rock","Petrale","Arrowtooth")
 #
 ## Cplx 7: DERP
 ##

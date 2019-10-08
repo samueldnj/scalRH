@@ -2610,6 +2610,10 @@ makeCompsArray <- function( compList = ageComps,
     specComps   <- compList[[specID]]
     obsMaxBin   <- dim(specComps)[4]
 
+    specComps[is.na(specComps)] <- 0
+
+
+
 
     for( sexIdx in 1:3)
     {
@@ -2625,7 +2629,7 @@ makeCompsArray <- function( compList = ageComps,
           for( tIdx in 1:nT)
           {
             yearLab <- as.character(years[tIdx])
-            sumComps <- sum(specComps[stockID,fleetID,yearLab,1:obsMaxBin,sexID ],na.rm = T)
+            sumComps <- sum(specComps[stockID,fleetID,yearLab,1:obsMaxBin, sexID ],na.rm = T)
             if(sumComps <= minSampSize )
               comps_bspftx[ , specID, stockID ,fleetID, yearLab, sexID ] <- -1
             else {
@@ -2945,7 +2949,8 @@ makeAgeComps <- function( data = bioData$Dover,
                           stocksComm = stocksCommBio,
                           stocksSurv = stocksSurvey,
                           survIDs = surveyIDs,
-                          years = 1954:2018  )
+                          years = 1954:2018,
+                          minCommTrips = 3  )
 {
   # Pull survey and commercial data
   survData <- data$survey %>%
@@ -2953,6 +2958,25 @@ makeAgeComps <- function( data = bioData$Dover,
                                       FUN = appendName,
                                       survIDs) )
   commData <- data$comm
+
+  commTrips <-  commData %>%
+                filter( !is.na(AGE) ) %>%
+                group_by(stockName,YEAR,SAMPLE_ID) %>%
+                summarise(  nObs = n() ) %>%
+                summarise(  nAges = sum(nObs),
+                            nSamples = n() ) %>%
+                ungroup() 
+
+
+  # save number of trips information
+  speciesCode <- unique(survData$SPECIES)
+  specName    <- names(specCodes)[specCodes == speciesCode]
+  fileName    <- paste("numberCommTripsAge",specName,".csv",sep = "_")
+  write.csv( commTrips, file = file.path("./Data/Proc",fileName))
+
+  commTrips <-  commTrips %>%
+                filter( nSamples >= minCommTrips ) 
+
 
   # We want to make an array to hold age comps,
   # so we need the largest observed age
@@ -3572,7 +3596,8 @@ makeLenComps <- function( data = bioData$Dover,
                           stocksSurv = stocksSurvey,
                           survIDs = surveyIDs,
                           years = 1954:2018,
-                          binWidth = 2 )
+                          binWidth = 2,
+                          minCommTrips = 3 )
 {
   # Pull survey and commercial data
   survData <- data$survey %>%
@@ -3588,10 +3613,19 @@ makeLenComps <- function( data = bioData$Dover,
 
   commTrips <-  commData %>%
                 group_by(stockName,YEAR,SAMPLE_ID) %>%
-                summarise(nSamples = n()) %>%
-                summarise(nSamples = n()) %>%
-                ungroup() %>%
-                filter( nSamples >= 4 ) 
+                summarise(nObs = n()) %>%
+                summarise(  nLengths = sum(nObs),
+                            nSamples = n()) %>%
+                ungroup() 
+
+  # save number of trips information
+  speciesCode <- unique(survData$SPECIES)
+  specName    <- names(specCodes)[specCodes == speciesCode]
+  fileName    <- paste("numberCommTripsLen",specName,".csv",sep = "_")
+  write.csv( commTrips, file = file.path("./Data/Proc",fileName))
+
+  commTrips <-  commTrips %>%
+                filter( nSamples >= minCommTrips ) 
 
 
 
@@ -3615,7 +3649,7 @@ makeLenComps <- function( data = bioData$Dover,
   nStocks <- length(stocksSurv)
 
   # initialise array
-  compFreq <- array(NA, dim = c(nStocks,nGears,nYears,nBins,3),
+  compFreq <- array(0, dim = c(nStocks,nGears,nYears,nBins,3),
                         dimnames = list(  stock = stockNames,
                                           fleets = gearNames,
                                           years = as.character(years),
@@ -3652,6 +3686,14 @@ makeLenComps <- function( data = bioData$Dover,
                                     labels = binMids )
 
 
+        # Restrict to hist/mod years
+        obsYrs <- unique(gearData$year)
+        if( gearID == "comm.hist")
+          obsYrs <- obsYrs[ obsYrs %in% 1954:1995 ]
+        if( gearID == "comm.mod")
+          obsYrs <- obsYrs[ obsYrs %in% 1996:2018 ]
+
+        gearData <- filter(gearData, year %in% obsYrs)
 
         # Summarise all data
         unsexedData <-  gearData %>%
@@ -3672,18 +3714,15 @@ makeLenComps <- function( data = bioData$Dover,
                     summarise(  nObs = n()  ) %>%
                     ungroup()
 
-        # Pull those years with observations
-        obsYrs <- unique(gearData$year)
+        
 
-        # 
-        if( gearID == "comm.hist")
-          obsYrs <- obsYrs[ obsYrs %in% 1954:1995 ]
-        if( gearID == "comm.mod")
-          obsYrs <- obsYrs[ obsYrs %in% 1996:2018 ]
 
         # Loop over years with observations
         for( yr in obsYrs )
         {
+          # if( yr ==  1977 )
+          #   browser()
+
           yrChar <- as.character(yr)
           # Subset to that year's data
           yrData.unsexed <- unsexedData %>% filter( year == yr )
@@ -4010,8 +4049,8 @@ makeMatDF <- function( matOgives )
     matAgeLen.df[sIdx,"Species"] <- specNames[sIdx]
 
     # Now fill in from cwList
-    matAge <- matOgives[[sIdx]]$coastWide$all$age
-    matLen <- matOgives[[sIdx]]$coastWide$all$length
+    matAge <- matOgives[[sIdx]]$coastWide$girls$age
+    matLen <- matOgives[[sIdx]]$coastWide$girls$length
 
     # Now lets fill the table
     matAgeLen.df[sIdx,c("a50","a95")] <- c(matAge$x50,matAge$x95)

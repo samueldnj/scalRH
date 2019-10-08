@@ -11,7 +11,7 @@
 rm(list = ls())
 
 library( dplyr )
-library( ggmap )
+# library( ggmap )
 library( maptools )
 library( rgdal )
 library( PBSmapping ) 
@@ -41,16 +41,16 @@ source("DERPAfuns.R")
 fYear <- 1954
 lYear <- 2018
 
-# Read in management areas shape file
-readShapeSpatial("./Data/ShapeFiles/MajorMinorSQL_geo.shp")
-mgmtAreas <- readOGR(dsn = "./Data/ShapeFiles/", layer = "MajorMinorSQL_geo")
-proj4string(mgmtAreas)
-mgmtAreas <- spTransform (mgmtAreas, CRS("+proj=longlat +datum=WGS84"))
+# # Read in management areas shape file
+# readShapeSpatial("./Data/ShapeFiles/MajorMinorSQL_geo.shp")
+# mgmtAreas <- readOGR(dsn = "./Data/ShapeFiles/", layer = "MajorMinorSQL_geo")
+# proj4string(mgmtAreas)
+# mgmtAreas <- spTransform (mgmtAreas, CRS("+proj=longlat +datum=WGS84"))
 
-# Read in strata areas
-stratData <- read.csv( "Data/derpa_strata.csv", header=T )
-stratData <-  stratData %>%
-              dplyr::select( GROUPING_CODE, AREA_KM2 )
+# # Read in strata areas
+# stratData <- read.csv( "Data/derpa_strata.csv", header=T )
+# stratData <-  stratData %>%
+#               dplyr::select( GROUPING_CODE, AREA_KM2 )
 # Survey ids for plotting/legends
 loadStockSpecNameLists()
 
@@ -58,40 +58,40 @@ loadStockSpecNameLists()
 # Plots that we want to make - and may not
 # need to reinvent the code for...
 # 1. Indices
-load("./Data/surveyBio.RData")
-load("./Data/commCPUE.RData")
+load("./Data/Proc/surveyBio.RData")
+load("./Data/Proc/commCPUE.RData")
 
 # Plot stock indices
-plotIndices(save = TRUE)
+# plotIndices(save = TRUE)
 
 # Create a version that has the catch bars in it - maybe scale
 # catch by geometric mean also
 
 # 2. Length at age plots - stock and sex - spit out age-length freq array
-load("./Data/lenAge.RData")
-plotLenAge(save = TRUE)
+# load("./Data/Proc/lenAge.RData")
+# plotLenAge(save = TRUE)
 
 # 3. Length/wt plots - stock and sex
-load("./Data/wtLen.RData")
+load("./Data/Proc/wtLen.RData")
 plotWtLen(save = TRUE)
 
 # 4. Catch and discards - Species and area
-catchData <- read.csv(  "./Data/catch_by_maj.csv", header = TRUE,
+catchData <- read.csv(  "./Data/Proc/catch_by_maj.csv", header = TRUE,
                         stringsAsFactors = FALSE )
 plotCatch(save = TRUE)
 
 # 5a. Age compositions by fleet, stock, and species - spit out comp data array
-load("./Data/ageComps.RData")
+load("./Data/Proc/ageComps.RData")
 plotComps(  comps = ageComps, save = TRUE,
             prefix = "age", saveDir = "Outputs/ageComps" )
 
 # 5b. length compositions by fleet, stock, and species - spit out comp data array
-load("./Data/lenComps.RData")
+load("./Data/Proc/lenComps.RData")
 plotComps(  comps = lenComps, save = TRUE,
             prefix = "len", saveDir = "Outputs/lenComps" )
 
 # 7. Maturity at age and length by stock and species
-load("./Data/matOgives.RData" )
+load("./Data/Proc/matOgives.RData" )
 plotMatOgives( type = "age", save = TRUE )
 plotMatOgives( type = "length", save = TRUE )
 

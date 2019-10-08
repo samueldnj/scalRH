@@ -182,29 +182,32 @@ array<Type> calcPopesApprox(  array<Type> N_axsp,     // Numbers at age/spec/pop
     {
       for( int fIdx = 0; fIdx < nF; fIdx++ )
       {
-        // Pull biomass at age, convert to proportions
-        pvB_axspf.col(fIdx).col(pIdx).col(sIdx) /= vB_spf(sIdx,pIdx,fIdx);
+        for( int xIdx = 0; xIdx < nX; xIdx++)
+        {
+          // Pull biomass at age, convert to proportions
+          pvB_axspf.col(fIdx).col(pIdx).col(sIdx).col(xIdx) /= vB_spf(sIdx,pIdx,fIdx);
 
-        // Calculate numbers to remove by converting catch to weight
-        Cw_axspf.col(fIdx).col(pIdx).col(sIdx) = C_spf(sIdx, pIdx, fIdx) * pvB_axspf.col(fIdx).col(pIdx).col(sIdx);
-        for( int x = 0; x < nX; x++)
-          C_axspf.col(fIdx).col(pIdx).col(sIdx) = Cw_axspf.col(fIdx).col(pIdx).col(sIdx) / wt_aspx.col(x).col(pIdx).col(sIdx);
+          // Calculate numbers to remove by converting catch to weight
+          Cw_axspf.col(fIdx).col(pIdx).col(sIdx).col(xIdx)  = C_spf(sIdx, pIdx, fIdx) * pvB_axspf.col(fIdx).col(pIdx).col(sIdx).col(xIdx);
+          C_axspf.col(fIdx).col(pIdx).col(sIdx).col(xIdx)   = Cw_axspf.col(fIdx).col(pIdx).col(sIdx).col(xIdx) / wt_aspx.col(xIdx).col(pIdx).col(sIdx);
 
-        // Now add the catch at age in numbers to the removed fish
-        remN_axsp.col(pIdx).col(sIdx) += C_axspf.col(fIdx).col(pIdx).col(sIdx);
+          // Now add the catch at age in numbers to the removed fish
+          remN_axsp.col(pIdx).col(sIdx).col(xIdx) += C_axspf.col(fIdx).col(pIdx).col(sIdx).col(xIdx);
+        } // END x loop
 
-      }
+      } // END f loop
+
       for( int xIdx = 0; xIdx < nX; xIdx++ )
+      {
+        // Apply half M
         newN_axsp.col(pIdx).col(sIdx).col(xIdx) = N_axsp.col(pIdx).col(sIdx).col(xIdx) * exp(-M_spx(sIdx,pIdx,xIdx)/2);
-
-      // Remove the catch
-      newN_axsp -= remN_axsp;
-      
-      // Apply remaining mortality
-      for( int xIdx = 0; xIdx < nX; xIdx++ )
+        // Remove the catch
+        newN_axsp.col(pIdx).col(sIdx).col(xIdx) -= remN_axsp.col(pIdx).col(sIdx).col(xIdx);
+        // Apply remaining mortality
         newN_axsp.col(pIdx).col(sIdx).col(xIdx) *= exp(-M_spx(sIdx,pIdx,xIdx)/2);
-    }
-  }
+      } // END x loop
+    } // END p loop
+  } // END s loop
 
   Z_aspx = log(N_axsp / newN_axsp);
 
@@ -702,6 +705,7 @@ Type objective_function<Type>::operator() ()
   DATA_ARRAY(calcIndex_spf);            // Switches to calculate indices
   DATA_IVECTOR(tvSelFleets);            // Switch for fleet to have time varying selectivity (0 = off, 1 = on)
   DATA_IVECTOR(tvqFleets);              // Switch for fleet to have time varying catchability (0 = off, 1 = on)
+  DATA_IVECTOR(logitqFleets);           // Switch for fleet to have time logistic increase in catchability (0 = off, 1 = on)
   DATA_IVECTOR(regFfleets);             // Switch for each fleet to have Fs regularised (Fbar penalised)
   DATA_VECTOR(idxLikeWt_g);             // Scalar modifying the weight of the age likelihood by fleet group
   DATA_VECTOR(ageLikeWt_g);             // Scalar modifying the weight of the age likelihood by fleet group
@@ -714,11 +718,12 @@ Type objective_function<Type>::operator() ()
   DATA_STRING(selX);                    // Age/Len switch for selectivity model
   DATA_STRING(lenComps);                // Switch for computation of expected length comps
   DATA_SCALAR(lambdaB0);                // lambda scalar for exponential prior on B0
+  DATA_SCALAR(lambdaPropF);             // lambda scalar for prior on propF
   DATA_ARRAY(minTimeIdx_spf);           // array of earliest times for each index
   DATA_INTEGER(nBaranovIter);           // number of baranov steps
   DATA_SCALAR(lambdaBaranovStep);       // fractional step size for Newton-Rhapson Baranov iteration
   DATA_STRING(calcFmethod);             // Indicator for F calculation method ("popesApprox" or "solveBaranov")
-  DATA_ARRAY(calcStockGrowth_sp);       // Switch for calculating stock-specific growth parameters
+  DATA_INTEGER(postFitSR);              // Switch for post-fitting SR model (0 == NO, 1 == YES)
   DATA_ARRAY(calcStockSelDevs_spf);     // Switch for calculating stock-specific selectivity parameters
   DATA_ARRAY(calcStockQDevs_spf);       // Switch for calculating stock-specific catchability parameters
   DATA_INTEGER(boundRecDevs);           // Switch for bounding recruitment deviations between +/- 5 sds
@@ -751,7 +756,7 @@ Type objective_function<Type>::operator() ()
   // survey //
   PARAMETER_VECTOR(lnq_g);              // fleet-group specific mean catchability
   PARAMETER_VECTOR(lntq50_vec);         // fleet specific time at 50% catchability (improving fishing)
-  PARAMETER_VECTOR(lntq95_vec);         // fleet specific time at 50% catchability (improving fishing)
+  PARAMETER_VECTOR(lntq95_vec);         // fleet specific time at 95% catchability (improving fishing)
   PARAMETER_ARRAY(lntauObs_spg);        // fleet-species-stock specific observation error variance
   // Fishery model
   // selectivity by fleet/species /
@@ -1048,7 +1053,9 @@ Type objective_function<Type>::operator() ()
   sigmaLa_s = exp(lnsigmaLa_s);
 
   // Fill arrays that hold stock-specific parameters
-  B0_sp      = exp(lnB0_sp);
+  if( recOption == "BH")
+    B0_sp      = exp(lnB0_sp);
+
   Rbar_sp    = exp(lnRbar_sp);
   sigmaR_sp  = exp(lnsigmaR_sp);
 
@@ -1083,7 +1090,7 @@ Type objective_function<Type>::operator() ()
   propQ_spft.fill(1);
   int vIdx =0;
   for( int f = 0; f < nF; f++ )
-    if( tvqFleets(f) == 1 )
+    if( logitqFleets(f) == 1 )
     {
       for( int s = 0; s < nS; s++ )
         for( int p = 0; p < nP; p++ )
@@ -1094,7 +1101,7 @@ Type objective_function<Type>::operator() ()
           Type tqStep = tq95_spf(s,p,f) - tq50_spf(s,p,f);
           vIdx ++;
           for( int t = 0; t < nT; t++ )
-            propQ_spft(s,p,f,t) = 1 / (1 + exp( -1 * log(19) * (t + 1 - tq50_spf(s,p,f) )/tqStep) );
+            propQ_spft(s,p,f,t) = .2 + .8 / (1 + exp( -1 * log(19) * (t + 1 - tq50_spf(s,p,f) )/tqStep) );
         }
       
       
@@ -1138,10 +1145,11 @@ Type objective_function<Type>::operator() ()
 
         xSel50_spft(s,p,f,0)      = xSel50_spf(s,p,f);
         xSelStep_spft(s,p,f,0)    = xSelStep_spf(s,p,f);
+        // initialise tv q
+        q_spft(s,p,f,0)           = q_spf(s,p,f);
+
         for( int t = 0; t < nT; t++ )
         { 
-          // Apply learning rate for catchability
-          q_spft(s,p,f,t)         = q_spf(s,p,f) * propQ_spft(s,p,f,t);
 
           // Bring previous time-step selecivity pars
           // forward
@@ -1149,7 +1157,7 @@ Type objective_function<Type>::operator() ()
           {
             xSel50_spft(s,p,f,t)    = xSel50_spft(s,p,f,t-1);
             xSelStep_spft(s,p,f,t)  = xSelStep_spft(s,p,f,t-1);
-            
+            q_spft(s,p,f,t)         = q_spft(s,p,f,t-1);  
           }
           // Update the epsilon array          
           // Check if ages or lengths are observed this time step
@@ -1166,18 +1174,33 @@ Type objective_function<Type>::operator() ()
                 break;
               }
             }
+
+            // do the same for time varying q
+            if( tvqFleets(f) == 1 )
+              if( I_spft(s,p,f,t) > 0 & t > minTimeIdx_spf(s,p,f) )
+              {
+                epslnq_spft(s,p,f,t) += epslnq_vec(epslnqVecIdx);
+                epslnqVecIdx++;
+              }
+
             // Now update xSel50 and xSelStep - can happen
             // at first time step, since we're using the gear specific
             // selectivity curve when we don't have age observations
             // for a stock within a fleet/species
             xSel50_spft(s,p,f,t)    *= exp(epsxSel50_spft(s,p,f,t));
             xSelStep_spft(s,p,f,t)  *= exp(epsxSelStep_spft(s,p,f,t));
-          }
+
+            // Now update q
+            q_spft(s,p,f,t)         *= exp(epslnq_spft(s,p,f,t));
+          } // END tvSelFleet condition
    
-        }
-      }
-    }
-  }
+        } // END t loop
+      } // END s loop
+    } // END p loop
+  } // END f loop
+
+  // Add learning rate for catchability
+  q_spft *= propQ_spft;
 
   // Compute xSel95 for the time-varying arrays
   xSel95_spft = xSel50_spft + xSelStep_spft;
@@ -1369,8 +1392,8 @@ Type objective_function<Type>::operator() ()
           {
             sel_lfspt.col(t).col(p).col(s).col(f).fill(1.);
             sel_lfspt.col(t).col(p).col(s).col(f) /= ( 1 + exp( - log(Type(19.)) * ( lenBinMids_l - xSel50_spft(s,p,f,t) ) / xSelStep_spft(s,p,f,t)  ) );
-            // reduce selectivity below min L to 0
-            sel_lfspt.col(t).col(p).col(s).col(f).segment(0,minL_s(s)).fill(0);
+            // // reduce selectivity below min L to 0
+            sel_lfspt.col(t).col(p).col(s).col(f).segment(0,minL_s(s)-1).fill(0);
             // convert selectivity-at-length to selectivity-at-age using probability matrix
             for( int x = 0; x < nX; x++)
             {
@@ -1382,7 +1405,7 @@ Type objective_function<Type>::operator() ()
                 sel_afsptx(a,f,s,p,t,x) = (probLenAgea_l*sel_lfspt.col(t).col(p).col(s).col(f)).sum();
               }
               // Reduce selectivity below minA to 0
-              sel_afsptx.col(x).col(t).col(p).col(s).col(f).segment(0,minA_s(s)).fill(0);
+              sel_afsptx.col(x).col(t).col(p).col(s).col(f).segment(0,minA_s(s)-1).fill(0);
             } 
           }
           if( selX == "age" )
@@ -1391,7 +1414,7 @@ Type objective_function<Type>::operator() ()
             {
               sel_afsptx.col(x).col(t).col(p).col(s).col(f) = 1/( 1 + exp( - log(Type(19.)) * ( age - xSel50_spft(s,p,f,t) ) / xSelStep_spft(s,p,f,t)  ) );
               // Reduce selectivity below minA to 0
-              sel_afsptx.col(x).col(t).col(p).col(s).col(f).segment(0,minA_s(s)).fill(0);
+              sel_afsptx.col(x).col(t).col(p).col(s).col(f).segment(0,minA_s(s)-1).fill(0);
             }
           }
 
@@ -1427,7 +1450,13 @@ Type objective_function<Type>::operator() ()
     for( int s = 0; s < nS; s++)
       phi_sp(s,p) = SSBpr_asp.col(p).col(s).sum();
 
+  // Calculate B0 from Rbar
+  if( recOption == "avgR")
+    B0_sp = Rbar_sp * phi_sp;
+
   R0_sp   = B0_sp / phi_sp;
+
+
   reca_sp = 4.*h_sp*R0_sp / ( B0_sp*(1.-h_sp) );
   recb_sp = (5.*h_sp-1.) / ( B0_sp*(1.-h_sp) );
 
@@ -1499,8 +1528,6 @@ Type objective_function<Type>::operator() ()
             if(swRinit_s(s) == 1)
               N_axspt.col(t).col(p).col(s).col(x) *= exp( sigmaR_sp(s,p) * omegaRinit_asp.col(p).col(s) );
 
-            bhR_spt(s,p,t) += N_axspt(0,x,s,p,t);
-
           }
 
 
@@ -1532,7 +1559,7 @@ Type objective_function<Type>::operator() ()
                 if( a > 0 )     
                   N_axspt(a,x,s,p,t) = N_axspt( a-1, x, s, p, t-1) *  exp( - Z_aspxt(a,s,p,x,t-1) );
                 if( a == A - 1) 
-                  N_axspt(a,x,s,p,t) += N_axspt(a, x, s, p, t-1) *  exp( - Z_aspxt(a,s,p,x,t-1) );
+                  N_axspt(a,x,s,p,t) += N_axspt(A-1, x, s, p, t-1) *  exp( - Z_aspxt(A-1,s,p,x,t-1) );
               }
 
               
@@ -1656,7 +1683,8 @@ Type objective_function<Type>::operator() ()
           if( C_spft(s,p,f,t) > 0 )
           {
             for( int x = 0; x < nX; x++ )
-              C_axspft.col(t).col(f).col(p).col(s).col(x)  = Cw_axspft.col(t).col(f).col(p).col(s).col(x) / meanWtAge_aspx.col(x).col(p).col(s);  
+              for( int a = 0; a < A_s(s); a++)
+                C_axspft(a,x,s,p,f,t)  = Cw_axspft(a,x,s,p,f,t) / meanWtAge_aspx(a,s,p,x);  
 
             predCw_spft(s,p,f,t) += Cw_axspft.col(t).col(f).col(p).col(s).sum();
             predC_spft(s,p,f,t)  += C_axspft.col(t).col(f).col(p).col(s).sum();
@@ -1781,7 +1809,7 @@ Type objective_function<Type>::operator() ()
   array<Type> SRnlp_sp(nS,nP);
   SRnlp_sp.setZero();
 
-  if( recOption == "avgR")
+  if( (recOption == "avgR") & (postFitSR == 1) )
   {
     for( int s = 0; s < nS; s++ )
       for( int p = 0; p < nP; p++ )
@@ -1912,7 +1940,7 @@ Type objective_function<Type>::operator() ()
           }
 
           // Compute proportion female
-          if( nX == 2 )
+          if( nX == 2 & lambdaPropF > 0 )
           {
             for( int l = minL_s(s) - 1; l < L; l++ )
             {
@@ -1935,12 +1963,12 @@ Type objective_function<Type>::operator() ()
               }
 
             }
-            if( nObsPropF_spf(s,p,f) > 0)
+            if( nObsPropF_spf(s,p,f) > 0 )
             {
               tau2PropF_spf(s,p,f) = resPropF_spf(s,p,f) / nObsPropF_spf(s,p,f);
               propFnll_spf(s,p,f) = 0.5*nObsPropF_spf(s,p,f)*log(tau2PropF_spf(s,p,f));
             }
-          }
+          } // END propF likelihood calc
 
           for( int x = 0; x < nX; x++)
           {
@@ -2050,7 +2078,6 @@ Type objective_function<Type>::operator() ()
   for( int s = 0; s < nS; s++ )
     for( int p = 0; p < nP; p++ )
     {
-      totCatch_sp(s,p) = C_spft.rotate(2).col(p).col(s).sum();
       for( int f = 0; f < nF; f++ )
       {
         if( regFfleets(f) > 0)
@@ -2062,6 +2089,11 @@ Type objective_function<Type>::operator() ()
           // Penalize deviations of F from exploitation rate.
           // Fnlp -= dnorm(Fvec, Uvec, sdF, true).sum();
           Fnlp -= dnorm(log(Fbar_spf(s,p,f)), log(mF), sdF, true);
+          // for( int t = 0; t < nT; t++)
+          // {
+          //   Type tmpF = F_spft(s,p,f,t);
+          //   Fnlp += CppAD::CondExpGe( tmpF, Type(1), Type(1e1), 0 );
+          // }
         }
         
       }
@@ -2080,7 +2112,7 @@ Type objective_function<Type>::operator() ()
   // Mortality
   vector<Type>  Mnlp_s(nS);
   array<Type>   Mnlp_sp(nS,nP);
-  array<Type>   Mnlp_spx(nS,nP,nX);
+  array<Type>   Mnlp_sx(nS,nX);
   Type Mnlp = 0.;
 
     
@@ -2089,7 +2121,7 @@ Type objective_function<Type>::operator() ()
   steepnessnlp_sp.setZero();
   Mnlp_s.setZero();
   Mnlp_sp.setZero();
-  Mnlp_spx.setZero();
+  Mnlp_sx.setZero();
   Type sel_nlp = 0.;
 
   // Biological parameters
@@ -2101,12 +2133,13 @@ Type objective_function<Type>::operator() ()
 
     for( int p = 0; p < nP; p ++)
     {
-
-
       // Steepness
       steepnessnlp_sp(s,p)  -= dnorm( epsSteep_sp(s,p), Type(0), Type(1), true);
       Mnlp_sp(s,p)          -= dnorm( epsM_sp(s,p), Type(0), Type(1), true);
     }
+
+    for( int x = 0; x < nX; x++ )
+      Mnlp_sx(s,x) -= dnorm(epsM_sx(s,x), Type(0), Type(1), true);
 
   }
 
@@ -2170,14 +2203,15 @@ Type objective_function<Type>::operator() ()
   f += sel_nlp;
   f += Fnlp;
   f += tauObsnlp_g.sum();
+  f += lambdaPropF * propFnll_spf.sum();
   // Recruitment errors
   f += recnlp;      // recruitment process errors
   // q groups
   f += qnlp_stock + qnlp_gps + qnlp_tv;
   // Biological parameters
   f += steepnessnlp_s.sum() + steepnessnlp_sp.sum() + steepnessnlp;
-  f += Mnlp_s.sum() + Mnlp_sp.sum() + Mnlp;
-  f += propFnll_spf.sum();
+  f += Mnlp_s.sum() + Mnlp_sp.sum() + Mnlp_sx.sum() + Mnlp;
+  f += lambdaB0 * lnB0_sp.sum();
   f += SRnlp_sp.sum();
 
   joint_nlp += f;
@@ -2300,6 +2334,11 @@ Type objective_function<Type>::operator() ()
   REPORT( epsM_s );
   REPORT( epsSteep_sp );
   REPORT( epsSteep_s );
+  REPORT( sigmaM_s );
+  REPORT( sigmaM );
+  REPORT( sigmah );
+  REPORT( sigmah_s );
+  REPORT( sigmalnq );
 
 
   // Likelihood values
@@ -2307,6 +2346,8 @@ Type objective_function<Type>::operator() ()
   REPORT( ageRes_aspftx );
   REPORT( SRnlp_sp );
   REPORT( tau2Age_spf );
+  REPORT( tau2PropF_spf );
+  REPORT( propFnll_spf );
   REPORT( lenRes_lspftx );
   REPORT( tau2Len_spf );
   REPORT( recCorrMat_sp );
@@ -2336,6 +2377,7 @@ Type objective_function<Type>::operator() ()
     REPORT( steepnessnlp );
     REPORT( Mnlp_sp );
     REPORT( Mnlp_s );
+    REPORT( Mnlp_sx );
     REPORT( Mnlp );
     REPORT( qnlp_tv );
     REPORT( qnlp_gps );
@@ -2356,6 +2398,7 @@ Type objective_function<Type>::operator() ()
   REPORT( calcIndex_spf );
   REPORT( tvSelFleets );
   REPORT( tvqFleets );
+  REPORT( logitqFleets );
   REPORT( regFfleets );
 
   // Predicted observations
