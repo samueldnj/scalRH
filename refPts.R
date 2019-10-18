@@ -19,7 +19,7 @@
 calcRefPts <- function( obj )
 {
   # Calculate selectivity
-  obj <- .calcSel_spx(obj, fleetIdx = 2)
+  obj <- .calcSel_xsp(obj, fleetIdx = 2)
 
   # Calculate R0_sp
   # To get things moving, let's fix
@@ -58,15 +58,16 @@ calcRefPts <- function( obj )
 .calcRefCurves <- function( obj, nFs = 1000 )
 {
   # First, compute max F (tolerance of 1e-5)
-  maxF <- max( 10*obj$M_sp )
+  maxF <- max( 10*obj$M_xsp )
 
   # We're going to need to fill each species' ref curves,
   # so labeling and dimensions are needed
   nS          <- obj$nS
   nP          <- obj$nP
-  specNames   <- dimnames(obj$M_spx)[[1]]
-  stockNames  <- dimnames(obj$M_spx)[[2]]
-  sexNames    <- dimnames(obj$M_spx)[[3]]
+  sexNames    <- dimnames(obj$M_xsp)[[1]]
+  specNames   <- dimnames(obj$M_xsp)[[2]]
+  stockNames  <- dimnames(obj$M_xsp)[[3]]
+  
 
 
   f <- seq( from = 0.0, to = maxF, length = nFs )
@@ -142,7 +143,7 @@ calcRefPts <- function( obj )
 }
 
 
-.calcSel_spx <- function( obj, fleetIdx = 2)
+.calcSel_xsp <- function( obj, fleetIdx = 2)
 {
   # Model dimensions
   nS    <- obj$nS
@@ -165,7 +166,7 @@ calcRefPts <- function( obj )
   # Harcode for comm.mod for now,
   # and length based selectivity
   selLen_lsp  <- array(NA, dim = c(nL,nS,nP) )
-  selAge_aspx <- array(NA, dim = c(nA,nS,nP,nX) )
+  selAge_axsp <- array(NA, dim = c(nA,nX,nS,nP) )
 
   # Loop over species and stocks, calculate
   # selLen so we can get selAge
@@ -177,14 +178,14 @@ calcRefPts <- function( obj )
       {
         for( a in 1:nA )
         {
-          selAge_aspx[a,s,p,x] <- sum(probLenAge_laspx[,a,s,p,x] * selLen_lsp[,s,p])
+          selAge_axsp[a,x,s,p] <- sum(probLenAge_laspx[,a,s,p,x] * selLen_lsp[,s,p])
         }
-        selAge_aspx[,s,p,x] <- selAge_aspx[,s,p,x] / max(selAge_aspx[,s,p,],na.rm = T)
+        selAge_axsp[,x,s,p] <- selAge_axsp[,x,s,p] / max(selAge_axsp[,,s,p],na.rm = T)
       }
     }
 
   obj$selLen_lsp <- selLen_lsp
-  obj$selAge_aspx <- selAge_aspx
+  obj$selAge_axsp <- selAge_axsp
 
   obj
 }
@@ -208,59 +209,59 @@ calcRefPts <- function( obj )
   nA    <- obj$nA
   nL    <- obj$nL
   nX    <- obj$nX
-  M_spx <- obj$M_spx
+  M_xsp <- obj$M_xsp
 
   # Life history schedules
   matAge_asp        <- obj$matAge_asp
-  lenAge_aspx       <- obj$lenAge_aspx
-  wtAge_aspx        <- obj$meanWtAge_aspx
+  lenAge_axsp       <- aperm(obj$lenAge_aspx,c(1,4,2,3))
+  wtAge_axsp        <- aperm(obj$meanWtAge_aspx,c(1,4,2,3))
   probLenAge_laspx  <- obj$probLenAge_laspx
-  selAge_aspx       <- obj$selAge_aspx
+  selAge_axsp       <- obj$selAge_axsp
 
   # Double matAge for easy copying later
-  matAge_aspx       <- array(NA, dim = c(nA,nS,nP,nX))
+  matAge_axsp       <- array(NA, dim = c(nA,nX,nS,nP))
   for( x in 1:nX)
-    matAge_aspx[,,,x] <- matAge_asp
+    matAge_axsp[,x,,] <- matAge_asp
 
   # Compute Z_asp
-  Z_aspx    <- array( NA, dim = c(nA,nS,nP,nX))
-  Surv_aspx <- array( NA, dim = c(nA,nS,nP,nX))
-  Surv_aspx[1,,,] <- 1/nX
+  Z_axsp    <- array( NA, dim = c(nA,nX,nS,nP))
+  Surv_axsp <- array( NA, dim = c(nA,nX,nS,nP))
+  Surv_axsp[1,,,] <- 1/nX
   for( x in 1:nX )
     for( s in 1:nS )
       for( p in 1:nP )
       {
-        Z_aspx[1:A_s[s],s,p,x] <- M_spx[s,p,x]
+        Z_axsp[1:A_s[s],x,s,p] <- M_xsp[x,s,p]
         for( a in 1:A_s[s])
         {
-          Z_aspx[a,s,p,x] <- Z_aspx[a,s,p,x] + selAge_aspx[a,s,p,x] * f
+          Z_axsp[a,x,s,p] <- Z_axsp[a,x,s,p] + selAge_axsp[a,x,s,p] * f
           if( a > 1 )
-            Surv_aspx[a,s,p,x] <- Surv_aspx[a-1,s,p,x] * exp( -Z_aspx[a-1,s,p,x])
+            Surv_axsp[a,x,s,p] <- Surv_axsp[a-1,x,s,p] * exp( -Z_axsp[a-1,x,s,p])
           if( a == A_s[s])
-            Surv_aspx[a,s,p,x] <- Surv_aspx[a,s,p,x] / (1 - exp(-Z_aspx[a,s,p,x]))
+            Surv_axsp[a,x,s,p] <- Surv_axsp[a,x,s,p] / (1 - exp(-Z_axsp[a,x,s,p]))
         }
       }
 
   # Calculate yield-per-recruit
-  C_aspx <- array(0, dim = dim(Surv_aspx))
+  C_axsp <- array(0, dim = dim(Surv_axsp))
   for( x in 1:nX)
-    C_aspx[,,,x]    <- Surv_aspx[,,,x,drop = FALSE] * wtAge_aspx[,,,x,drop = FALSE] * 
-                          selAge_aspx[,,,x,drop = FALSE] * f * 
-                          (1 - exp(-Z_aspx[,,,x,drop = FALSE]))/Z_aspx[,,,x,drop = FALSE]
+    C_axsp[,x,,]    <- Surv_axsp[,x,,,drop = FALSE] * wtAge_axsp[,x,,,drop = FALSE] * 
+                          selAge_axsp[,x,,,drop = FALSE] * f * 
+                          (1 - exp(-Z_axsp[,x,,,drop = FALSE]))/Z_axsp[,x,,,drop = FALSE]
   # Replace NAs with 0 (unmodeled ages)
-  Z_aspx[is.na(Z_aspx)] <- 0
-  Surv_aspx[is.na(Surv_aspx)] <- 0
-  C_aspx[is.na(C_aspx)] <- 0
+  Z_axsp[is.na(Z_axsp)] <- 0
+  Surv_axsp[is.na(Surv_axsp)] <- 0
+  C_axsp[is.na(C_axsp)] <- 0
   
   # Compute YPR
-  ypr_sp    <- apply( X = C_aspx, FUN = sum, MARGIN = c(2,3),na.rm = T)
+  ypr_sp    <- apply( X = C_axsp, FUN = sum, MARGIN = c(3,4),na.rm = T)
 
   # spawning biomass per recruit
-  ssbpr_asp  <- Surv_aspx[,,,nX,drop = FALSE] * wtAge_aspx[,,,nX,drop = FALSE] * matAge_aspx[,,,nX,drop = FALSE]
+  ssbpr_asp  <- Surv_axsp[,nX,,] * wtAge_axsp[,nX,,] * matAge_axsp[,nX,,]
   ssbpr_sp   <- apply( X = ssbpr_asp, FUN = sum, MARGIN = c(2,3), na.rm = T )
 
-  expbpr_asp  <- Surv_aspx[,,,,drop = FALSE] * selAge_aspx[,,,,drop = FALSE]
-  expbpr_sp   <- apply( X = expbpr_asp, FUN = sum, MARGIN = c(2,3), na.rm = T )  
+  expbpr_asp  <- Surv_axsp * selAge_axsp * wtAge_axsp
+  expbpr_sp   <- apply( X = expbpr_asp, FUN = sum, MARGIN = c(3,4), na.rm = T )  
 
   # compile output list
   yprList <- list(  ssbpr_sp  = ssbpr_sp,

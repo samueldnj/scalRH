@@ -154,7 +154,6 @@ rerunPlots <- function( fitID = 1 )
 renameReportArrays <- function( repObj = repInit, datObj = data )
 {
   # Just go down the list, but first do the objects with the same names
-
   repNames <- names(repObj)
   datNames <- names(datObj)
 
@@ -206,7 +205,7 @@ renameReportArrays <- function( repObj = repInit, datObj = data )
   dimnames(repObj$C_axspft)         <- dimnames(datObj$age_aspftx)[c(1,6,2:5)]
   dimnames(repObj$Cw_axspft)        <- dimnames(datObj$age_aspftx)[c(1,6,2:5)]
   dimnames(repObj$F_spft)           <- dimnames(datObj$age_aspftx)[c(2:5)]
-  dimnames(repObj$Z_aspxt)          <- dimnames(datObj$age_aspftx)[c(1:3,6,5)]
+  dimnames(repObj$Z_axspt)          <- dimnames(datObj$age_aspftx)[c(1,6,2,3,5)]
   # Biological parameters
   dimnames(repObj$R0_sp)          <- dimnames(datObj$age_aspftx)[c(2:3)]
   dimnames(repObj$B0_sp)          <- dimnames(datObj$age_aspftx)[c(2:3)]
@@ -220,17 +219,6 @@ renameReportArrays <- function( repObj = repInit, datObj = data )
   dimnames(repObj$recCorrMat_sp)  <- list(  specStock = specStock,
                                             specStock = specStock )
 
-  dimnames(repObj$L1_spx)         <- list(  species = specNames,
-                                            stock = stockNames,
-                                            sex = sexNames )
-
-  dimnames(repObj$L2_spx)         <- list(  species = specNames,
-                                            stock = stockNames,
-                                            sex = sexNames )
-
-  dimnames(repObj$vonK_spx)       <- list(  species = specNames,
-                                            stock = stockNames,
-                                            sex = sexNames )
 
   # Observation models
   dimnames(repObj$q_spf)        <- dimnames(datObj$age_aspftx)[c(2:4)]  
@@ -252,12 +240,12 @@ renameReportArrays <- function( repObj = repInit, datObj = data )
                                           species = specNames,
                                           stock = stockNames,
                                           year = yearNames )
-  dimnames(repObj$sel_afsptx)     <- list( age = ageNames, 
-                                          fleet = gearNames,
-                                          species = specNames,
-                                          stock = stockNames,
-                                          year = yearNames,
-                                          sex = sexNames )
+  dimnames(repObj$sel_axspft)     <- list(  age = ageNames, 
+                                            sex = sexNames,
+                                            species = specNames,
+                                            stock = stockNames,
+                                            fleet = gearNames,
+                                            year = yearNames )
 
 
   dimnames(repObj$ageRes_aspftx)   <- list(  age = ageNames, 
@@ -315,9 +303,9 @@ renameReportArrays <- function( repObj = repInit, datObj = data )
   dimnames(repObj$vonK_spx) <- list(  species = specNames,
                                       stock = stockNames,
                                       sex = sexNames )
-  dimnames(repObj$M_spx)    <- list(  species = specNames,
-                                      stock = stockNames,
-                                      sex = sexNames )
+  dimnames(repObj$M_xsp)    <- list(  sex = sexNames,
+                                      species = specNames,
+                                      stock = stockNames )
 
 
 

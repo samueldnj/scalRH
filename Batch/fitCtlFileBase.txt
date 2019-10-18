@@ -87,8 +87,8 @@ hypo$regFPhases c(1:12)
 hypo$mF .1
 hypo$sdF .001
 hypo$mM 0.15
-hypo$sdM 0.005
-hypo$pmsigmaM 0.02
+hypo$sdM 0.001
+hypo$pmsigmaM 0.05
 hypo$IGalphaM 10
 hypo$yFirstRecDev c(Dover=1984,English=1984,Rock=1984,Petrale=1984,Arrowtooth=1984)
 hypo$yLastRecDev c(Dover=2011,English=2013,Rock=2013,Petrale=2013,Arrowtooth=2013)

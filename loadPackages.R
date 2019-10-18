@@ -35,7 +35,8 @@ for( pkg in cranPackages )
     install.packages( pkg, repos = "https://mirror.its.sfu.ca/mirror/CRAN/" )
 
 
-githubPackages <- c(ggsidekick = "seananderson/ggsidekick")
+githubPackages <- c(ggsidekick = "seananderson/ggsidekick",
+                    csasdown = "pbs-assess/csasdown" )
 
 for( pkgIdx in 1:length(githubPackages) )
   while(!require(names(githubPackages)[pkgIdx], character.only = TRUE))

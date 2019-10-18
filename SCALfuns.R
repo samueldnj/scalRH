@@ -160,6 +160,20 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   # (this way we can turn off commercial indices)
   idxFleets    <- dataObj$idxFleets
 
+  if( collapseSyn )
+  {
+    notSynSurv  <- survNames_g[!grepl("Syn",survNames_g)]
+    notSynAll   <- allFleets[!grepl("Syn",survNames_g)] 
+
+    newSurvNames  <- c(notSynSurv,"Syn")
+    useFleets     <- c(commNames_g, newSurvNames)
+    allFleets     <- c(notSynAll,"Syn")
+
+    useFleetIdx   <- which( allFleets %in% useFleets )
+    nF            <- length(useFleets)
+    totF          <- length(allFleets)
+  }
+
   # Load data
   message("Loading data for assessment\n")
 
@@ -176,6 +190,27 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                             collapseComm = FALSE,
                             scaleComm = dataObj$commCPUEscalar )
 
+  if( collapseSyn )
+  {
+    # collapseSyn assumes that the synoptic 
+    # surveys are just HS, QCS and WCVI, from
+    # N to S, and that Synoptic surveys are 
+    # at the end of the fleetidx
+    newI_spft <- I_spft
+
+    whichSyn  <- which(grepl("Syn",dimnames(I_spft)[[3]]))
+    notSyn    <- which(!grepl("Syn",dimnames(I_spft)[[3]]))
+
+    notSynNames <- dimnames(I_spft)[[3]][notSyn]
+
+    newI_spft <- I_spft[,,c(notSynNames,"HSSyn"),]
+    dimnames(newI_spft)[[3]] <- c(notSynNames,"Syn")
+
+    newI_spft[,"QCS","Syn",] <- I_spft[,"QCS","QCSSyn",]
+    newI_spft[,"WCVI","Syn",] <- I_spft[,"WCVI","WCVISyn",]
+
+    I_spft <- newI_spft
+  }
 
   I_spft <- I_spft[useSpecies,useStocks,useFleets,, drop = FALSE]
 
@@ -207,9 +242,9 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                                           speciesCodes = specCodes,
                                           years = fYear:lYear,
                                           modernYear = 1996,
-                                          nF = nF, 
+                                          nF = length(c(commNames_g,survNames_g)), 
                                           collapseComm = FALSE,
-                                          fleetIDs = useFleets )
+                                          fleetIDs = c(commNames_g,survNames_g) )
   # Extract catch and discards
   C_spft <- catchDiscArrays$C_spft[useSpecies,useStocks,,, drop = FALSE]
   D_spft <- catchDiscArrays$D_spft[useSpecies,useStocks,,, drop = FALSE]
@@ -217,11 +252,52 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   if( !dataObj$modelDisc )
     C_spft <- C_spft + D_spft
 
+  if( collapseSyn )
+  {
+    # collapseSyn assumes that the synoptic 
+    # surveys are just HS, QCS and WCVI, from
+    # N to S, and that Synoptic surveys are 
+    # at the end of the fleetidx
+    newC_spft <- C_spft
+
+    whichSyn  <- which(grepl("Syn",dimnames(C_spft)[[3]]))
+    notSyn    <- which(!grepl("Syn",dimnames(C_spft)[[3]]))
+
+    notSynNames <- dimnames(C_spft)[[3]][notSyn]
+
+    newC_spft <- C_spft[,,c(notSynNames,"HSSyn"),]
+    dimnames(newC_spft)[[3]] <- c(notSynNames,"Syn")
+
+    newC_spft[,"QCS","Syn",] <- C_spft[,"QCS","QCSSyn",]
+    newC_spft[,"WCVI","Syn",] <- C_spft[,"WCVI","WCVISyn",]
+
+    C_spft <- newC_spft
+
+    newD_spft <- D_spft
+
+    whichSyn  <- which(grepl("Syn",dimnames(D_spft)[[3]]))
+    notSyn    <- which(!grepl("Syn",dimnames(D_spft)[[3]]))
+
+    notSynNames <- dimnames(C_spft)[[3]][notSyn]
+
+    newD_spft <- D_spft[,,c(notSynNames,"HSSyn"),]
+    dimnames(newD_spft)[[3]] <- c(notSynNames,"Syn")
+
+    newD_spft[,"QCS","Syn",] <- D_spft[,"QCS","QCSSyn",]
+    newD_spft[,"WCVI","Syn",] <- D_spft[,"WCVI","WCVISyn",]
+
+    D_spft <- newD_spft
+  }
+
+
+
   # Sum catch for initial B0 estimate
   sumCat_sp <- apply( X = C_spft, FUN = sum, MARGIN = c(1,2) )
 
+
   # Create an array of mean "effort" in a stock
   # area by fleet and time
+
   E_spft  <- C_spft / I_spft
   E_spft[E_spft < 0] <- NA
   E_pft   <- apply( X = E_spft, FUN = mean, MARGIN = c(2,3,4),
@@ -280,8 +356,30 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   # Aggregate ages into plus groups later.
   ALFreq_spalftx <- makeALFreq( ALFreqList = ALfreq,
                                 years = years,
-                                gears = useFleets,
+                                gears = c(commNames_g,survNames_g),
                                 maxA = max(nA_s), maxL = max(nL_s) )
+
+  if( collapseSyn )
+  {
+    # collapseSyn assumes that the synoptic 
+    # surveys are just HS, QCS and WCVI, from
+    # N to S, and that Synoptic surveys are 
+    # at the end of the fleetidx
+    newALFreq_spalftx <- ALFreq_spalftx
+
+    whichSyn  <- which(grepl("Syn",dimnames(ALFreq_spalftx)[[5]]))
+    notSyn    <- which(!grepl("Syn",dimnames(ALFreq_spalftx)[[5]]))
+
+    notSynNames <- dimnames(newALFreq_spalftx)[[5]][notSyn]
+
+    newALFreq_spalftx <- ALFreq_spalftx[,,,,c(notSynNames,"HSSyn"),,]
+    dimnames(newALFreq_spalftx)[[5]] <- c(notSynNames,"Syn")
+    
+    newALFreq_spalftx[,"QCS",,,"Syn",,] <- ALFreq_spalftx[,"QCS",,,"QCSSyn",,]
+    newALFreq_spalftx[,"WCVI",,,"Syn",,] <- ALFreq_spalftx[,"WCVI",,,"WCVISyn",,]
+
+    ALFreq_spalftx <- newALFreq_spalftx
+  }
 
   # Pare down to specific fleets for growth
   # CAAL data - Lee et al 2019+ (shared privately)
@@ -307,11 +405,10 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                                 plusGroups = nA_s,
                                 minX = minA_s,
                                 collapseComm = FALSE,
-                                fleetIDs = useFleets,
+                                fleetIDs = c(commNames_g,survNames_g),
                                 years = fYear:lYear,
                                 xName = "ages",
                                 minSampSize = dataObj$minAgeSampSize )
-  age_aspftx <- age_aspftx[,useSpecies,useStocks,useFleets,,1:2, drop = FALSE]
 
 
   len_lspftx <- makeCompsArray( compList = lenComps,
@@ -319,21 +416,54 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                                 minX = minL_s,
                                 binWidth = dataObj$lenBinWidth,
                                 collapseComm = FALSE,
-                                fleetIDs = useFleets,
+                                fleetIDs = c(commNames_g,survNames_g),
                                 years = fYear:lYear,
                                 xName = "length",
                                 minSampSize = dataObj$minLenSampSize )
+
+  if( collapseSyn )
+  {
+    # collapseSyn assumes that the synoptic 
+    # surveys are just HS, QCS and WCVI, from
+    # N to S, and that Synoptic surveys are 
+    # at the end of the fleetidx
+    newage_aspftx <- age_aspftx
+
+    whichSyn  <- which(grepl("Syn",dimnames(age_aspftx)[[4]]))
+    notSyn    <- which(!grepl("Syn",dimnames(age_aspftx)[[4]]))
+
+    notSynNames <- dimnames(newage_aspftx)[[4]][notSyn]
+
+    newage_aspftx <- age_aspftx[,,,c(notSynNames,"HSSyn"),,]
+    dimnames(newage_aspftx)[[4]] <- c(notSynNames,"Syn")
+    
+    newage_aspftx[,,"QCS","Syn",,] <- age_aspftx[,,"QCS","QCSSyn",,]
+    newage_aspftx[,,"WCVI","Syn",,] <- age_aspftx[,,"WCVI","WCVISyn",,]
+
+    age_aspftx <- newage_aspftx
+
+    newlen_lspftx <- len_lspftx
+
+    whichSyn  <- which(grepl("Syn",dimnames(len_lspftx)[[4]]))
+    notSyn    <- which(!grepl("Syn",dimnames(len_lspftx)[[4]]))
+
+    notSynNames <- dimnames(newlen_lspftx)[[4]][notSyn]
+
+    newlen_lspftx <- len_lspftx[,,,c(notSynNames,"HSSyn"),,]
+    dimnames(newlen_lspftx)[[4]] <- c(notSynNames,"Syn")
+    
+    newlen_lspftx[,,"QCS","Syn",,] <- len_lspftx[,,"QCS","QCSSyn",,]
+    newlen_lspftx[,,"WCVI","Syn",,] <- len_lspftx[,,"WCVI","WCVISyn",,]
+
+    len_lspftx <- newlen_lspftx
+  }
+
+  age_aspftx <- age_aspftx[,useSpecies,useStocks,useFleets,,1:2, drop = FALSE]
   len_lspftx <- len_lspftx[,useSpecies,useStocks,useFleets,,, drop = FALSE]
   
   lenBinMids  <- as.numeric(dimnames(len_lspftx)[[1]])
   maxLenBin_s <- ceiling( nL_s[useSpecies] / dataObj$lenBinWidth )
   minLenBin_s <- ceiling( minL_s[useSpecies] / dataObj$lenBinWidth )
-
-  if( collapseSyn & (!"WCHGSyn" %in% survNames_g) )
-  {
-    # Collapse ages, lengths, ALfreq, indices and catch data
-    # First, ages
-  }
 
 
   nX <- 2
@@ -630,8 +760,8 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   # Prior mean values for hierarchical parameters
   # steepness, catchability, and mortality
   hBetaPrior  <- hypoObj$hBetaPrior
-  mq_g        <- hypoObj$mq_g
-  sdq_g       <- hypoObj$sdq_g
+  mq_f        <- hypoObj$mq_f
+  sdq_f       <- hypoObj$sdq_f
   mM          <- hypoObj$mM
   sdM         <- hypoObj$sdM
 
@@ -644,8 +774,8 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   tau2ObsIGb  <- (tau2ObsIGa + 1) * tau2ObsMode
 
   # Catchability group level SD IG prior
-  tau2qMode_g         <- (hypoObj$tauqMode_g)^2
-  IGbtauq_g           <- (hypoObj$IGatauq_g + 1) * tau2qMode_g
+  tau2qMode_f         <- (hypoObj$tauqMode_f)^2
+  IGbtauq_f           <- (hypoObj$IGatauq_f + 1) * tau2qMode_f
 
   # Make shrinkage prior SD for 50% and step sel pars
   lnsigmaxSel50_sg    <- array(0, dim = c(nS,nGroups))
@@ -756,7 +886,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 xMat95_s            = xMat95,
                 ## Observation models ##
                 # fleet catchability and obs idx SD
-                lnq_g               = rep(0,max(group_f)),
+                lnq_sf              = array(0,dim = c(nS,nF)),
                 lntq50_vec          = log(tq50_vec),
                 lntq95_vec          = log(tq95_vec),
                 lntauObs_spg        = array(0,dim = c(nS,nP,nGroups)),
@@ -774,13 +904,13 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 pmsigmaSel_g        = hypoObj$pmsigmaSel_g,
                 IGalphaSel          = hypoObj$IGalphaSel,
                 # Catchability deviations and SDs
-                deltaq_sg           = array(0,dim=c(nS,nGroups)),
-                lntauq_g            = rep(log(hypoObj$pmtauq_g)),
+                # deltaq_sf           = array(0,dim=c(nS,nF)),
+                # lntauq_f            = rep(log(hypoObj$pmtauq_f)),
                 deltaqspf_vec       = rep(0, nStockqDevs),
-                lntauq_sg           = matrix(log(hypoObj$pmtauq_g),nrow = nS, ncol = nGroups ,byrow = TRUE),
-                mq_g                = mq_g,
-                sdq_g               = sdq_g,
-                pmtauq_g            = hypoObj$pmtauq_g,
+                lntauq_sf           = matrix(log(hypoObj$pmtauq_f),nrow = nS, ncol = nF ,byrow = TRUE),
+                mq_f                = hypoObj$mq_f,
+                sdq_f               = hypoObj$sdq_f,
+                pmtauq_f            = hypoObj$pmtauq_f,
                 IGalphaq            = hypoObj$IGalphaq,
                 # Steepness
                 hBetaPrior          = hypoObj$hBetaPrior,
@@ -895,7 +1025,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
     phases$epsSteep_sp        <- -1
     phases$epsM_sp            <- -1
     phases$lnsigmah_s         <- -1
-    phases$lntauq_sg          <- -1
+    phases$lntauq_sf          <- -1
   }
 
   # Turn off species specific devs if nS == 1
@@ -903,10 +1033,10 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   {
     phases$epsSteep_s       <- -1
     phases$epsM_s           <- -1
-    phases$deltaq_sg        <- -1     
-    phases$lnxSel50_sg      <- -1
-    phases$lnxSelStep_sg    <- -1
-    phases$lntauq_g         <- -1
+    phases$deltaq_sf        <- -1     
+    phases$lnxSel50_sf      <- -1
+    phases$lnxSelStep_sf    <- -1
+    phases$lntauq_f         <- -1
 
   }
   # Turn off sexual dimorphism if nX == 1

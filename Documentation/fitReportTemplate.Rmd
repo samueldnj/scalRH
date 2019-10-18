@@ -272,7 +272,7 @@ FmsyRefPts <- repObj$refPts$FmsyRefPts
 B0_sp       <- round(repObj$B0_sp,2)
 R0_sp       <- round(repObj$R0_sp,2)
 h_sp        <- round(repObj$h_sp,2)
-M_spx       <- round(repObj$M_spx,2)
+M_xsp       <- round(repObj$M_xsp,2)
 Bmsy_sp     <- round(FmsyRefPts$BeqFmsy_sp,2)
 Fmsy_sp     <- round(FmsyRefPts$Fmsy_sp,2)
 Umsy_sp     <- round(FmsyRefPts$Umsy_sp,2)
@@ -308,8 +308,8 @@ for( s in 1:nS )
     refPtsTab[rowIdx,"Stock"]     <- stock[p]
     refPtsTab[rowIdx,"B0"]        <- B0_sp[s,p]
     refPtsTab[rowIdx,"R0"]        <- R0_sp[s,p]
-    refPtsTab[rowIdx,"M_m"]       <- M_spx[s,p,1]
-    refPtsTab[rowIdx,"M_f"]       <- M_spx[s,p,2]
+    refPtsTab[rowIdx,"M_m"]       <- M_xsp[1,s,p]
+    refPtsTab[rowIdx,"M_f"]       <- M_xsp[2,s,p]
     refPtsTab[rowIdx,"h"]         <- h_sp[s,p]
     refPtsTab[rowIdx,"Bmsy"]      <- Bmsy_sp[s,p]
     refPtsTab[rowIdx,"Fmsy"]      <- Fmsy_sp[s,p]

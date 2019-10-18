@@ -425,15 +425,14 @@ plotSelLen_spf <- function( repObj = repOpt,
 plotSelAge_spf <- function( repObj = repOpt,
                             sIdx = 1, pIdx = 1:3 )
 {
-  
   # get estimates of selectivity
-  sel_afsp    <- repObj$sel_afsptx[,,sIdx,pIdx,1,2,drop = FALSE]
+  sel_aspf    <- repObj$sel_axspft[,2,sIdx,pIdx,,1,drop = FALSE]
   A_s         <- repObj$A_s[sIdx]
 
-  C_spft     <- repObj$C_spft
+  C_spft     <- repObj$C_spft[sIdx,pIdx,,,drop = FALSE]
   posCat_spf <- apply(X = C_spft, FUN = sum, MARGIN = c(1,2,3))
   posCat_spf[posCat_spf > 0] <- 1
-  dimnames(posCat_spf) <- dimnames(sel_afsp)[c(3,4,2)]
+  dimnames(posCat_spf) <- dimnames(sel_aspf)[3:5]
 
   names(A_s) <- dimnames(posCat_spf)[[1]][sIdx]
 
@@ -446,7 +445,7 @@ plotSelAge_spf <- function( repObj = repOpt,
   posCat.df <- melt(posCat_spf) %>%
                 rename( indicator = value )
 
-  meltSel <- melt(sel_afsp ) %>%
+  meltSel <- melt(sel_aspf ) %>%
               rename( selectivity = value ) %>%
               left_join( posCat.df, by = c("species","stock","fleet")) %>%
               filter( indicator == 1 ) %>%
@@ -1152,7 +1151,7 @@ plotSBt <- function(  repObj = repInit,
   # Pull spawning biomass
   SB_t  <- repObj$SB_spt[sIdx, pIdx, ]
   B0    <- round(repObj$B0_sp[sIdx,pIdx],2)
-  M_x   <- round(repObj$M_spx[sIdx,pIdx,],2)
+  M_x   <- round(repObj$M_xsp[,sIdx,pIdx],2)
   C_ft  <- repObj$C_spft[sIdx, pIdx, , ]
   Bv_ft <- repObj$vB_spft[sIdx,pIdx,,]
   q_ft  <- repObj$q_spft[sIdx,pIdx,,]
@@ -1958,10 +1957,10 @@ plotSelAge <- function( repObj = repInit,
                         sIdx = 1, pIdx = 1 )
 {
   # Get selectivity functions
-  sel_aftx <- repObj$sel_afsptx[ , , sIdx, pIdx, ,  ]
+  sel_axft <- repObj$sel_axspft[,,sIdx,pIdx,,]
 
   # Get gear labels
-  gearNames <- dimnames(sel_aftx)[[2]]
+  gearNames <- dimnames(sel_axft)[[3]]
 
   # Dimensions
   nF <- repObj$nF
@@ -1987,7 +1986,7 @@ plotSelAge <- function( repObj = repInit,
       box()
       for( x in 1:nX )
         for( t in 1:nT)
-          lines( x = 1:A, y = sel_aftx[1:A,fIdx,t,x], col = sexCols[x],
+          lines( x = 1:A, y = sel_axft[1:A,x,fIdx,t], col = sexCols[x],
                   lwd = 2 )
       mtext( side = 4, text = gearNames[fIdx], line = 2, font = 2)
   }
