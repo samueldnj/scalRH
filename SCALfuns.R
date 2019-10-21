@@ -163,7 +163,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   if( collapseSyn )
   {
     notSynSurv  <- survNames_g[!grepl("Syn",survNames_g)]
-    notSynAll   <- allFleets[!grepl("Syn",survNames_g)] 
+    notSynAll   <- allFleets[!grepl("Syn",allFleets)] 
 
     newSurvNames  <- c(notSynSurv,"Syn")
     useFleets     <- c(commNames_g, newSurvNames)
@@ -735,7 +735,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
       # Count number of fleets in the group, skip if == 1
       gp <- group_f[f]
       nFleetsInGp <- length(fleetGroups[[gp]])
-      if( nFleetsInGp == 1 ) next
+      if( allFleets[f] == "HSAss" ) next
 
       for(p in 1:nP)  
       {
@@ -864,7 +864,8 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 boundRecDevs          = hypoObj$boundRecDevs,
                 recruitVariance       = hypoObj$recModel,
                 recOption             = hypoObj$recOption,
-                debugMode             = ctrlObj$debugMode  )
+                debugMode             = ctrlObj$debugMode,
+                condMLEq              = hypoObj$condMLEq  )
 
   # Generate parameter list
   pars <- list( ## Leading biological pars ##
@@ -889,7 +890,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 lnq_sf              = array(0,dim = c(nS,nF)),
                 lntq50_vec          = log(tq50_vec),
                 lntq95_vec          = log(tq95_vec),
-                lntauObs_spg        = array(0,dim = c(nS,nP,nGroups)),
+                lntauObs_spf        = array(0,dim = c(nS,nP,nF)),
                 # Selectivity top level means and deviations for fleets/stocks
                 lnxSel50_sg         = lnxSel50_sg,
                 lnxSelStep_sg       = lnxSelStep_sg,

@@ -223,12 +223,6 @@ renameReportArrays <- function( repObj = repInit, datObj = data )
   # Observation models
   dimnames(repObj$q_spf)        <- dimnames(datObj$age_aspftx)[c(2:4)]  
   dimnames(repObj$q_spft)       <- dimnames(datObj$age_aspftx)[c(2:5)]  
-  dimnames(repObj$tau2Obs_spg)  <- list(  species = specNames,
-                                          stock = stockNames,
-                                          group = fltGrpNames )  
-  dimnames(repObj$tauObs_spg)   <- list(  species = specNames,
-                                          stock = stockNames,
-                                          group = fltGrpNames )
   dimnames(repObj$tau2Obs_spf)  <- list(  species = specNames,
                                           stock = stockNames,
                                           fleet = gearNames )  

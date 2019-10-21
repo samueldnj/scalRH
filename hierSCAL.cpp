@@ -707,6 +707,7 @@ Type objective_function<Type>::operator() ()
   DATA_IVECTOR(tvqFleets);              // Switch for fleet to have time varying catchability (0 = off, 1 = on)
   DATA_IVECTOR(logitqFleets);           // Switch for fleet to have time logistic increase in catchability (0 = off, 1 = on)
   DATA_IVECTOR(regFfleets);             // Switch for each fleet to have Fs regularised (Fbar penalised)
+  DATA_IVECTOR(solveQfleet);            // switch for each fleet to have q_spft solved from effort and fishing mort.
   DATA_VECTOR(idxLikeWt_g);             // Scalar modifying the weight of the age likelihood by fleet group
   DATA_VECTOR(ageLikeWt_g);             // Scalar modifying the weight of the age likelihood by fleet group
   DATA_VECTOR(lenLikeWt_g);             // Scalar modifying the weight of the length likelihood by fleet group
@@ -730,6 +731,7 @@ Type objective_function<Type>::operator() ()
   DATA_STRING(recruitVariance);         // Character-switch for recruitment variance model
   DATA_STRING(recOption);               // Character-switch for recruitment variance model
   DATA_INTEGER(debugMode);              // 1 = debug mode on, return all arrays, 0 = fit mode, return only relevant arrays
+  DATA_INTEGER(condMLEq);               // 1 = on, calculate conditional MLE of q_spf, 0 = off, explicitly estimate q_spf
 
   // Fixed values
   DATA_IVECTOR(A1_s);                   // Age at which L1_s is estimated
@@ -754,10 +756,10 @@ Type objective_function<Type>::operator() ()
   PARAMETER_VECTOR(xMat95_s);           // x (age/len) at 95% maturity
   // Observation model
   // survey //
-  PARAMETER_VECTOR(lnq_sf);             // fleet-species specific mean catchability
+  PARAMETER_ARRAY(lnq_sf);              // fleet-species specific mean catchability
   PARAMETER_VECTOR(lntq50_vec);         // fleet specific time at 50% catchability (improving fishing)
   PARAMETER_VECTOR(lntq95_vec);         // fleet specific time at 95% catchability (improving fishing)
-  PARAMETER_ARRAY(lntauObs_spg);        // fleet-species-stock specific observation error variance
+  PARAMETER_ARRAY(lntauObs_spf);        // fleet-species-stock specific observation error variance
   // Fishery model
   // selectivity by fleet/species /
   PARAMETER_ARRAY(lnxSel50_sg);         // Selectivity Alpha parameter by species/fleetgroup
@@ -904,8 +906,6 @@ Type objective_function<Type>::operator() ()
   array<Type>   tau2q_sf(nS,nF);
   array<Type>   q_spf(nS,nP,nF);
   array<Type>   deltaq_spf(nS,nP,nF);
-  array<Type>   tauObs_spg(nS,nP,nGroups);
-  array<Type>   tau2Obs_spg(nS,nP,nGroups);
   array<Type>   tauObs_spf(nS,nP,nF);
   array<Type>   tau2Obs_spf(nS,nP,nF);
   
@@ -914,8 +914,6 @@ Type objective_function<Type>::operator() ()
   q_sf.setZero();
   q_spf.setZero();
   deltaq_spf.setZero();
-  tauObs_spg.setZero();
-  tau2Obs_spg.setZero();
   tau2q_sf.setZero();
   tauq_sf.setZero();
   // tauq_f.setZero();
@@ -1120,8 +1118,8 @@ Type objective_function<Type>::operator() ()
   // SDs for species/fleetgroup sel
   sigmaxSel50_sg    = exp(lnsigmaxSel50_sg);
   sigmaxSelStep_sg  = exp(lnsigmaxSelStep_sg);
-  tauObs_spg        = exp(lntauObs_spg);
-  tau2Obs_spg       = exp(2 * lntauObs_spg);
+  tauObs_spf        = exp(lntauObs_spf);
+  tau2Obs_spf       = exp(2 * lntauObs_spf);
 
   // Loop over gears, species, stocks and time steps, create a matrix
   // of deviations in selectivity pars and calculate the pars
@@ -1140,12 +1138,8 @@ Type objective_function<Type>::operator() ()
       xSel95_spf.col(f).col(p)    = xSel50_spf.col(f).col(p) + xSelStep_spf.col(f).col(p);
       for( int s = 0; s < nS; s++)
       {
-        // spread group obs error to fleets
-        tauObs_spf(s,p,f)   = tauObs_spg(s,p,group_f(f));
-        tau2Obs_spf(s,p,f)  = tau2Obs_spg(s,p,group_f(f));
-
         // Exponentiate q and tau for the index observations
-        q_spf(s,p,f)        = exp(lnq_sf(f) + tauq_sf(s,f) * deltaq_spf(s,p,f) );
+        q_spf(s,p,f)        = exp(lnq_sf(s,f) + tauq_sf(s,f) * deltaq_spf(s,p,f) );
 
         xSel50_spft(s,p,f,0)      = xSel50_spf(s,p,f);
         xSelStep_spft(s,p,f,0)    = xSelStep_spf(s,p,f);
@@ -1232,7 +1226,7 @@ Type objective_function<Type>::operator() ()
           omegaR_spt(s,p,t) = omegaR_vec(devVecIdx);
 
         if( boundRecDevs == 1 )
-          omegaR_spt(s,p,t) = -3. + 6. * invlogit(omegaR_vec(devVecIdx));
+          omegaR_spt(s,p,t) = -5. + 10. * invlogit(omegaR_vec(devVecIdx));
           
         // And fill the matrix of deviations
         omegaRmat_spt( s*nP + p, t ) = omegaR_spt(s,p,t);
@@ -1247,7 +1241,7 @@ Type objective_function<Type>::operator() ()
           if( boundRecDevs == 0 )
             omegaRinit_asp(a,s,p) = omegaRinit_vec(initVecIdx) ;
           if( boundRecDevs == 1 )
-            omegaRinit_asp(a,s,p) = -3. + 6. * invlogit( omegaRinit_vec(initVecIdx) );
+            omegaRinit_asp(a,s,p) = -5. + 10. * invlogit( omegaRinit_vec(initVecIdx) );
 
           initVecIdx++;
         }
@@ -1736,7 +1730,7 @@ Type objective_function<Type>::operator() ()
             
             // Simulate some index data
             SIMULATE{
-              simI_spft(s,p,f,t) = I_spft(s,p,f,t) * exp(rnorm(Type(0),tauObs_spg(s,p,group_f(f))));
+              simI_spft(s,p,f,t) = I_spft(s,p,f,t) * exp(rnorm(Type(0),tauObs_spf(s,p,f)));
             }
           }
 
@@ -1937,7 +1931,7 @@ Type objective_function<Type>::operator() ()
             // validIdxObs_spf(s,p,f) += 1;
             residCPUE_spft(s,p,f,t) = ( log(I_spft(s,p,f,t)) - log(I_spft_hat(s,p,f,t)) );
             
-            Type tmp = residCPUE_spft(s,p,f,t)/tauObs_spg(s,p,group_f(f));
+            Type tmp = residCPUE_spft(s,p,f,t)/tauObs_spf(s,p,f);
 
             CPUEnll_spf(s,p,f) -= idxLikeWt_g(group_f(f)) * dnorm( tmp, Type(0), Type(1), true);
           }
@@ -2075,14 +2069,15 @@ Type objective_function<Type>::operator() ()
 
   // Now a prior on the solution to the Baranov equation
   // and observation error variance
-  vector<Type> tauObsnlp_g(nGroups);
-  tauObsnlp_g.setZero();
+  vector<Type> tauObsnlp_f(nF);
+  tauObsnlp_f.setZero();
   Type Fnlp = 0;
   for( int s = 0; s < nS; s++ )
     for( int p = 0; p < nP; p++ )
     {
       for( int f = 0; f < nF; f++ )
       {
+        tauObsnlp_f(f) -= dinvgamma( pow(tauObs_spf(s,p,f),2), IGalphaObs, square(pmtauObs_g(group_f(f))) * (IGalphaObs + 1), 1);
         if( regFfleets(f) > 0)
         {
           vector<Type> Fvec(nT);
@@ -2100,9 +2095,7 @@ Type objective_function<Type>::operator() ()
         }
         
       }
-      // Observation error SD (by fleet group)
-      for( int g = 0; g < nGroups; g++ )
-        tauObsnlp_g(g) -= dinvgamma( pow(tauObs_spg(s,p,g),2), IGalphaObs, square(pmtauObs_g(g)) * (IGalphaObs + 1), 1);
+        
     }
 
   
@@ -2201,7 +2194,7 @@ Type objective_function<Type>::operator() ()
     for( int s = 0; s < nS; s++)
     {
       // Normal prior on catchability
-      qnlp_gps -= dnorm( q_sf(s,f), mq_f(f), sdq_f(f), true);
+      qnlp_gps  -= dnorm( q_sf(s,f), mq_f(f), sdq_f(f), true);
       qnlp_gps  -= dinvgamma( pow(tauq_sf(s,f),2), IGalphaq, square(pmtauq_f(f)) * (IGalphaq + 1), 1);
     }
   }
@@ -2213,7 +2206,7 @@ Type objective_function<Type>::operator() ()
   f += CPUEnll_spf.sum();     // Survey CPUE
   f += sel_nlp;
   f += Fnlp;
-  f += tauObsnlp_g.sum();
+  f += tauObsnlp_f.sum();
   f += lambdaPropF * propFnll_spf.sum();
   // Recruitment errors
   f += recnlp;      // recruitment process errors
@@ -2361,15 +2354,13 @@ Type objective_function<Type>::operator() ()
   REPORT( lenRes_lspftx );
   REPORT( tau2Len_spf );
   REPORT( recCorrMat_sp );
-  REPORT( tau2Obs_spg );
-  REPORT( tauObs_spg );
   REPORT( tau2Obs_spf );
   REPORT( tauObs_spf );
   if( debugMode == 1 )
   {
     REPORT( recnlp );
     REPORT( CPUEnll_spf );
-    REPORT( tauObsnlp_g );
+    REPORT( tauObsnlp_f );
     REPORT( validIdxObs_spf );
     REPORT( residCPUE_spft );
     REPORT( ssrIdx_spf );
