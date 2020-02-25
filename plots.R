@@ -925,15 +925,13 @@ plotRtDev <- function(  repObj = repInit,
 
   # Pull recruitment resids
   omegaR_t    <- repObj$omegaR_spt[sIdx, pIdx, ]
+  omegaRbar   <- repObj$omegaRbar_sp[sIdx, pIdx ]
 
   # Pull recruitment SD
   sigmaR      <- repObj$sigmaR_sp[sIdx,pIdx]
 
-  omegaR_t    <- omegaR_t / sigmaR
-
   # Create years vector
   years     <- seq(from = initYear, length = nT + 1, by = 1)
-  vertLines <- seq(from = initYear, to = max(years), by = 10)
 
   if( !nopar )
     par(mfcol = c(1, 1), mar = c(2,2,1,1), oma = c(1,1,1,1) )
@@ -949,11 +947,12 @@ plotRtDev <- function(  repObj = repInit,
       mtext(side = 2, text = "Std. Recruitment Deviations", line = 3)
     }
     box()
+    grid()
     # Plot recruitment
-    abline( v = vertLines, lwd = .8, lty = 3, col = "grey80")
     abline( h = 0, lty = 2, lwd = 1, col = "grey50")
     lines( x = years[1:nT], y = omegaR_t[1:nT], lwd = 2, col = "grey30" )
     points( x = years[1:nT], y = omegaR_t[1:nT], pch = 21, bg = "white" )
+    abline( h = omegaRbar, col = "red", lwd = 2, lty = 3 )
     
 } # END plotRtDev()
 
@@ -1373,7 +1372,7 @@ plotTVq <- function( repObj = repObj,
   q_spft[I_spft < 0] <- NA
 
   # Cut down to fleets with tvq
-  tvqFleets <- which(repObj$tvqFleets == 1)
+  tvqFleets <- which(repObj$tvqFleets == 1 | repObj$solveQ_f == 1)
   q_spft <- q_spft[,,tvqFleets,,drop = FALSE ]
 
   # Now melt and plot

@@ -226,7 +226,7 @@ calcRefPts <- function( obj )
   # Compute Z_asp
   Z_axsp    <- array( NA, dim = c(nA,nX,nS,nP))
   Surv_axsp <- array( NA, dim = c(nA,nX,nS,nP))
-  Surv_axsp[1,,,] <- 1/nX
+  Surv_axsp[1,,,] <- 1
   for( x in 1:nX )
     for( s in 1:nS )
       for( p in 1:nP )

@@ -707,7 +707,8 @@ Type objective_function<Type>::operator() ()
   DATA_IVECTOR(tvqFleets);              // Switch for fleet to have time varying catchability (0 = off, 1 = on)
   DATA_IVECTOR(logitqFleets);           // Switch for fleet to have time logistic increase in catchability (0 = off, 1 = on)
   DATA_IVECTOR(regFfleets);             // Switch for each fleet to have Fs regularised (Fbar penalised)
-  DATA_IVECTOR(solveQfleet);            // switch for each fleet to have q_spft solved from effort and fishing mort.
+  DATA_IVECTOR(commSurv_f);             // Switch for fleet type (commercial == 1 or survey == 0)
+  DATA_IVECTOR(solveQ_f);               // switch for each fleet to have q_spft solved from effort and fishing mort.
   DATA_VECTOR(idxLikeWt_g);             // Scalar modifying the weight of the age likelihood by fleet group
   DATA_VECTOR(ageLikeWt_g);             // Scalar modifying the weight of the age likelihood by fleet group
   DATA_VECTOR(lenLikeWt_g);             // Scalar modifying the weight of the length likelihood by fleet group
@@ -731,7 +732,7 @@ Type objective_function<Type>::operator() ()
   DATA_STRING(recruitVariance);         // Character-switch for recruitment variance model
   DATA_STRING(recOption);               // Character-switch for recruitment variance model
   DATA_INTEGER(debugMode);              // 1 = debug mode on, return all arrays, 0 = fit mode, return only relevant arrays
-  DATA_INTEGER(condMLEq);               // 1 = on, calculate conditional MLE of q_spf, 0 = off, explicitly estimate q_spf
+  DATA_IVECTOR(condMLEq_f);             // calculate conditional MLE of q for fleet f; 1 => YES, 0 => NO (estimate freely or fix)
 
   // Fixed values
   DATA_IVECTOR(A1_s);                   // Age at which L1_s is estimated
@@ -756,12 +757,13 @@ Type objective_function<Type>::operator() ()
   PARAMETER_VECTOR(xMat95_s);           // x (age/len) at 95% maturity
   // Observation model
   // survey //
-  PARAMETER_ARRAY(lnq_sf);              // fleet-species specific mean catchability
+  PARAMETER_ARRAY(lnqComm_spf);         // Species-stock-fleet specific catchability
+  PARAMETER_ARRAY(lnqSurv_sf);          // fleet-species specific mean catchability
   PARAMETER_VECTOR(lntq50_vec);         // fleet specific time at 50% catchability (improving fishing)
   PARAMETER_VECTOR(lntq95_vec);         // fleet specific time at 95% catchability (improving fishing)
   PARAMETER_ARRAY(lntauObs_spf);        // fleet-species-stock specific observation error variance
   // Fishery model
-  // selectivity by fleet/species /
+  // selectivity by fleet/species/
   PARAMETER_ARRAY(lnxSel50_sg);         // Selectivity Alpha parameter by species/fleetgroup
   PARAMETER_ARRAY(lnxSelStep_sg);       // Selectivity Beta parameter by species/fleetgroup
   // Now use deviations to get the fleet/stock specific values
@@ -770,6 +772,8 @@ Type objective_function<Type>::operator() ()
 
   // Count fleet groups
   int nGroups = lnxSel50_sg.dim(1);
+  int nComm = lnqComm_spf.dim(2);
+  int nSurv = lnqSurv_sf.dim(1);
 
   // Fishing mortality
   PARAMETER_VECTOR(lntauD_f);           // Discards observation SD by fleet
@@ -783,11 +787,11 @@ Type objective_function<Type>::operator() ()
 
 
   // catchability //
-  // PARAMETER_ARRAY(deltaq_sf);           // Species-specific fleet group catchability
+  // PARAMETER_ARRAY(deltaqSurv_sf);           // Species-specific fleet group catchability
   // PARAMETER_VECTOR(lntauq_f);           // SD of fleet group catchability distribution
   PARAMETER_VECTOR(deltaqspf_vec);      // Stock-specific fleet index catchability
-  PARAMETER_ARRAY(lntauq_sf);           // SD of Species-specific fleet group catchability dist
-  PARAMETER_VECTOR(pmtauq_f);           // IG prior mode q dev SD
+  PARAMETER_ARRAY(lntauqSurv_sf);       // SD of Species-specific fleet group catchability dist
+  PARAMETER_VECTOR(pmtauqSurv_f);       // IG prior mode q dev SD
   PARAMETER(IGalphaq);                  // IG alpha parameter for q dev variance
   PARAMETER_VECTOR(mq_f);               // Normal prior mean for catchability
   PARAMETER_VECTOR(sdq_f);              // Normal prior sd for catchability
@@ -843,6 +847,7 @@ Type objective_function<Type>::operator() ()
   PARAMETER(cvxSel);                    // CV on xSel50/xSelStep prior
   PARAMETER(mF);                        // Prior mean value for mean F
   PARAMETER(sdF);                       // Prior sd for meanF
+  PARAMETER(sd_omegaRbar);              // omegaRbar regularisation SD
 
   // mortality deviations //
   /*
@@ -896,14 +901,15 @@ Type objective_function<Type>::operator() ()
 
 
   // Catchability and index observation errors
-  // vector<Type>  q_sf(nF);
+  // vector<Type>  qSurv_sf(nF);
   array<Type>   tq50_spf(nS,nP,nF);
   array<Type>   tq95_spf(nS,nP,nF);
   // vector<Type>  tauq_f(nF);
   // vector<Type>  tau2q_f(nF);
-  array<Type>   q_sf(nS,nF);
-  array<Type>   tauq_sf(nS,nF);
-  array<Type>   tau2q_sf(nS,nF);
+  array<Type>   qSurv_sf(nS,nSurv);
+  array<Type>   qComm_spf(nS,nP,nComm);
+  array<Type>   tauqSurv_sf(nS,nSurv);
+  array<Type>   tau2qSurv_sf(nS,nSurv);
   array<Type>   q_spf(nS,nP,nF);
   array<Type>   deltaq_spf(nS,nP,nF);
   array<Type>   tauObs_spf(nS,nP,nF);
@@ -911,11 +917,11 @@ Type objective_function<Type>::operator() ()
   
   tq50_spf.setZero();
   tq95_spf.setZero();
-  q_sf.setZero();
+  qSurv_sf.setZero();
   q_spf.setZero();
   deltaq_spf.setZero();
-  tau2q_sf.setZero();
-  tauq_sf.setZero();
+  tau2qSurv_sf.setZero();
+  tauqSurv_sf.setZero();
   // tauq_f.setZero();
   // tau2q_f.setZero();
   tauObs_spf.setZero();
@@ -1078,14 +1084,15 @@ Type objective_function<Type>::operator() ()
   // q_f       = exp(lnq_f);
   // tauq_f    = exp(lntauq_f);
   // tau2q_f   = exp(2*lntauq_f);
-  tauq_sf   = exp(lntauq_sf);
-  tau2q_sf  = exp(2*lntauq_sf);
+  qComm_spf     = exp(lnqComm_spf);
+  tauqSurv_sf   = exp(lntauqSurv_sf);
+  tau2qSurv_sf  = exp(2*lntauqSurv_sf);
 
   // Create group mean catchabilities for each
   // species
-  q_sf = exp(lnq_sf);
+  qSurv_sf = exp(lnqSurv_sf);
   // for( int f =0; f < nF; f++ )
-  //   q_sf.col(f) = exp(lnq_f(f) + tauq_f(f) * deltaq_sf.col(f));
+  //   qSurv_sf.col(f) = exp(lnq_f(f) + tauq_f(f) * deltaqSurv_sf.col(f));
 
   // Calculate propQ_ft over fleets and times
   array<Type> propQ_spft(nS,nP,nF,nT);
@@ -1139,7 +1146,16 @@ Type objective_function<Type>::operator() ()
       for( int s = 0; s < nS; s++)
       {
         // Exponentiate q and tau for the index observations
-        q_spf(s,p,f)        = exp(lnq_sf(s,f) + tauq_sf(s,f) * deltaq_spf(s,p,f) );
+        if( commSurv_f(f) == 0)
+        {
+          int fleetIdx = f - nComm;
+          q_spf(s,p,f) = exp(lnqSurv_sf(s,fleetIdx) + tauqSurv_sf(s,fleetIdx) * deltaq_spf(s,p,f) );
+        }
+
+        if( commSurv_f(f) == 1 )
+        {
+          q_spf(s,p,f) = exp(lnqComm_spf(s,p,f));
+        } 
 
         xSel50_spft(s,p,f,0)      = xSel50_spf(s,p,f);
         xSelStep_spft(s,p,f,0)    = xSelStep_spf(s,p,f);
@@ -1210,6 +1226,8 @@ Type objective_function<Type>::operator() ()
   // for estimating correlation
   matrix<Type> omegaRmat_spt(nS*nP,nT);
   omegaRmat_spt.setZero();
+  array<Type> omegaRbar_sp(nS,nP);
+  omegaRbar_sp.setZero();
 
   array<Type> omegaRinit_asp(nA,nS,nP);
   omegaRinit_asp.setZero();
@@ -1230,6 +1248,8 @@ Type objective_function<Type>::operator() ()
           
         // And fill the matrix of deviations
         omegaRmat_spt( s*nP + p, t ) = omegaR_spt(s,p,t);
+
+        omegaRbar_sp(s,p) += omegaR_spt(s,p,t) / (tLastRecDev_s(s) - tFirstRecDev_s(s) + 1);
 
         devVecIdx++;
       }
@@ -1365,7 +1385,7 @@ Type objective_function<Type>::operator() ()
         } // END a loop
       } // END x loop
       // Compute ssbpr
-      SSBpr_asp.col(p).col(s) = Surv_aspx.col(nX-1).col(p).col(s) * matAge_asp.col(p).col(s) * meanWtAge_aspx.col(nX-1).col(p).col(s) / nX;
+      SSBpr_asp.col(p).col(s) = Surv_aspx.col(nX-1).col(p).col(s) * matAge_asp.col(p).col(s) * meanWtAge_aspx.col(nX-1).col(p).col(s);
     } // END p loop
   } // END s loop
 
@@ -1517,10 +1537,10 @@ Type objective_function<Type>::operator() ()
             // or using the estimated fished initialisation
             // Populate first year - split into nX groups
             if( recOption == "BH")
-              N_axspt.col(t).col(p).col(s).col(x) += R0_sp(s,p) * Surv_aspx.col(x).col(p).col(s) / nX;
+              N_axspt.col(t).col(p).col(s).col(x) += R0_sp(s,p) * Surv_aspx.col(x).col(p).col(s);
 
             if( recOption == "avgR")
-              N_axspt.col(t).col(p).col(s).col(x) += Rbar_sp(s,p) * Surv_aspx.col(x).col(p).col(s) / nX;
+              N_axspt.col(t).col(p).col(s).col(x) += Rbar_sp(s,p) * Surv_aspx.col(x).col(p).col(s);
 
             // // Non-eqbm initialisation
             if(swRinit_s(s) == 1)
@@ -1535,9 +1555,10 @@ Type objective_function<Type>::operator() ()
             // Generate recruitment
             Type SBt = SB_spt(s,p,t-1);
             if( recOption == "avgR" )
-              N_axspt(0,x,s,p,t) = Rbar_sp(s,p)/nX;
+              N_axspt(0,x,s,p,t) = Rbar_sp(s,p);
             if( recOption == "BH" )
-              N_axspt(0,x,s,p,t) = reca_sp(s,p) * SBt / (1 + recb_sp(s,p) * SBt)/nX;
+              N_axspt(0,x,s,p,t) = reca_sp(s,p) * SBt / (1 + recb_sp(s,p) * SBt);
+            
             N_axspt(0,x,s,p,t) *= exp( sigmaR_sp(s,p) * omegaR_spt(s,p,t) );
 
             // Now loop over ages and apply fishing mortality (no discarding yet)
@@ -1566,7 +1587,7 @@ Type objective_function<Type>::operator() ()
 
 
           // Save recruits in R_pt
-          R_spt(s,p,t) += N_axspt(0,x,s,p,t);
+          R_spt(s,p,t) += N_axspt(0,x,s,p,t) / 2;
           
 
           // Compute biomass at age and total biomass
@@ -1677,6 +1698,11 @@ Type objective_function<Type>::operator() ()
     for( int s = 0; s < nS; s++)
       for( int p = 0; p < nP; p++ )
         for( int f = 0; f < nF; f++ )
+        {
+          if( solveQ_f(f) == 1 & I_spft(s,p,f,t) > 0 )
+          {
+            q_spft(s,p,f,t) = F_spft(s,p,f,t) / E_pft(p,f,t);
+          }
           if( C_spft(s,p,f,t) > 0 )
           {
             for( int x = 0; x < nX; x++ )
@@ -1688,6 +1714,7 @@ Type objective_function<Type>::operator() ()
           
             nPosCatch_spf(s,p,f) += 1;
           }
+        }
 
     Fbar_spf += F_spft.col(t);
   } // END t loop for pop dynamics
@@ -1827,7 +1854,16 @@ Type objective_function<Type>::operator() ()
   Type corrRecnlp = 0.;
   recnlp -= dnorm( omegaRinit_vec,Type(0), Type(1), true).sum();
   if( recruitVariance == "uncorr" )
+  {
     recnlp -= dnorm( omegaR_vec, Type(0), Type(1), true).sum();
+    for( int p = 0; p < nP; p++)
+    {
+      vector<Type> omegaRbar_s(nS);
+      omegaRbar_s = omegaRbar_sp.col(p);
+      recnlp -= dnorm( omegaRbar_s, Type(0), sd_omegaRbar, true).sum();
+    }
+    
+  }
 
   if( recruitVariance == "corr" )
   {
@@ -2188,14 +2224,26 @@ Type objective_function<Type>::operator() ()
   {
 
     // Catchability
-    // vector<Type> qDevVec = deltaq_sf.col(f);
+    // vector<Type> qDevVec = deltaqSurv_sf.col(f);
     // qnlp_gps -= dnorm( qDevVec, Type(0), Type(1), true).sum();
-    // qnlp_gps -= dinvgamma( pow(tauq_f(f),2), IGalphaq, square(pmtauq_f(f)) * (IGalphaq + 1), 1);
+    // qnlp_gps -= dinvgamma( pow(tauq_f(f),2), IGalphaq, square(pmtauqSurv_f(f)) * (IGalphaq + 1), 1);
     for( int s = 0; s < nS; s++)
     {
       // Normal prior on catchability
-      qnlp_gps  -= dnorm( q_sf(s,f), mq_f(f), sdq_f(f), true);
-      qnlp_gps  -= dinvgamma( pow(tauq_sf(s,f),2), IGalphaq, square(pmtauq_f(f)) * (IGalphaq + 1), 1);
+      if( commSurv_f(f) == 0)
+      {
+        int fleetIdx = f - nComm;
+        qnlp_gps  -= dnorm( qSurv_sf(s,fleetIdx), mq_f(fleetIdx), sdq_f(fleetIdx), true);
+        qnlp_gps  -= dinvgamma( pow(tauqSurv_sf(s,fleetIdx),2), IGalphaq, square(pmtauqSurv_f(fleetIdx)) * (IGalphaq + 1), 1);
+      }
+
+      if( solveQ_f(f) == 1)
+        for( int p = 0; p < nP; p++ )
+        {
+          vector<Type> q_t(nT); 
+          q_t = q_spft.transpose().col(s).col(p).col(f);
+          qnlp_gps -= dnorm(log(q_t), log(q_spf(s,p,f)), tauqSurv_sf(s,f), true).sum();
+        }
     }
   }
   
@@ -2245,6 +2293,8 @@ Type objective_function<Type>::operator() ()
 
   // Fishery/Survey model pars
   REPORT( q_spf );          // Catchability
+  REPORT( qSurv_sf );       // Species/Fleet catchability for surveys
+  REPORT( qComm_spf );      // Species/Stock/Fleet catchability for Comm fleets
   REPORT( q_spft );         // Time-varying catchability
   REPORT( xSel50_spft );    // length at 50% sel by species/fleet/pop
   REPORT( xSel95_spft );    // length at 95% sel by species/fleet/pop
@@ -2330,6 +2380,7 @@ Type objective_function<Type>::operator() ()
   REPORT( omegaR_spt );
   REPORT( omegaRinit_asp );
   REPORT( omegaRmat_spt );
+  REPORT( omegaRbar_sp );
 
   // Species/stock effects
   REPORT( epsM_sx );

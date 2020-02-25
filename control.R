@@ -56,6 +56,6 @@ if(!dir.exists("Outputs"))
   dir.create("Outputs")
 
 # compile and load scalRH objective function.
-compile ("hierSCAL.cpp")
+TMB::compile ("hierSCAL.cpp")
 
 

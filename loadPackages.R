@@ -10,9 +10,7 @@
 cranPackages <- c("coda",
                   "tidyverse",
                   "reshape2",
-                  "ggforce",
                   "ggplot2",
-                  "GGally",
                   "TMB",
                   "raster",
                   "grid",
@@ -26,9 +24,7 @@ cranPackages <- c("coda",
                   "tmbstan",
                   "here",
                   "bookdown",
-                  "kableExtra" ,
-                  "ggridges",
-                  "corrplot")
+                  "kableExtra")
 
 for( pkg in cranPackages )
   while(!require(pkg, character.only = TRUE) )

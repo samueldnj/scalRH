@@ -159,6 +159,88 @@ makeIndexArray <- function( relBio = relBioList_Survey,
   return(I_spft)
 } # END makeIndexArray()
 
+# makeIndexTable()
+# Takes groomed data for each species and combines them into
+# a data array for feeding to hierSCAL.
+makeIndexTable <- function( relBio = relBioList_Survey,
+                            commCPUE = commCPUEList,
+                            nP = 3, years = 1954:2018,
+                            collapseComm = FALSE,
+                            scaleComm = 1e3
+                          )
+{
+  nS <- length(relBio)
+  nT <- length(years)
+
+  nSurv   <- dim(relBio$Dover)[1]
+  survIDs <- dimnames(relBio$Dover)[[1]]
+
+  stockIDs <- dimnames(relBio$Dover)[[2]]
+
+  nComm   <- dim(commCPUE$Dover$cpue.arr)[1]
+  commIDs <- dimnames(commCPUE$Dover$cpue.arr)[[1]]
+
+  nF <- nSurv + nComm
+
+  if( collapseComm )
+    nF <- nF - 1
+
+  tableColNames <- c( "year",
+                      "species",
+                      "stock",
+                      "fleet",
+                      "idx" )
+
+
+  idxTable <- matrix( NA, ncol = length(tableColNames),
+                          nrow = nT * nS * nP * nF )
+
+  colnames(idxTable) <- tableColNames
+
+  fleetNames <- c(commIDs,survIDs)
+
+
+  I_spft <- array( NA,  dim = c( nS, nP, nF, nT ),
+                        dimnames = list(  species = names(relBio),
+                                          stock   = stockIDs,
+                                          fleet   = fleetNames,
+                                          year    = years ) )
+
+  # Now loop over species and fill
+  for( specIdx in 1:nS )
+  {
+    specID <- names(relBio)[specIdx]
+
+
+    subRelBio   <- relBio[[specID]][,,as.character(years)]
+    subCommCPUE <- commCPUE[[specID]]$cpue.arr[,,as.character(years),1,1]
+
+    subCommCPUE[subCommCPUE < 0] <- NA
+    subCommCPUE <- exp(subCommCPUE)
+
+    if( collapseComm )
+    {
+      # Add the two fleets together (should be zero overlap)
+      subCommCPUE <- apply( X = subCommCPUE, FUN = sum, na.rm = T, MARGIN = c(2,3) )
+      subCommCPUE[is.na(subCommCPUE)] <- -1
+      I_spft[specID,,1,as.character(years)] <- subCommCPUE/scaleComm
+    } else {
+      subCommCPUE[is.na(subCommCPUE)] <- -1
+      I_spft[specID,,1,as.character(years)] <- subCommCPUE["comm.hist",,as.character(years)]/scaleComm
+      I_spft[specID,,2,as.character(years)] <- subCommCPUE["comm.mod",,as.character(years)]/scaleComm
+    }
+
+    for( survIdx in 1:nSurv )
+    {
+      survID <- survIDs[survIdx]
+      I_spft[ specID,,survID,as.character(years) ] <- subRelBio[survID,,as.character(years)]
+    }
+  }
+
+  return(I_spft)
+} # END makeIndexTable()
+
+
 # makeSurveyCatchStocks()
 # Sum the catch in the surveys, arrange by year
 # etc
@@ -2656,6 +2738,132 @@ makeCompsArray <- function( compList = ageComps,
   }
   comps_bspftx[is.na(comps_bspftx)] <- -1
   return(comps_bspftx)
+} # END makeCompsArray()
+
+
+# makeCompsTable()
+# Function to transform age or length comps into 
+# a table for feeding to hierSCAL (speed up
+# over multi-dim arrays)
+makeCompsTable <- function( compList = ageComps,
+                            plusGroups = plusA_s,
+                            minX  = minA_s,
+                            binWidth = 1,
+                            collapseComm = FALSE,
+                            fleetIDs = fleetIDs,
+                            years = fYear:lYear,
+                            xName = "ages",
+                            minSampSize = 100 )
+{
+  # Get species names
+  specIDs   <- names(compList)
+
+  # Convert max observed age/length to number of bins
+  maxVal  <- max(plusGroups)
+  nBins   <- ceiling( maxVal/binWidth )
+
+  binUBs  <- seq( from = binWidth, by = binWidth, length.out = nBins )
+  binLBs  <- binUBs - binWidth
+  binMids <- binLBs + (binUBs - binLBs) / 2
+
+  # Comps dimensions
+  nS      <- length(compList)
+  nP      <- dim(compList[[1]])[1]
+  nF      <- length(fleetIDs)
+  nT      <- length(years)
+
+  stockIDs <- dimnames(compList[[1]])[[1]]
+
+
+  if(xName == "ages")
+    binLabels <- 1:nBins
+  if(xName == "length")
+  {
+    binLabels <- binMids
+  }
+
+  sexes <- c("boys","girls","unsexed")
+
+
+  # Table columns
+  tabColNames <- c( "year",
+                    "species",
+                    "stock",
+                    "fleet",
+                    "sex",
+                    binLabels )
+
+  compsTable <- matrix( NA, nrow = nS * nP * nF * nP * nT, 
+                            ncol = length( tabColNames) )
+
+  colnames( compsTable ) <- tabColNames
+
+  tabRowIdx <- 0
+
+  for( specIdx in 1:nS )
+  {
+    # Get species specific info
+    specID      <- specIDs[specIdx]
+    specMaxBin  <- ceiling(plusGroups[specID]/binWidth)
+    specMinBin  <- ceiling(minX[specID]/binWidth)
+
+    specComps   <- compList[[specID]]
+    obsMaxBin   <- dim(specComps)[4]
+
+    specComps[is.na(specComps)] <- 0
+
+    obsVec <- rep(0,nBins)
+
+    for( sexIdx in 1:3)
+    {
+      sexID <- sexes[sexIdx]
+      # Now loop over fleetIDs
+      for( fleetIdx in 1:nF )
+      { 
+        fleetID <- fleetIDs[fleetIdx]
+        # Need to aggregate plus group
+        for( stockIdx in 1:nP )
+        {
+          stockID <- stockIDs[stockIdx]
+          for( tIdx in 1:nT)
+          {
+            yearLab <- as.character(years[tIdx])
+            sumComps <- sum(specComps[stockID,fleetID,yearLab,1:obsMaxBin, sexID ],na.rm = T)
+            if(sumComps <= minSampSize )
+              next
+            else {
+              tabRowIdx <- tabRowIdx + 1
+              if( obsMaxBin > specMaxBin )
+              {
+
+                obsVec[specMinBin:(specMaxBin - 1)] <- specComps[stockID,fleetID,yearLab,specMinBin:(specMaxBin-1),sexID]
+                obsVec[specMaxBin] <- sum(specComps[stockID,fleetID,yearLab,specMaxBin:obsMaxBin,sexID],na.rm = T)
+
+                if( specMaxBin < nBins )
+                  obsVec[(specMaxBin+1):nBins] <- 0
+              }
+              if( obsMaxBin <= specMaxBin )
+              {
+                minIdx <- min(obsMaxBin,specMaxBin)
+                obsVec[specMinBin:minIdx] <- specComps[stockID,fleetID,yearLab,specMinBin:minIdx,sexID]
+                if( minIdx < nBins )
+                  obsVec[(minIdx+1):nBins] <- 0
+              }
+
+              compsTable[tabRowIdx,] <- c(tIdx, specIdx, stockIdx, fleetIdx, sexIdx, obsVec )  
+            }
+            
+          }
+        }
+      }
+    }
+  }
+
+  compsTable <- compsTable[1:tabRowIdx,]
+
+  browser()
+
+  return(compsTable)
 } # END makeCompsArray()
 
 

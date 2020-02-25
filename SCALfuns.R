@@ -156,6 +156,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   nP           <- length(useStocks)  
 
 
+
   # Track fleets for which we'll use the index data
   # (this way we can turn off commercial indices)
   idxFleets    <- dataObj$idxFleets
@@ -189,6 +190,11 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                             nP = length(allStocks), years = fYear:lYear,
                             collapseComm = FALSE,
                             scaleComm = dataObj$commCPUEscalar )
+
+
+  # What about effort? Read in the
+  # historical unstandardised CPUE and
+  # convert to effort by Catch/CPUE
 
   if( collapseSyn )
   {
@@ -297,12 +303,68 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
 
   # Create an array of mean "effort" in a stock
   # area by fleet and time
+  # If unstandardised commercial CPUE is provided,
+  # then read it in and replace report object
+  if( !is.null(dataObj$commCPUEdata) )
+  {
+    fileList <- list.files( dataObj$commCPUEdata)
+    fileList <- fileList[grepl("DER.csv",fileList)]
+    
 
-  E_spft  <- C_spft / I_spft
-  E_spft[E_spft < 0] <- NA
-  E_pft   <- apply( X = E_spft, FUN = mean, MARGIN = c(2,3,4),
-                    na.rm = TRUE)
-  E_pft[is.na(E_pft)] <- -1
+    cpueTables <- lapply( X = file.path(dataObj$commCPUEdata,fileList), 
+                          FUN = read.csv, header = TRUE,
+                          stringsAsFactors = FALSE )
+
+    areas <- stringr::str_split(fileList, "_")
+
+    pullFirst <- function(x) {x[[1]]}
+
+    areas <- unlist(lapply(X = areas, FUN = pullFirst))
+
+    names(cpueTables) <- areas
+
+    # Need to make sure years match
+    histYears <- seq(fYear,by = 1, length.out = nT)
+    
+    histFleetYrs <- which(histYears <= 1995)
+    modFleetYrs  <- which(histYears > 1995 )
+
+    # Now make a dummy effort by species arra
+    E_spft <- array(NA, dim = c(nS,nP,nF,nT))
+
+    speciesNames  <- dataObj$species
+    stockNames    <- dataObj$stocks
+
+    for( s in 1:nS )
+      for( p in 1:nP )
+      {
+        unstdCPUE <- cpueTables[[stockNames[p]]]
+
+        cpueHist <- unstdCPUE[histFleetYrs,speciesNames[s]]
+        cpueMod  <- unstdCPUE[modFleetYrs,speciesNames[s]]
+
+        E_spft[s,p,1,histFleetYrs]  <- C_spft[s,p,1,histFleetYrs] / cpueHist
+        E_spft[s,p,2,modFleetYrs]  <- C_spft[s,p,2,modFleetYrs] / cpueMod
+      }
+
+    E_pft <- apply(X = 1e3*E_spft, FUN = mean, MARGIN = c(2,3,4), na.rm = T)
+    E_pft[!is.finite(E_pft)] <- NA
+    E_pft[E_pft == 0] <- NA
+
+  } else {
+
+    E_spft  <- C_spft / I_spft
+    E_spft[E_spft < 0] <- NA
+    E_pft   <- apply( X = E_spft, FUN = mean, MARGIN = c(2,3,4),
+                      na.rm = TRUE)
+    
+  }
+
+  E_pft[is.na(E_pft)] <- -1  
+
+  
+
+  
 
   # Now use C_spft to weed out fleets that shouldn't be included
   # for now
@@ -411,7 +473,26 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                                 minSampSize = dataObj$minAgeSampSize )
 
 
+  age_table <- makeCompsTable(  compList = ageComps,
+                                plusGroups = nA_s,
+                                minX = minA_s,
+                                collapseComm = FALSE,
+                                fleetIDs = c(commNames_g,survNames_g),
+                                years = fYear:lYear,
+                                xName = "ages",
+                                minSampSize = dataObj$minAgeSampSize )
+
   len_lspftx <- makeCompsArray( compList = lenComps,
+                                plusGroups = nL_s,
+                                minX = minL_s,
+                                binWidth = dataObj$lenBinWidth,
+                                collapseComm = FALSE,
+                                fleetIDs = c(commNames_g,survNames_g),
+                                years = fYear:lYear,
+                                xName = "length",
+                                minSampSize = dataObj$minLenSampSize )
+
+  len_table <- makeCompsTable(  compList = lenComps,
                                 plusGroups = nL_s,
                                 minX = minL_s,
                                 binWidth = dataObj$lenBinWidth,
@@ -538,7 +619,14 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   # And the same for time-varying catchability
   tvqFleets <- rep(0,nF)
   names(tvqFleets) <- useFleets
-  tvqFleets[ useFleets %in% hypoObj$tvqFleets ] <- 1 
+  if( hypoObj$tvq )
+    tvqFleets[ useFleets %in% hypoObj$tvqFleets ] <- 1 
+
+  # Same for solveQfleets
+  solveQ_f <- rep(0,nF)
+  names(solveQ_f) <- useFleets
+  if( hypoObj$solveq )
+    solveQ_f[ useFleets %in% hypoObj$solveqFleets ] <- 1   
 
   # And the catchability learning rate
   logitqFleets <- rep(0,nF)
@@ -559,6 +647,13 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   regFfleets <- rep(0,nF)
   names(regFfleets) <- useFleets
   regFfleets[ useFleets %in% hypoObj$regFfleets ] <- 1 
+
+  # Indicator vector for commercial fleets
+  commSurv_f    <- rep(0,length(useFleets))
+  commSurv_f[useFleets %in% commNames_g ] <- 1
+
+  nComm <- length(which(commSurv_f == 1))
+  nSurv <- length(which(commSurv_f == 0))
 
   # Load maturity ogives
   matOgives <- read.csv(file.path("./Data/Proc",dataObj$matFiles))
@@ -621,8 +716,6 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
           calcIndex_spf[s,p,f] <- 1
 
   # Count commercial and fishery indep fleets
-  nComm       <- length(dataObj$commNames_g)
-  nSurv       <- length(dataObj$survNames_g)
   # Group fleets
   fleetGroups <- hypoObj$fleetGroups
   nGroups     <- length(fleetGroups)
@@ -744,7 +837,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
           nStockSelDevs <- nStockSelDevs + 1
           calcStockSelDevs_spf[s,p,f] <- 1
         }
-        if( calcIndex_spf[s,p,f] == 1 )
+        if( calcIndex_spf[s,p,f] == 1 & commSurv_f[f] == 0 )
         {
           nStockqDevs <- nStockqDevs + 1
           calcStockQDevs_spf[s,p,f] <- 1
@@ -815,6 +908,8 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
     # as a function of distance (GMRF style)
   }  
 
+  # I_spft[1,2,1,as.character(1985:1995)] <- -1
+
 
   # Generate the data list
   data <- list( I_spft                = I_spft,
@@ -840,6 +935,8 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 tvqFleets             = tvqFleets,
                 logitqFleets          = logitqFleets,
                 regFfleets            = regFfleets,
+                solveQ_f              = solveQ_f,
+                commSurv_f            = commSurv_f,
                 idxLikeWt_g           = dataObj$idxLikeWt_g,
                 ageLikeWt_g           = dataObj$ageLikeWt_g,
                 lenLikeWt_g           = dataObj$lenLikeWt_g,
@@ -865,7 +962,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 recruitVariance       = hypoObj$recModel,
                 recOption             = hypoObj$recOption,
                 debugMode             = ctrlObj$debugMode,
-                condMLEq              = hypoObj$condMLEq  )
+                condMLEq_f            = hypoObj$condMLEq  )
 
   # Generate parameter list
   pars <- list( ## Leading biological pars ##
@@ -887,7 +984,8 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 xMat95_s            = xMat95,
                 ## Observation models ##
                 # fleet catchability and obs idx SD
-                lnq_sf              = array(0,dim = c(nS,nF)),
+                lnqComm_spf         = array(-2,dim = c(nS,nP,nComm)),
+                lnqSurv_sf          = array(0,dim = c(nS,nSurv)),
                 lntq50_vec          = log(tq50_vec),
                 lntq95_vec          = log(tq95_vec),
                 lntauObs_spf        = array(0,dim = c(nS,nP,nF)),
@@ -908,10 +1006,10 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 # deltaq_sf           = array(0,dim=c(nS,nF)),
                 # lntauq_f            = rep(log(hypoObj$pmtauq_f)),
                 deltaqspf_vec       = rep(0, nStockqDevs),
-                lntauq_sf           = matrix(log(hypoObj$pmtauq_f),nrow = nS, ncol = nF ,byrow = TRUE),
+                lntauqSurv_sf       = matrix(log(hypoObj$pmtauqSurv_f),nrow = nS, ncol = nSurv ,byrow = TRUE),
                 mq_f                = hypoObj$mq_f,
                 sdq_f               = hypoObj$sdq_f,
-                pmtauq_f            = hypoObj$pmtauq_f,
+                pmtauqSurv_f        = hypoObj$pmtauqSurv_f,
                 IGalphaq            = hypoObj$IGalphaq,
                 # Steepness
                 hBetaPrior          = hypoObj$hBetaPrior,
@@ -963,7 +1061,8 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 pmlnxSelStep_sg     = lnxSelStep_sg,
                 cvxSel              = hypoObj$cvxSel,
                 mF                  = hypoObj$mF,
-                sdF                 = hypoObj$sdF )
+                sdF                 = hypoObj$sdF,
+                sd_omegaRbar        = hypoObj$recDevReg )
 
 
 
@@ -1012,7 +1111,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   if( !hypoObj$tvq | nqDevs == 0 )
     phases$epslnq_vec       <- -1
 
-  # Turn off tvq deviations if not used
+  # Turn off logitq deviations if not used
   if( !hypoObj$logitq )
   {
     phases$tq50_vec       <- -1
@@ -1442,7 +1541,20 @@ TMBphase <- function( data,
   
   # Save sdreport object
   if(outList$success & calcSD )
-    outList$sdrep <- TMB::sdreport(obj)
+  {
+    sdrep         <- TMB::sdreport(obj)
+
+    gradTable <- data.frame(  par = names(sdrep$par.fixed),
+                              est = sdrep$par.fixed,
+                              sd  = sqrt(diag(sdrep$cov.fixed)),
+                              grad = as.numeric(sdrep$gradient.fixed) )
+
+    outList$gradReport  <- gradTable
+    outList$sdrep       <- sdrep
+    outList$pdHess      <- sdrep$pdHess
+
+    
+  }
 
   # Save phase reports
   if( savePhases )
