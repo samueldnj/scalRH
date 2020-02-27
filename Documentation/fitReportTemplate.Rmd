@@ -87,8 +87,6 @@ library(here)
 # library( RCurl )
 # library( scales )
 # library( rgeos )
-library( ggridges )
-library( ggsidekick )
 
 knitr::opts_knit$set(   fig.pos = 'p',
                         out.width = '100%', dpi=300, 
@@ -214,10 +212,11 @@ plotSRsp( repObj = repObj, initYear = fYear )
 
 ## Time-varying catchability
 
-```{r, tvq, echo = FALSE, fig.cap = tvqCap }
+
+<!-- ```{r, tvq, echo = FALSE, fig.cap = tvqCap }
 plotTVq( repObj = repObj, sIdx = 1:nS, pIdx = 1:nP )
 ```
-
+ -->
 ## Fishing mortality
 
 ```{r, fishingMortPlot, echo = FALSE, fig.cap = fishingMortCap }
@@ -338,10 +337,10 @@ kable(  refPtsTab, escape = FALSE,
 plotRecDevCircles(repObj, fYear)
 ```
 
-```{r, plotRecDevCorr, fig.cap = corrRecDevsCap, echo = FALSE}
+<!-- ```{r, plotRecDevCorr, fig.cap = corrRecDevsCap, echo = FALSE}
 plotRecDevCorrMat(repObj)
 ```
-
+ -->
 # Individual species
 
 **UNDER CONSTRUCTION**

@@ -688,6 +688,9 @@ Type objective_function<Type>::operator() ()
   DATA_IVECTOR(minL_s);                 // Min length bin by species
   DATA_IVECTOR(lenD_s);                 // Discard length by species
   DATA_INTEGER(nX);                     // Number of sex classes
+  DATA_ARRAY(age_table);                // age data in table format
+  DATA_ARRAY(len_table);                // length data in table format
+
 
   // Model dimensions
   int nS = I_spft.dim(0);               // No. of species
@@ -696,7 +699,8 @@ Type objective_function<Type>::operator() ()
   int nT = I_spft.dim(3);               // No of time steps
   int nL = len_lspftx.dim(0);           // max no of length bins (for creating state arrays)
   int nA = age_aspftx.dim(0);           // max no of age bins (for creating state arrays)
-
+  int nAgeObs = age_table.dim(0);       // Number of unique age comp observations
+  int nLenObs = len_table.dim(0);       // Number of unique length comp observations
 
 
   // Model switches - fill these in when we know what we want
@@ -761,7 +765,7 @@ Type objective_function<Type>::operator() ()
   PARAMETER_ARRAY(lnqSurv_sf);          // fleet-species specific mean catchability
   PARAMETER_VECTOR(lntq50_vec);         // fleet specific time at 50% catchability (improving fishing)
   PARAMETER_VECTOR(lntq95_vec);         // fleet specific time at 95% catchability (improving fishing)
-  PARAMETER_ARRAY(lntauObs_spf);        // fleet-species-stock specific observation error variance
+  PARAMETER_VECTOR(lntauObs_vec);       // fleet-species-stock specific observation error variance (vector for avoiding missing observation fleets)
   // Fishery model
   // selectivity by fleet/species/
   PARAMETER_ARRAY(lnxSel50_sg);         // Selectivity Alpha parameter by species/fleetgroup
@@ -781,7 +785,7 @@ Type objective_function<Type>::operator() ()
   // Priors
   // selectivity //
   PARAMETER_ARRAY(lnsigmaxSel50_sg);      // SD in x-at-50% selectivity by fleet group
-  PARAMETER_ARRAY(lnsigmaxSelStep_sg);    // SD in step from x-at-50% to x-at-85% selectivity by fleet group
+  PARAMETER_ARRAY(lnsigmaxSelStep_sg);    // SD in step from x-at-50% to x-at-95% selectivity by fleet group
   PARAMETER_VECTOR(pmsigmaSel_g);         // IG prior mode sel dev SD
   PARAMETER(IGalphaSel);                  // IG alpha parameter for sel dev var
 
@@ -912,6 +916,7 @@ Type objective_function<Type>::operator() ()
   array<Type>   tau2qSurv_sf(nS,nSurv);
   array<Type>   q_spf(nS,nP,nF);
   array<Type>   deltaq_spf(nS,nP,nF);
+  array<Type>   lntauObs_spf(nS,nP,nF);
   array<Type>   tauObs_spf(nS,nP,nF);
   array<Type>   tau2Obs_spf(nS,nP,nF);
   
@@ -924,6 +929,7 @@ Type objective_function<Type>::operator() ()
   tauqSurv_sf.setZero();
   // tauq_f.setZero();
   // tau2q_f.setZero();
+  lntauObs_spf.setZero();
   tauObs_spf.setZero();
   tau2Obs_spf.setZero();
 
@@ -979,40 +985,6 @@ Type objective_function<Type>::operator() ()
   Fbar_spf.setZero();
   calcSel_spf.setZero();
 
-  // Loop and fill stock specific deviations from hierarchical/multi-level
-  // prior group means
-
-  int stockGrowthVecIdx=0;
-  int stockSpecSelVecIdx=0;
-  int stockSpecQVecIdx=0;
-
-  for( int s = 0; s < nS; s++ )
-  {
-    for( int p = 0; p < nP; p++ )
-    {
-      // Stock specific (not species/group) sel pars
-      for( int f = 0; f < nF; f++ )
-      {
-        if(calcStockSelDevs_spf(s,p,f) == 1)
-        {
-          epsxSel50_spf(s,p,f)    = epsxSel50spf_vec(stockSpecSelVecIdx);
-          epsxSelStep_spf(s,p,f)  = epsxSelStepspf_vec(stockSpecSelVecIdx);
-          stockSpecSelVecIdx++;
-        }
-
-        if( calcStockQDevs_spf(s,p,f) == 1)
-        {
-          deltaq_spf(s,p,f)       = deltaqspf_vec(stockSpecQVecIdx);
-          stockSpecQVecIdx++;
-        }
-
-        if( C_spft.transpose().col(s).col(p).col(f).sum() > 0 )
-          calcSel_spf(s,p,f) = 1.;
-      }
-    }
-  }
-
-  
   // Make a vector of ages/lengths for use in 
   // age and length based quantities later
   vector<Type> age(nA);
@@ -1062,23 +1034,11 @@ Type objective_function<Type>::operator() ()
   Rbar_sp    = exp(lnRbar_sp);
   sigmaR_sp  = exp(lnsigmaR_sp);
 
-  for( int pIdx = 0; pIdx < nP; pIdx++ )
-  {
-    M_sp.col(pIdx)       = exp(lnM) * exp( sigmaM * epsM_s + sigmaM_s * epsM_sp.col(pIdx) );
-    h_sp.col(pIdx)       = .21 + 0.78 / (1 + exp(-1 * (logitSteep + sigmah * epsSteep_s + sigmah_s * epsSteep_sp.col(pIdx) ) ));
-    // And sex specific
-    for( int x = 0; x < nX; x++)
-    {
-      for( int s = 0; s < nS; s++ )
-        M_xsp(x,s,pIdx) = M_sp(s,pIdx) * exp( sigmaM_s(s) * epsM_sx(s,x) );
 
-
-      L1_spx.col(x).col(pIdx)   = L1_s;                    
-      L2_spx.col(x).col(pIdx)   = L1_s + exp(lnL2step_spx.col(x).col(pIdx));
-      vonK_spx.col(x).col(pIdx) = exp(lnvonK_spx.col(x).col(pIdx));
-    }
-
-  }
+  int stockGrowthVecIdx   = 0;
+  int stockSpecSelVecIdx  = 0;
+  int stockSpecQVecIdx    = 0;
+  int tauObsIdx           = 0;
 
   // Exponentiate and build catchability parameters
   // q_f       = exp(lnq_f);
@@ -1098,23 +1058,71 @@ Type objective_function<Type>::operator() ()
   array<Type> propQ_spft(nS,nP,nF,nT);
   propQ_spft.fill(1);
   int vIdx =0;
-  for( int f = 0; f < nF; f++ )
-    if( logitqFleets(f) == 1 )
-    {
-      for( int s = 0; s < nS; s++ )
-        for( int p = 0; p < nP; p++ )
-        {
-          tq50_spf(s,p,f) = exp(lntq50_vec(vIdx));
-          tq95_spf(s,p,f) = exp(lntq95_vec(vIdx));    
 
-          Type tqStep = tq95_spf(s,p,f) - tq50_spf(s,p,f);
-          vIdx ++;
-          for( int t = 0; t < nT; t++ )
-            propQ_spft(s,p,f,t) = .2 + .8 / (1 + exp( -1 * log(19) * (t + 1 - tq50_spf(s,p,f) )/tqStep) );
+
+  for( int s = 0; s < nS; s++ )
+  {
+    for( int p = 0; p < nP; p++ )
+    {
+      
+      M_sp(s,p)   = exp(lnM) * exp( sigmaM * epsM_s(s) + sigmaM_s(s) * epsM_sp(s,p) );
+      h_sp(s,p)   = .21 + 0.78 / (1 + exp(-1 * (logitSteep + sigmah * epsSteep_s(s) + sigmah_s(s) * epsSteep_sp(s,p) ) ));
+
+      // Stock specific (not species/group) sel pars
+      for( int f = 0; f < nF; f++ )
+      {
+        if(calcStockSelDevs_spf(s,p,f) == 1)
+        {
+          epsxSel50_spf(s,p,f)    = epsxSel50spf_vec(stockSpecSelVecIdx);
+          epsxSelStep_spf(s,p,f)  = epsxSelStepspf_vec(stockSpecSelVecIdx);
+          stockSpecSelVecIdx++;
         }
-      
-      
+
+        if( calcStockQDevs_spf(s,p,f) == 1)
+        {
+          deltaq_spf(s,p,f)       = deltaqspf_vec(stockSpecQVecIdx);
+          stockSpecQVecIdx++;
+        }
+
+        if( C_spft.transpose().col(s).col(p).col(f).sum() > 0 )
+          calcSel_spf(s,p,f) = 1.;
+
+        if( logitqFleets(f) == 1 )
+        {
+          for( int s = 0; s < nS; s++ )
+            for( int p = 0; p < nP; p++ )
+            {
+              tq50_spf(s,p,f) = exp(lntq50_vec(vIdx));
+              tq95_spf(s,p,f) = exp(lntq95_vec(vIdx));    
+
+              Type tqStep = tq95_spf(s,p,f) - tq50_spf(s,p,f);
+              vIdx ++;
+              for( int t = 0; t < nT; t++ )
+                propQ_spft(s,p,f,t) = .2 + .8 / (1 + exp( -1 * log(19) * (t + 1 - tq50_spf(s,p,f) )/tqStep) );
+            }
+          
+          
+        }
+
+        if( calcIndex_spf(s,p,f) == 1 )
+        {
+          lntauObs_spf(s,p,f) = lntauObs_vec(tauObsIdx);
+          tauObsIdx++;
+        }
+      }
+
+      // And sex specific devs
+      for( int x = 0; x < nX; x++)
+      {
+        M_xsp(x,s,p) = M_sp(s,p) * exp( sigmaM_s(s) * epsM_sx(s,x) );
+
+        // Growth model pars
+        L1_spx(s,p,x)   = L1_s(s);                    
+        L2_spx(s,p,x)   = L1_s(s) + exp(lnL2step_spx(s,p,x));
+        vonK_spx(s,p,x) = exp(lnvonK_spx(s,p,x));
+      }
     }
+  }
 
 
   // Exponentiate species/fleetGroup sel

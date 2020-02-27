@@ -988,7 +988,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 lnqSurv_sf          = array(0,dim = c(nS,nSurv)),
                 lntq50_vec          = log(tq50_vec),
                 lntq95_vec          = log(tq95_vec),
-                lntauObs_spf        = array(0,dim = c(nS,nP,nF)),
+                lntauObs_vec        = rep(0, sum(calcIndex_spf)),
                 # Selectivity top level means and deviations for fleets/stocks
                 lnxSel50_sg         = lnxSel50_sg,
                 lnxSelStep_sg       = lnxSelStep_sg,
