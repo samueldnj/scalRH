@@ -106,6 +106,18 @@ nP      <- repObj$nP
 nT      <- repObj$nT
 species <- reports$ctlList$data$species
 stock   <- reports$ctlList$data$stock
+
+# Optimisation performance
+calcSD        <- reports$ctlList$ctrl$calcSD
+if( calcSD )
+{
+  pdHess        <- reports$sdrepOpt$pdHess
+  grad          <- reports$grad
+  nonfiniteSEs  <- !is.finite(grad[,2])
+  nanSEs        <- is.nan(grad[,2])
+}
+
+
 ```
 
 Standard fit report for fits of hierSCAL to DERPA data.
@@ -118,6 +130,8 @@ Species: `r reports$ctlList$data$species`
 
 Stocks: `r reports$ctlList$data$stocks`
 
+
+
 ## Final phase convergence diagnostics
 
 Max Gradient: `r reports$phaseList$maxGrad`
@@ -126,6 +140,9 @@ Objective Function value: `r reports$phaseList$objfun`
 
 Time to fit model:  `r reports$phaseList$totTime`
 
+PD Hessian: `r ifelse( calcSD, pdHess, "No SD Report")`
+
+No. of Non-finite SEs: `r ifelse(calcSD,sum((nonfiniteSEs |nanSEs)),"No SD Report")`
 
 
 ```{r, captions, include = FALSE, echo = FALSE}
@@ -144,6 +161,12 @@ selLenCap <- "Selectivity-at-length for each fleet, gridded over species (column
 selAgeCap <- "Selectivity-at-age for each fleet, for females only, gridded over species (columns) and stocks (rows). "
 circRecDevsCap <- "Standardised recruitment deviations. Blue indicates a positive deviation, red indicates a negative deviation, and the area of each circle is proportional to the size of the deviation."
 corrRecDevsCap <- "Correlation matrix of recruitment deviations. Blue indicates a positive correlation, and red indicates a negative correlation."
+
+sdRepCap  <- "SD report showing leading parameter estimates, standard errors, 
+gradient components, and coefficients of variation. Gradients with a magnitude
+above 1e-3 are shown in bold red, while the coefficients of variation (cv) are  
+coloured so that smaller values are lighter in colour, and larger values 
+are darker, with cvs above .5 in bold, and cvs above 3 in red."
 ```
 
 
@@ -322,4 +345,52 @@ kable(  phaseReportTable, escape = FALSE,
         align = rep("c",ncol(phaseReportTable))) %>%
   kable_styling(latex_options = c("striped", "scale_down","hold_position"),
                 bootstrap_options = c("striped", "hover"))
+```
+
+## Leading Parameter SDReport
+```{r gradTable, echo = FALSE }
+gradTable <- reports$grad 
+
+parnames <- rownames(gradTable)
+maxCV <- max(gradTable$cv, na.rm = T)
+
+gradTable <- gradTable %>%
+              mutate( 
+                est = round(est, 4),
+                se = round(se, 4),
+                gr = signif(gr,2),
+                cv = round(cv,4),
+                gr =  ifelse( is.finite(gr),
+                        cell_spec(  x = gr, format = "html",
+                                    bold = ifelse( abs(gr) > 1e-3, TRUE, FALSE),
+                                    color = ifelse( abs(gr) > 1e-3, "red", "black") ),
+                        cell_spec( x = gr, format = "html",
+                                    bold = TRUE, color = "red") ),
+                cv =  ifelse( is.finite(cv),
+                        ifelse( cv > 3,
+                          cell_spec( x = cv, format = "html",
+                                      color = "red", bold = TRUE),
+                          cell_spec(  x = cv, format = "html",
+                                      color = spec_color( cv, 
+                                                          begin = .75, 
+                                                          end = .25,
+                                                          direction = 1,
+                                                          na_color = "red",
+                                                          option = "magma" ),
+                                      bold = cv > .5 )
+                                ),
+                        cell_spec(  x = cv, format = "html",
+                                    color = "red", bold = TRUE) ) )
+
+                      
+
+rownames(gradTable) <- parnames
+
+kable(  gradTable, escape = FALSE, 
+        caption = sdRepCap, booktabs = T,
+        align = rep("c",ncol(gradTable))) %>%
+  kable_styling(latex_options = c("striped", "scale_down","hold_position"),
+                bootstrap_options = c("striped", "hover"))
+
+
 ```

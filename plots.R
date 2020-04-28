@@ -783,18 +783,19 @@ plotCompFitYrs <- function( repObj = repInit,
 } # END plotCompFitYrs()
 
 # Plot comp fits averaged over time (good for early diagnostics)
-plotCompFitAvg <- function( repObj = repInit,
-                            initYear = fYear,
+plotCompFitAvg <- function( repObj = reports$repOpt,
+                            initYear = 1956,
                             sIdx = 1, pIdx = 1,
                             sex = "female",
                             comps = "length" )
 {
+
   nX <- repObj$nX
   if( comps == "age" )
   {
     max         <- repObj$A_s[sIdx]
-    pred_xftsex <- repObj$aDist_aspftx_hat[1:max,sIdx,pIdx,,,1:nX]
-    obs_xftsex  <- repObj$age_aspftx[1:max,sIdx,pIdx,,,1:nX]  
+    pred_xsexft <- repObj$aDist_axspft_hat[1:max,1:nX,sIdx,pIdx,,]
+    obs_xsexft  <- repObj$age_axspft[1:max,1:nX,sIdx,pIdx,,]  
     xLab        <- "Age"
     minProp     <- repObj$minAgeProp
     binMids     <- 1:max
@@ -806,17 +807,17 @@ plotCompFitAvg <- function( repObj = repInit,
 
     binMids     <- repObj$lenBinMids_l
     max         <- repObj$L_s[sIdx]  
-    pred_xftsex <- repObj$lDist_lspftx_hat[1:max,sIdx,pIdx,,,1:nX]
-    obs_xftsex  <- repObj$len_lspftx[1:max,sIdx,pIdx,,,1:nX] 
+    pred_xsexft <- repObj$lDist_lxspft_hat[1:max,1:nX,sIdx,pIdx,,]
+    obs_xsexft  <- repObj$len_lxspft[1:max,1:nX,sIdx,pIdx,,] 
     xLab        <- "Length"
     minProp     <- repObj$minLenProp
 
   }
 
-  dimNames  <- dimnames(pred_xftsex)
+  dimNames  <- dimnames(pred_xsexft)
   compNames <- dimNames[[1]]
-  gearNames <- dimNames[[2]]
-  yearNames <- dimNames[[3]]
+  gearNames <- dimNames[[3]]
+  yearNames <- dimNames[[4]]
 
 
   # Pull model dims
@@ -838,10 +839,10 @@ plotCompFitAvg <- function( repObj = repInit,
   for( fIdx in 1:nF )
   {
     for( sex in 1:nX)
-      if( any(obs_xftsex[1,fIdx,,sex] >= 0) )
+      if( any(obs_xsexft[1,sex,fIdx,] >= 0) )
       {
         obsGears <- union(obsGears,fIdx)
-        obsTimes <- which(obs_xftsex[1,fIdx,,sex] >= 0)
+        obsTimes <- which(obs_xsexft[1,sex,fIdx,] >= 0)
         if( is.null( gearTimes[[fIdx]]))
           gearTimes[[fIdx]] <- obsTimes
         else gearTimes[[fIdx]] <- union(gearTimes[[fIdx]],obsTimes)
@@ -849,7 +850,7 @@ plotCompFitAvg <- function( repObj = repInit,
   }
 
 
-  obs_xftsex[obs_xftsex<0] <- 0
+  obs_xsexft[obs_xsexft<0] <- 0
 
   # Some stocks don't have age observations,
   # so skip it
@@ -872,30 +873,48 @@ plotCompFitAvg <- function( repObj = repInit,
     times <- gearTimes[[fIdx]]
     
     # Average the observations and
-    fleetObs_xtsex  <- obs_xftsex[,fIdx,times,,drop = FALSE]
-    fleetPred_xtsex <- pred_xftsex[,fIdx,times,,drop = FALSE]
+    fleetObs_xsext  <- obs_xsexft[,,fIdx,times,drop = FALSE]
+    fleetPred_xsext <- pred_xsexft[,,fIdx,times,drop = FALSE]
 
+    browser()
   
     # Average observations and predictions over time
-    compObs_xsex      <- apply( X = fleetObs_xtsex, FUN = sum, MARGIN = c(1,4), na.rm = TRUE )
+    compObs_xsex      <- apply( X = fleetObs_xsext, FUN = sum, MARGIN = c(1,2), na.rm = TRUE )
+    sampleSize_sext   <- apply( X = fleetObs_xsext, FUN = sum, MARGIN = c(2,4) )
     compObsProp_xsex <- compObs_xsex
-    for( sex in 1:nX)
-      compObsProp_xsex[,sex]  <- compObs_xsex[,sex] / max(1,sum(compObs_xsex[,sex]))
-    compPred_xsex     <- apply( X = fleetPred_xtsex, FUN = mean, MARGIN = c(1,4), na.rm = TRUE )
 
-    plot( x = c(1,max), y = c(0,max(compObsProp_xsex,compPred_xsex,na.rm = T) ),
+    for( sex in 1:nX)
+    {
+      compObsProp_xsex[,sex]  <- compObs_xsex[,sex] / max(1,sum(compObs_xsex[,sex]))
+      # Multiple predicted compositions by observed sample size
+      # to avoid bias in averaged preds
+      for( t in 1:length(times) )
+      {
+        fleetPred_xsext[,sex,1,t] <- fleetPred_xsext[,sex,1,t] * sampleSize_sext[sex,t]
+      }
+    }
+
+    # Add sample size for better averaging.
+    compPred_xsex     <- apply( X = fleetPred_xsext, FUN = sum, MARGIN = c(1,2), na.rm = TRUE )
+    compPredProp_xsex <- compPred_xsex
+    # Now sweep out
+    for( sex in 1:nX )
+      compPredProp_xsex[,sex] <- compPredProp_xsex[,sex] / sum(compPredProp_xsex[,sex])
+
+    plot( x = c(1,max), y = c(0,max(compObsProp_xsex,compPredProp_xsex,na.rm = T) ),
             xlab = "", ylab = "", type = "n", las = 1,
             axes = FALSE )
       axis( side = 1, at = xTickLocs, labels = xTickLabs)
+      axis( side = 2, las = 1)
       box()
       for( sex in 1:nX)
       {
         rect( xleft = 1:max - .3 + (sex - 1) * .3, xright = 1:max + (sex - 1) * .3,
               ybottom = 0, ytop = compObsProp_xsex[,sex],
               col = sexcols[sex], border = NA )
-        lines(  x = 1:max, y = compPred_xsex[,sex], lwd = 2,
+        lines(  x = 1:max, y = compPredProp_xsex[,sex], lwd = 2,
               col = cols[fIdx], lty = sex )
-        points(  x = 1:max, y = compPred_xsex[,sex],
+        points(  x = 1:max, y = compPredProp_xsex[,sex],
                 col = cols[fIdx], pch = 21 + sex - 1 )
       }
 
@@ -1361,7 +1380,7 @@ plotProbLenAge <- function( repObj = repInit,
 
 # plotTVq()
 # Time-varying catchability plots
-plotTVq <- function( repObj = repObj,
+plotTVq <- function(  repObj = repObj,
                       sIdx = 1, pIdx = 1 )
 {
   # Pull catchability time series
@@ -1373,6 +1392,10 @@ plotTVq <- function( repObj = repObj,
 
   # Cut down to fleets with tvq
   tvqFleets <- which(repObj$tvqFleets == 1 | repObj$solveQ_f == 1)
+
+  if(length(tvqFleets) == 0)
+    return()
+
   q_spft <- q_spft[,,tvqFleets,,drop = FALSE ]
 
   # Now melt and plot
@@ -1592,15 +1615,17 @@ plotCompResids <- function( repObj = repInit,
   if( comps == "age" )
   {
     # Pull resids array
-    resids_xspft <- repObj$ageRes_aspftx[,sIdx,pIdx,fIdx,,sex,drop = FALSE]
+    resids_xspft <- repObj$ageRes_axspft[,sex,sIdx,pIdx,fIdx,,drop = FALSE]
     tauRes_spf   <- sqrt(repObj$tau2Age_spf[sIdx,pIdx,fIdx,drop = FALSE])
+    yName <- "ages"
   }
 
   if( comps == "length")
   {
     # Pull resids array
-    resids_xspft <- repObj$lenRes_lspftx[,sIdx,pIdx,fIdx,,sex,drop = FALSE]
+    resids_xspft <- repObj$lenRes_lxspft[,sex,sIdx,pIdx,fIdx,,drop = FALSE]
     tauRes_spf   <- sqrt(repObj$tau2Len_spf[sIdx,pIdx,fIdx,drop = FALSE])
+    yName <- "length"
   }
   # Get dimension
   nS <- length(sIdx)
@@ -1611,7 +1636,6 @@ plotCompResids <- function( repObj = repInit,
   cols <- rev(as.vector(cols))
   cols[2] <- NA
   names(cols) <- c("-","Zero","+")
-
 
 
   # Melt residuals into a data.frame
@@ -1630,7 +1654,7 @@ plotCompResids <- function( repObj = repInit,
 
   tmpPlot <-  ggplot( data = resids.df,
                       aes(  x = year,
-                            y = !!ensym(comps) ) ) +
+                            y = !!ensym(yName) ) ) +
               facet_grid(stock ~ species + fleet, scale = "fixed" ) +
               geom_point( aes(  size = size,
                                 colour = sign ),

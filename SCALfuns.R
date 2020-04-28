@@ -360,7 +360,8 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
     
   }
 
-  E_pft[is.na(E_pft)] <- -1  
+  E_pft[is.na(E_pft)] <- -1
+
 
   
 
@@ -615,7 +616,6 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   }
 
 
-
   # Calculate the number of selectivity deviations
   # from length and age distributions
   nSelDevs <- 0
@@ -776,25 +776,6 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   if( hypoObj$selX == "length")
   {
 
-    # length at Sel50_sf initial value
-    xSel50_sf <- matrix(  25, 
-                          nrow = length(allSpecies),
-                          ncol = length(allFleets), 
-                          byrow = TRUE )
-
-
-    xSel50_sf <- xSel50_sf[useSpecIdx,useFleetsIdx]
-
-    # length at SelStep_sf initial value
-    xSelStep_sf <- matrix(  3, 
-                            nrow = length(allSpecies),
-                            ncol = length(allFleets), 
-                            byrow = TRUE )
-
-    xSelStep_sf <- xSelStep_sf[useSpecIdx,useFleetsIdx,drop = FALSE]
-
-
-
     # Selectivity by group
     xSel50_sg <- matrix(  c( 40, 23, 28,
                              30, 28, 22,
@@ -817,6 +798,12 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
 
     xSel50_sg   <- xSel50_sg[useSpecIdx,]
     xSelStep_sg <- xSelStep_sg[useSpecIdx,]
+
+    LB_xSelAlpha_sg  <- xSel50_sg[useSpecIdx,] - 10
+    UB_xSelAlpha_sg  <- xSel50_sg[useSpecIdx,] + 10
+    LB_xSelBeta_sg   <- xSelStep_sg[useSpecIdx,] - 5
+    UB_xSelBeta_sg   <- xSelStep_sg[useSpecIdx,] + 5
+    
 
   }
 
@@ -849,9 +836,9 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
 
   }
 
-  # by fleet
-  lnxSel50_sf <- array(log(xSel50_sf),dim = c(nS,nF))
-  lnxSelStep_sf <- array(log(xSelStep_sf),dim = c(nS,nF))
+  # # by fleet
+  # lnxSel50_sf <- array(log(xSel50_sf),dim = c(nS,nF))
+  # lnxSelStep_sf <- array(log(xSelStep_sf),dim = c(nS,nF))
 
 
   # by fleet group
@@ -864,6 +851,9 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   # Map selectivity at length
   nStockSelDevs <- 0
   nStockqDevs <- 0
+  nCatches <- sum(C_spft > 0)
+  posCatch_spf <- array(0,dim = c(nS,nP,nF))
+
   # Make unique initially
   for(s in 1:nS)
     for( f in 1:nF)
@@ -885,6 +875,13 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
           nStockqDevs <- nStockqDevs + 1
           calcStockQDevs_spf[s,p,f] <- 1
         }
+
+        posCatch <- ifelse(sum(C_spft[s,p,f,] > 0),1,0)
+        
+
+        # Add a small effort for surveys in years where there's catch
+        if( f %in% c(3,4))
+          E_pft[p,f,C_spft[s,p,f,] > 0] <- 0.01
       }
     }
 
@@ -963,6 +960,11 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
 
   # I_spft[1,2,1,as.character(1985:1995)] <- -1
 
+  # Reorder age dims
+  age_axspft <- aperm(age_aspftx,c(1,6,2:5))
+  len_lxspft <- aperm(len_lspftx,c(1,6,2:5))
+
+
 
   # Generate the data list
   data <- list( I_spft                = I_spft,
@@ -970,8 +972,8 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 D_spft                = D_spft,
                 E_pft                 = E_pft,
                 ALK_spalftx           = ALFreq_spalftx,
-                age_aspftx            = age_aspftx,
-                len_lspftx            = len_lspftx,
+                age_axspft            = age_axspft,
+                len_lxspft            = len_lxspft,
                 lenBinMids_l          = lenBinMids,
                 lenBinWidth           = dataObj$lenBinWidth,
                 group_f               = as.integer(group_f - 1),
@@ -1049,12 +1051,19 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 lntq95_vec          = log(tq95_vec),
                 lntauObs_vec        = rep(0, sum(calcIndex_spf)),
                 # Selectivity top level means and deviations for fleets/stocks
-                lnxSel50_sg         = lnxSel50_sg,
-                lnxSelStep_sg       = lnxSelStep_sg,
-                epsxSel50spf_vec    = rep(0,nStockSelDevs),
-                epsxSelStepspf_vec  = rep(0,nStockSelDevs),
+                thetaSelAlpha_sg    = array(0, dim = c(nS,nGroups)),
+                thetaSelBeta_sg     = array(0, dim = c(nS,nGroups)),
+                epsSelAlphaspf_vec  = rep(0,nStockSelDevs),
+                epsSelBetaspf_vec   = rep(0,nStockSelDevs),
+                LB_xSelAlpha_sg     = LB_xSelAlpha_sg,
+                UB_xSelAlpha_sg     = UB_xSelAlpha_sg,
+                LB_xSelBeta_sg      = LB_xSelBeta_sg,
+                UB_xSelBeta_sg      = UB_xSelBeta_sg,
                 # discards obs SD
                 lntauD_f            = rep(log(0.01),nF),
+                lnqF_spf            = array(log(.01),dim = c(nS,nP,nF)),
+                lntauqFdev          = log(hypoObj$tauqFdev),
+                deltalnqFspft_vec   = rep(0,nCatches),
                 ## Multilevel priors ##
                 # Selectivity SDs
                 lnsigmaxSel50_sg    = lnsigmaxSel50_sg,
@@ -1104,8 +1113,8 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 # Correlation in recruitment resids
                 logitRgamma_sp      = array( 0, dim = c(nS,nP)),
                 # Time-varying selectivity
-                epsxSel50_vec       = rep( 0, nSelDevs ),
-                epsxSelStep_vec     = rep( 0, nSelDevs ),
+                epsSelAlpha_vec     = rep( 0, nSelDevs ),
+                epsSelBeta_vec      = rep( 0, nSelDevs ),
                 lnsigmaSel          = log( hypoObj$sigmaSelDevs ),
                 # Time-varying catchability
                 epslnq_vec          = rep( 0, nqDevs ),
@@ -1148,6 +1157,9 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
 
   # generate base map for TMBphase()
   map <- list( )
+  lnqFMap <- array(1:(nS*nP*nF), dim = c(nS,nP,nF))
+  lnqFMap[posCatch_spf == 0] <- NA
+  map$lnqF_spf <- factor(lnqFMap)
 
   # Adjust phase of B0/Rbar based on recOption
   if( hypoObj$recOption == "BH" )
@@ -1228,6 +1240,14 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
     phases$recCorr_vec      <- -1
   }
 
+  # Turn off F estimation if solving for
+  # F numerically
+  if( ctrlObj$calcFmethod != "effortModel" )
+  {
+    phases$lnqF_spf         <- -1
+    phases$deltalnqFspft_vec<- -1
+  }
+
   checkDat <- lapply( X = data, FUN = .checkNA )
   checkPar <- lapply( X = pars, FUN = .checkNA )
 
@@ -1285,6 +1305,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                     stocks = useStocks,
                     map = phaseList$map,
                     data = data,
+                    grad = phaseList$grad,
                     optPars = phaseList$optPars,
                     initPars = pars,
                     phaseList = phaseList,
@@ -1632,6 +1653,11 @@ TMBphase <- function( data,
     outList$pdHess      <- sdrep$pdHess
 
     
+    grad <- summary(outList$sdrep)[1:length(opt$par),]
+    grad <- cbind( grad, as.vector(obj$gr()), grad[ ,2]/abs(grad[ ,1]) )
+    colnames(grad) <- c("est","se","gr","cv")
+    grad <- as.data.frame(grad)
+    outList$grad <- grad
   }
 
   # Save phase reports
