@@ -69,8 +69,13 @@
 // ouputs:    y = x^2
 // Usage:     when squaring.
 // Source:    Almost surely stolen from somewhere.
-template <class Type> 
-Type square(Type x){return pow(x,2);}
+// square
+template<class Type>
+Type square(Type x)
+{
+  return x*x;
+}
+
 // VECTORIZE1_t(square)
 
 // dhalfnorm()
@@ -328,6 +333,219 @@ vector<Type> calcLogistNormLikelihood(  vector<Type>& yObs,
 
   return(resids);
 } // end calcLogistNormLikelihood()
+
+// calcCorrLogistNormLikelihood()
+// Calculates the logistic normal likelihood for compositional data.
+// Automatically accumulates proportions below a given threshold. Takes
+// cumulative sum of squared resids and number of classes for which
+// residuals are calculated as pointers, so that these can be accumulated
+// across years for conditional MLE of variance. 
+// Will extend to correlated residuals and time-varying variance later.
+// inputs:    yObs    = Type vector of observed compositions (samples or proportions)
+//            pPred   = Type vector of predicted parameters (true class proportions)
+//            minProp = minimum proportion threshold to accumulate classes above
+//            etaSumSq= cumulative sum of squared resids (possibly correlated)
+//            nResids = cumulative sum of composition classes (post-accumulation)
+//            meanSampSize = mean size of annual composition samples
+//            compLikeFun = switch for compositional likelihood from Francis 2014
+//                            0 => no correlation (AR0, LN1)
+//                            1 => AR1 model (LN2)
+//                            2 => AR2 model (LN3)
+//                            3 => ARMA model (LN3m)
+//            phi1    = Correlation parameter, depends on compLikeFun
+//            psi     = Correlation parameter, depends on compLikeFun
+//            compObsNLL = compositional observation NLL contribution (external var)
+// outputs:   resids = vector of standardised resids (accumulated to match bins >= minProp)
+// Usage:     For computing the likelihood of observed compositional data
+// Source:    S. D. N. Johnson
+// Reference: Schnute and Haigh, 2007; Francis, 2014
+template<class Type>
+vector<Type> calcCorrLogistNormLikelihood(  vector<Type>   yObs, 
+                                            vector<Type>   pPred,
+                                            Type           minProp,
+                                            Type&          etaSumSq,
+                                            Type&          nResids,
+                                            Type           meanSampSize,
+                                            matrix<Type>   Corr_aa,
+                                            Type&          compObsNLL)
+{
+
+  // NOTE: some of the notation departs from
+  // that defined in the model header. This is
+  // to keep it close to Francis 2014 while I work
+  // out the model
+
+  // Get size of vector 
+  int nX = yObs.size();
+
+  // Get size of this sample
+  Type thisSampSize = yObs.sum();
+
+  // Calculate this year's weighting
+  Type Wy = sqrt(meanSampSize / thisSampSize);
+
+  // Normalise the samples and predictions in case they are numbers
+  // and not proportions
+  yObs /= yObs.sum();
+  pPred /= pPred.sum();
+
+  // Create vector of residuals to return
+  vector<Type> resids(nX);
+  vector<Type> aboveInd(nX);
+  resids.setZero();
+  aboveInd.setZero();
+
+  // Count number of observations less
+  // than minProp
+  int nAbove = 0;
+  for( int x = 0; x < nX; x++)
+    if(yObs(x) > minProp)
+    {
+      nAbove++;
+      aboveInd(x) = 1;
+    }
+
+  vector<int> idxAbove(nAbove);
+  int k = 0;
+  for( int x =0; x < nX; x++ )
+    if( aboveInd(x) == 1)
+    {
+      idxAbove(k) = x;
+      k++;
+    }
+
+  // Now loop and fill
+  vector<Type> newObs(nAbove);
+  vector<Type> newPred(nAbove);
+  newObs.setZero();
+  newPred.setZero();
+
+  // Tail compression 
+  // go up from the left
+  k = 0;
+  for( int x = 0; x < nX; x++)
+  {
+    // accumulate observations
+    newObs(k) += yObs(x);
+    newPred(k) += pPred(x);
+
+    // Increment k if we reach a bin
+    // with higher than minProp observations
+    // and we aren't yet in the last bin
+    if( (yObs(x) > minProp) & (k < nAbove - 1) )
+      k++;    
+  }
+
+
+  // OK, now we create a nAbove x nAbove correlation matrix Corr
+  // from the above correlation vector, the same
+  // size matrix V, and the multiplier matrix K
+  matrix<Type> Corr(nAbove,nAbove);
+  matrix<Type> V(nAbove,nAbove);
+  matrix<Type> Vinv(nAbove,nAbove);
+  matrix<Type> Gamma(nAbove,nAbove);
+  matrix<Type> K(nAbove-1,nAbove);
+  matrix<Type> F(nAbove-1,nAbove);
+  matrix<Type> H(nAbove-1,nAbove-1);
+  matrix<Type> Hinv(nAbove-1,nAbove-1);
+
+
+  // Fill with zeroes
+  Corr.setZero();
+  V.setZero();
+  Vinv.setZero();
+  K.setZero();
+  F.setZero();
+  H.fill(1);
+
+  // Get submatrix of Corr_aa
+  for( int k = 0; k < nAbove; k++ )
+  {
+    Corr(k,k) += Corr_aa(idxAbove(k),idxAbove(k));
+    for( int kk = k + 1; kk < nAbove; kk++ )
+    {
+      Corr(k,kk) += Corr_aa(idxAbove(k),idxAbove(kk));
+      Corr(kk,k) += Corr_aa(idxAbove(kk),idxAbove(k));
+    }
+  }
+  
+
+  // Now we fill
+  for( int rIdx = 0; rIdx < nAbove; rIdx ++ )
+  {
+
+    // Now fill in K
+    if( rIdx < nAbove-1 )
+    {
+      K( rIdx, rIdx ) = 1;
+      F( rIdx, rIdx ) = 1;
+      H( rIdx, rIdx) += 1;
+    }
+
+    if( rIdx == nAbove-1 )
+    {
+      K.col(rIdx).fill(-1);
+      F.col(rIdx).fill(1);
+    }
+
+    
+  }
+
+  // Generate V and its inverse
+  V = K * Corr * K.transpose();
+  Type logdetV = 0;
+  Vinv = atomic::matinvpd( V, logdetV );
+  Hinv = atomic::matinv( H );
+
+  Gamma = F.transpose() * Hinv * V * Hinv * F;
+
+  // Calculate w_b, independent resids
+  matrix<Type> w_b(nAbove-1,1);
+  w_b.setZero();
+  for( int vIdx = 0; vIdx < nAbove-1; vIdx ++)
+    if( newObs(vIdx) > 0 & newPred(vIdx) > 0)
+      w_b(vIdx,0) = log( newObs(vIdx) / newObs(nAbove-1) ) - 
+                  log( newPred(vIdx) / newPred(nAbove-1) );
+
+  
+  // Now add correlated squared resids to etaSumSq and nRes to nResids
+  matrix<Type> tmpeta(1,1);
+  tmpeta = (w_b.transpose() * Vinv * w_b) / square(Wy); 
+  etaSumSq  += tmpeta(0,0);
+  nResids   += nAbove - 1;
+
+  compObsNLL += 0.5 * logdetV + (nAbove-1) * log(Wy); // + log( newObs.segment(0,nAbove -1) ).sum();
+
+  // Now expand residuals back out
+  // Now loop again, and fill in
+  // the residuals vector
+  // for plotting later
+  vector<Type> res(nAbove);
+  res.setZero();
+  Type gmObs  = 1;
+  Type gmPred = 1;
+  gmObs  =  exp( log(newObs).sum()  / nAbove  );
+  gmPred =  exp( log(newPred).sum() / nAbove  );
+  // gmPred =  pow(newPred.prod(),1/nAbove);
+
+  for( int k = 0; k < nAbove; k++ )
+  {
+    res    =  log( newObs / gmObs ) - 
+              log( newPred / gmPred );  
+  }
+  
+  k = 0;
+  for( int x =0; x < nX; x++)
+    if( aboveInd(x) == 1)
+    {
+      resids(x)   = res(k) / Wy / sqrt(Gamma(k,k)) ;
+      k++;
+    }
+
+  return(resids);
+}  // END calcCorrLogistNormLikelihood()
+
+
 
 // solveBaranov_spfx()
 // Newton-Rhapson solver for Baranov catch equation for a multi-stock
@@ -688,8 +906,8 @@ Type objective_function<Type>::operator() ()
   DATA_IVECTOR(minL_s);                 // Min length bin by species
   DATA_IVECTOR(lenD_s);                 // Discard length by species
   DATA_INTEGER(nX);                     // Number of sex classes
-  DATA_ARRAY(age_table);                // age data in table format
-  DATA_ARRAY(len_table);                // length data in table format
+  DATA_IARRAY(age_table);               // age data in table format
+  DATA_IARRAY(len_table);               // length data in table format
 
 
   // Model dimensions
@@ -741,6 +959,13 @@ Type objective_function<Type>::operator() ()
   // Fixed values
   DATA_IVECTOR(A1_s);                   // Age at which L1_s is estimated
   DATA_IVECTOR(A2_s);                   // Age at which L2_s is estimated
+
+  // Compositional Likelihood values
+  // Compositional likelihood inputs
+  DATA_INTEGER(compLikeFun);            // Compositional data likelihood function (correlation)
+  DATA_ARRAY(meanAgeSampSize_spf);      // Mean sample sizes for sex-species-stock-specific compositional data
+  DATA_ARRAY(meanLenSampSize_spf);      // Mean sample sizes for sex-species-stock-specific compositional data
+
 
 
   /* -------------------------- Parameter Section ------------------------ */
@@ -852,6 +1077,12 @@ Type objective_function<Type>::operator() ()
   PARAMETER(mF);                        // Prior mean value for mean F
   PARAMETER(sdF);                       // Prior sd for meanF
   PARAMETER(sd_omegaRbar);              // omegaRbar regularisation SD
+
+  // Compositional data likelihood correlation matrix parameters
+  PARAMETER_VECTOR(logitphi1Age_f);     // AR1 correlation coefficient, or AR2 parameter
+  PARAMETER_VECTOR(logitpsiAge_f);      // AR2 parameter
+  PARAMETER_VECTOR(logitphi1Len_f);     // AR1 correlation coefficient, or AR2 parameter
+  PARAMETER_VECTOR(logitpsiLen_f);      // AR2 parameter
 
   // mortality deviations //
   /*
@@ -985,6 +1216,122 @@ Type objective_function<Type>::operator() ()
   Fbar_spf.setZero();
   calcSel_spf.setZero();
 
+  // Compositional likelihood correlation matrix
+  // parameters
+  vector<Type> phi1Age_f(nF);
+  vector<Type> psiAge_f(nF);
+  vector<Type> phi2Age_f(nF);
+  vector<Type> phi1Len_f(nF);
+  vector<Type> psiLen_f(nF);
+  vector<Type> phi2Len_f(nF);
+
+  phi2Age_f.fill(0);
+  phi2Len_f.fill(0);
+  phi1Age_f.fill(0);
+  phi1Len_f.fill(0);
+  psiAge_f.fill(.5);
+  psiLen_f.fill(.5);
+
+  array<Type> corrAge_fa(nF,nA);
+  array<Type> corrLen_fl(nF,nL);
+  corrAge_fa.fill(0);
+  corrAge_fa.col(0) += 1;
+  corrLen_fl.fill(0);
+  corrLen_fl.col(0) += 1;
+
+  // Now fill in the rest: 
+  if( compLikeFun > 0)
+  {
+    // The LN2 function
+    if( compLikeFun == 1 )
+    {
+      phi1Age_f = 2 * invlogit(logitphi1Age_f) - 1;
+      phi1Len_f = 2 * invlogit(logitphi1Len_f) - 1;
+      for( int a = 1; a < nA; a++ )
+      {
+        corrAge_fa.col(a) = corrAge_fa.col(a-1) * phi1Age_f;
+        corrLen_fl.col(a) = corrLen_fl.col(a-1) * phi1Len_f;
+      }
+    }  
+
+    // The LN3 function
+    if( compLikeFun == 2 )
+    { 
+      phi1Age_f = 4 * invlogit(logitphi1Age_f) - 2;
+      psiAge_f  = invlogit(logitpsiAge_f);
+      phi2Age_f = -1 + (2 - sqrt(square(phi1Age_f)) ) * psiAge_f;
+
+      phi1Len_f = 4 * invlogit(logitphi1Len_f) - 2;
+      psiLen_f  = invlogit(logitpsiLen_f);
+      phi2Len_f = -1 + (2 - sqrt(square(phi1Len_f)) ) * psiLen_f;
+      
+      corrAge_fa.col(1) = phi1Age_f / phi2Age_f;
+      corrLen_fl.col(1) = phi1Len_f / phi2Len_f;
+      for( int a = 2; a < nA; a++ )
+        corrAge_fa.col(a) = phi1Age_f * corrAge_fa.col(a-1) + phi2Age_f * corrAge_fa.col(a-2);
+      for( int l = 2; l < nL; l++)
+        corrLen_fl.col(l) = phi1Len_f * corrLen_fl.col(l-1) + phi2Len_f * corrLen_fl.col(l-2);
+      
+    }
+
+    // LN3m, ARMA model
+    if( compLikeFun == 3 )
+    {
+      phi1Age_f    = 2 * invlogit(logitphi1Age_f) - 1;
+      psiAge_f    += logitpsiAge_f;
+      phi1Len_f    = 2 * invlogit(logitphi1Len_f) - 1;
+      psiLen_f    += logitpsiLen_f;
+
+      vector<Type> sumPhiPsiAge = phi1Age_f + psiAge_f;
+      vector<Type> sumPhiPsiLen = phi1Len_f + psiLen_f;
+      
+      corrAge_fa.col(1) = phi1Age_f + psiAge_f * (1 + (sumPhiPsiAge * sumPhiPsiAge )/(1 - phi1Age_f * phi1Age_f ) );
+      corrLen_fl.col(1) = phi1Len_f + psiLen_f * (1 + (sumPhiPsiLen * sumPhiPsiLen )/(1 - phi1Len_f * phi1Age_f ) );
+      
+      for( int a = 2; a < nA; a++ )
+        corrAge_fa.col(a) = phi1Age_f * corrAge_fa.col(a-2);
+      for( int l = 2; l < nL; l++ )
+        corrLen_fl.col(l) = phi1Len_f * corrLen_fl.col(l-2);
+    }
+  }
+
+  // Now make correlation matrices
+  array<Type> CorrAge_faa(nF,nA,nA);
+  array<Type> CorrLen_fll(nF,nL,nL);
+  CorrAge_faa.setZero();
+  CorrLen_fll.setZero();
+  
+
+
+  for( int f = 0; f < nF; f++ )
+  {
+    for( int rIdx = 0; rIdx < nA; rIdx ++ )
+    {
+      CorrAge_faa(f,rIdx,rIdx) = 1;
+      for( int cIdx = rIdx + 1; cIdx < nA; cIdx ++)
+      {
+        int idxDiff = cIdx - rIdx;
+
+        CorrAge_faa(f,rIdx,cIdx) = corrAge_fa(f,idxDiff);   
+        CorrAge_faa(f,cIdx,rIdx) = corrAge_fa(f,idxDiff);
+
+      }
+    }
+
+    for( int rIdx = 0; rIdx < nL; rIdx ++ )
+    {
+      CorrLen_fll(f,rIdx,rIdx) = 1;
+      for( int cIdx = rIdx + 1; cIdx < nL; cIdx ++)
+      {
+        int idxDiff = cIdx - rIdx;
+
+        CorrLen_fll(f,rIdx,cIdx) = corrLen_fl(f,idxDiff);   
+        CorrLen_fll(f,cIdx,rIdx) = corrLen_fl(f,idxDiff);
+
+      }
+    }    
+  }
+
   // Make a vector of ages/lengths for use in 
   // age and length based quantities later
   vector<Type> age(nA);
@@ -1002,7 +1349,7 @@ Type objective_function<Type>::operator() ()
   matrix<Type> recCorrMat_sp(nS*nP,nS*nP);
   recCorrMat_sp.setZero();
   // AR1 factor
-  gammaR_sp = -1 + 2 /( 1 + exp (-1 * (logitRgamma_sp) ) );
+  gammaR_sp = -1 + 1.96 /( 1 + exp (-1 * (logitRgamma_sp) ) );
 
 
   // Prior Hyperparameters //
@@ -1296,7 +1643,7 @@ Type objective_function<Type>::operator() ()
   array<Type> SB_spt(nS,nP,nT);             // Spawning biomass by species, pop, time
   array<Type> vB_spft(nS,nP,nF,nT);         // Vulnerable biomass by species, pop, time
   array<Type> Nv_spft(nS,nP,nF,nT);         // Vulnerable numbers by species, pop, time
-  array<Type> Nv_aspftx(nA,nS,nP,nF,nT,nX); // Vulnerable numbers at age by species, pop, time
+  array<Type> Nv_axspft(nA,nX,nS,nP,nF,nT); // Vulnerable numbers at age by species, pop, time
   array<Type> Surv_aspx(nA,nS,nP,nX);       // Eqbm survival at age
   array<Type> SSBpr_asp(nA,nS,nP);          // Spawning stock biomass per rec. at age
 
@@ -1502,7 +1849,7 @@ Type objective_function<Type>::operator() ()
   SB_spt.setZero();
   vB_spft.setZero();
   Nv_spft.setZero();
-  Nv_aspftx.setZero();
+  Nv_axspft.setZero();
   N_axspt.setZero();
   predCw_spft.setZero();
   predC_spft.setZero();
@@ -1510,7 +1857,7 @@ Type objective_function<Type>::operator() ()
 
   // Copies of state arrays for testing Baranov solver
   array<Type> B_axspt(nA,nX,nS,nP,nT);
-  array<Type> B_spxt(nS,nP,nX,nT);
+  array<Type> B_xspt(nX,nS,nP,nT);
   array<Type> vB_axspft(nA,nX,nS,nP,nF,nT);
   array<Type> vB_spfxt(nS,nP,nF,nX,nT);
   array<Type> U_spft(nS,nP,nF,nT);
@@ -1518,7 +1865,7 @@ Type objective_function<Type>::operator() ()
 
   B_axspt.setZero();
   endN_axspt.setZero();
-  B_spxt.setZero();
+  B_xspt.setZero();
   vB_axspft.setZero();
   vB_spfxt.setZero();
   vB_spft.setZero();
@@ -1601,15 +1948,15 @@ Type objective_function<Type>::operator() ()
           // Compute biomass at age and total biomass
           B_axspt.col(t).col(p).col(s).col(x) += N_axspt.col(t).col(p).col(s).col(x) * meanWtAge_aspx.col(x).col(p).col(s);
 
-          B_spxt(s,p,x,t) += B_axspt.col(t).col(p).col(s).col(x).sum();
+          B_xspt(x,s,p,t) += B_axspt.col(t).col(p).col(s).col(x).sum();
 
 
           // Loop over fleets and compute catch
           for( int f =0; f < nF; f++ )
           {
             // Calculate vulnerable numbers and biomass for this fleet
-            Nv_aspftx.col(x).col(t).col(f).col(p).col(s) = N_axspt.col(t).col(p).col(s).col(x) * sel_axspft.col(t).col(f).col(p).col(s).col(x);
-            Nv_spft(s,p,f,t) += Nv_aspftx.col(x).col(t).col(f).col(p).col(s).sum();
+            Nv_axspft.col(t).col(f).col(p).col(s).col(x) = N_axspt.col(t).col(p).col(s).col(x) * sel_axspft.col(t).col(f).col(p).col(s).col(x);
+            Nv_spft(s,p,f,t) += Nv_axspft.col(t).col(f).col(p).col(s).col(x).sum();
 
             vB_axspft.col(t).col(f).col(p).col(s).col(x) += B_axspt.col(t).col(p).col(s).col(x) * sel_axspft.col(t).col(f).col(p).col(s).col(x);
             vB_spfxt(s,p,f,x,t) = vB_axspft.col(t).col(f).col(p).col(s).col(x).sum();
@@ -1622,6 +1969,13 @@ Type objective_function<Type>::operator() ()
               vB_axspft(a,x,s,p,f,t) = sel_axspft(a,x,s,p,f,t) * B_axspt(a,x,s,p,t);
             }
 
+            if( x == nX - 1 )
+            {
+              // Calculate biomass and biological data observation
+              // liklihoods here
+
+
+            }
           }
 
           // Compute total and spawning biomass
@@ -1780,12 +2134,13 @@ Type objective_function<Type>::operator() ()
               aDist_aspftx_hat.col(x).col(t).col(f).col(p).col(s) = C_axspft.col(t).col(f).col(p).col(s).col(x) / totCatch;
                 
 
+
             // Create array of predicted length distributions
             // Need to do some thinking here... follow LIME to start with...
             // Probability of being harvested at age
             vector<Type> probHarvAge(nA);
             probHarvAge.setZero();
-            probHarvAge = Nv_aspftx.col(x).col(t).col(f).col(p).col(s) / N_axspt.col(t).col(p).col(s).col(x).sum();
+            probHarvAge = Nv_axspft.col(x).col(t).col(f).col(p).col(s) / N_axspt.col(t).col(p).col(s).col(x).sum();
             
             // Probability of sampling a given length bin
             vector<Type> probHarvLen(L);
@@ -1929,6 +2284,8 @@ Type objective_function<Type>::operator() ()
   array<Type> nResidsLen_spf(nS,nP,nF);
   array<Type> nObsAge_spf(nS,nP,nF);
   array<Type> nObsLen_spf(nS,nP,nF);
+  array<Type> intAgeLikeCpt_spf(nS,nP,nF);
+  array<Type> intLenLikeCpt_spf(nS,nP,nF);
   array<Type> ageRes_aspftx(nA,nS,nP,nF,nT,nX);
   array<Type> lenRes_lspftx(nL,nS,nP,nF,nT,nX+1);
   // Zero-init
@@ -1955,6 +2312,103 @@ Type objective_function<Type>::operator() ()
   validIdxObs_spf.setZero();
   ssrIdx_spf.setZero();
 
+
+  // Loop over age table, calculate residuals and likelihood
+  for( int aIdx = 0; aIdx < nAgeObs; aIdx ++  )
+  {
+    // Get array dims from table
+    int t = age_table(aIdx,0)-1;
+    int s = age_table(aIdx,1)-1;
+    int p = age_table(aIdx,2)-1;
+    int f = age_table(aIdx,3)-1;
+    int x = age_table(aIdx,4)-1;
+
+    // Get species ages
+    int A      = A_s(s) - minA_s(s) + 1;    
+
+    // tmp vectors to hold age and length observed and
+    // predicted values
+    vector<Type> fleetAgeObs(A);
+    vector<int>  intFleetAgeObs(A);
+    vector<Type> fleetAgePred(A);
+
+    // Set tmp vectors to zero 
+    fleetAgeObs.setZero();
+    fleetAgePred.setZero();
+
+    intFleetAgeObs   = age_table.transpose().col(aIdx).segment(5 + minA_s(s)-1,A);
+    fleetAgeObs      = intFleetAgeObs.cast<Type>(); 
+    fleetAgePred    += aDist_aspftx_hat.col(x).col(t).col(f).col(p).col(s).segment(minA_s(s)-1,A);    
+
+    // Now for compositional data. First, check if ages are 
+    // being used (or exist), if so
+    // compute logistic normal likelihood
+    if( (fleetAgeObs.sum() > 0) & (fleetAgePred.sum() > 0) & (ageLikeWt_g(group_f(f)) > 0) )
+    {
+    
+      matrix<Type> tmpCorr_aa = CorrAge_faa.transpose().col(f).matrix();
+
+      ageRes_aspftx.col(x).col(t).col(f).col(p).col(s).segment(minA_s(s) - 1,A) =
+        calcCorrLogistNormLikelihood( fleetAgeObs,
+                                      fleetAgePred,
+                                      minAgeProp,
+                                      etaSumSqAge_spf(s,p,f),
+                                      nResidsAge_spf(s,p,f),
+                                      meanAgeSampSize_spf(s,p,f),
+                                      tmpCorr_aa,
+                                      intAgeLikeCpt_spf(s,p,f) );                
+
+      // Increment number of age observations
+      nObsAge_spf(s,p,f) += 1;
+
+    }     
+  }
+
+  // Loop over len table, calc residuals and likelihood
+  for( int lIdx = 0; lIdx < nLenObs; lIdx ++  )
+  {
+    // Get array dims from table
+    int t = len_table(lIdx,0)-1;
+    int s = len_table(lIdx,1)-1;
+    int p = len_table(lIdx,2)-1;
+    int f = len_table(lIdx,3)-1;
+    int x = len_table(lIdx,4)-1;
+
+    // Get species ages
+    int L      = L_s(s) - minL_s(s) + 1;
+
+    vector<Type> fleetLenObs(L);
+    vector<int>  intFleetLenObs(L);
+    vector<Type> fleetLenPred(L);  
+
+    // Set tmp vectors to zero 
+    fleetLenObs.setZero();
+    fleetLenPred.setZero();
+
+    intFleetLenObs   = len_table.transpose().col(lIdx).segment(5 + minL_s(s)-1,L);
+    fleetLenObs      = intFleetLenObs.cast<Type>();
+    fleetLenPred    += lDist_lspftx_hat.col(x).col(t).col(f).col(p).col(s).segment(minL_s(s)-1,L);
+
+
+    if( (fleetLenObs.sum() > 0) & (fleetLenPred.sum() > 0) &  (lenLikeWt_g(group_f(f)) > 0) )
+    {
+      matrix<Type> tmpCorr_ll = CorrLen_fll.transpose().col(f).matrix();
+
+      lenRes_lspftx.col(x).col(t).col(f).col(p).col(s).segment(minL_s(s)-1,L) = 
+        calcCorrLogistNormLikelihood( fleetLenObs, 
+                                      fleetLenPred,
+                                      minLenProp,
+                                      etaSumSqLen_spf(s,p,f),
+                                      nResidsLen_spf(s,p,f),
+                                      meanLenSampSize_spf(s,p,f),
+                                      tmpCorr_ll,
+                                      intAgeLikeCpt_spf(s,p,f) ); 
+
+      nObsLen_spf(s,p,f) += 1;
+    }
+
+
+  } 
 
 
   for( int s = 0; s < nS; s++ )
@@ -2011,61 +2465,76 @@ Type objective_function<Type>::operator() ()
             }
           } // END propF likelihood calc
 
-          for( int x = 0; x < nX; x++)
-          {
-            // tmp vectors to hold age and length observed and
-            // predicted values
-            vector<Type> fleetAgeObs(A);
-            vector<Type> fleetAgePred(A);
+          // for( int x = 0; x < nX; x++)
+          // {
+          //   // tmp vectors to hold age and length observed and
+          //   // predicted values
+          //   // vector<Type> fleetAgeObs(A);
+          //   // vector<Type> fleetAgePred(A);
 
-            vector<Type> fleetLenObs(L);
-            vector<Type> fleetLenPred(L);  
+          //   // vector<Type> fleetLenObs(L);
+          //   // vector<Type> fleetLenPred(L);  
 
-            // Set tmp vectors to zero 
-            fleetAgeObs.setZero();
-            fleetAgePred.setZero();
-            fleetLenObs.setZero();
-            fleetLenPred.setZero();
+          //   // // Set tmp vectors to zero 
+          //   // fleetAgeObs.setZero();
+          //   // fleetAgePred.setZero();
+          //   // fleetLenObs.setZero();
+          //   // fleetLenPred.setZero();
 
-            // Get observations and predicted age comps
-            fleetAgeObs   = age_aspftx.col(x).col(t).col(f).col(p).col(s).segment(minA_s(s)-1,A);
-            fleetAgePred  = aDist_aspftx_hat.col(x).col(t).col(f).col(p).col(s).segment(minA_s(s)-1,A);
-            // And length comps
-            fleetLenObs   = len_lspftx.col(x).col(t).col(f).col(p).col(s).segment(minL_s(s)-1,L);
-            fleetLenPred  = lDist_lspftx_hat.col(x).col(t).col(f).col(p).col(s).segment(minL_s(s)-1,L);
+          //   // // Get observations and predicted age comps
+          //   // fleetAgeObs   = age_aspftx.col(x).col(t).col(f).col(p).col(s).segment(minA_s(s)-1,A);
+          //   // fleetAgePred  = aDist_aspftx_hat.col(x).col(t).col(f).col(p).col(s).segment(minA_s(s)-1,A);
+          //   // // And length comps
+          //   // fleetLenObs   = len_lspftx.col(x).col(t).col(f).col(p).col(s).segment(minL_s(s)-1,L);
+          //   // fleetLenPred  = lDist_lspftx_hat.col(x).col(t).col(f).col(p).col(s).segment(minL_s(s)-1,L);
 
 
 
       
-            // Now for compositional data. First, check if ages are 
-            // being used (or exist), if so
-            // compute logistic normal likelihood
-            if( (fleetAgeObs.sum() > 0) & (fleetAgePred.sum() > 0) & (ageLikeWt_g(group_f(f)) > 0) )
-            {
-              ageRes_aspftx.col(x).col(t).col(f).col(p).col(s).segment(minA_s(s)-1,A)  = calcLogistNormLikelihood(  fleetAgeObs, 
-                                                                                                                    fleetAgePred,
-                                                                                                                    minAgeProp,
-                                                                                                                    etaSumSqAge_spf(s,p,f),
-                                                                                                                    nResidsAge_spf(s,p,f) );
+          //   // Now for compositional data. First, check if ages are 
+          //   // being used (or exist), if so
+          //   // compute logistic normal likelihood
+          //   // if( (fleetAgeObs.sum() > 0) & (fleetAgePred.sum() > 0) & (ageLikeWt_g(group_f(f)) > 0) )
+          //   // {
+          //   //   // ageRes_aspftx.col(x).col(t).col(f).col(p).col(s).segment(minA_s(s)-1,A)  = 
+          //   //   // calcLogistNormLikelihood( fleetAgeObs, 
+          //   //   //                           fleetAgePred,
+          //   //   //                           minAgeProp,
+          //   //   //                           etaSumSqAge_spf(s,p,f),
+          //   //   //                           nResidsAge_spf(s,p,f) );
 
-              // Increment number of ages
-              nObsAge_spf(s,p,f) += 1;
-
-            }     
-
-            // If ages aren't being used, but lengths exist, then compute 
-            // logistic normal likelihood
-            if( (fleetLenObs.sum() > 0) & (fleetLenPred.sum() > 0) &  (lenLikeWt_g(group_f(f)) > 0) )
-            {
-              lenRes_lspftx.col(x).col(t).col(f).col(p).col(s).segment(minL_s(s)-1,L) = calcLogistNormLikelihood( fleetLenObs, 
-                                                                                                                  fleetLenPred,
-                                                                                                                  minLenProp,
-                                                                                                                  etaSumSqLen_spf(s,p,f),
-                                                                                                                  nResidsLen_spf(s,p,f) );
               
-              nObsLen_spf(s,p,f) += 1;
-            }
-          } // END x loop for age/length comps    
+
+          //   //   // matrix<Type> tmpCorr_aa = CorrAge_faa.transpose().col(f).matrix();
+
+          //   //   // ageRes_aspftx.col(x).col(t).col(f).col(p).col(s).segment(minA_s(s) - 1,A) =
+          //   //   //   calcCorrLogistNormLikelihood( fleetAgeObs,
+          //   //   //                                 fleetAgePred,
+          //   //   //                                 minAgeProp,
+          //   //   //                                 etaSumSqAge_spf(s,p,f),
+          //   //   //                                 nResidsAge_spf(s,p,f),
+          //   //   //                                 meanAgeSampSize_spf(s,p,f),
+          //   //   //                                 tmpCorr_aa,
+          //   //   //                                 intAgeLikeCpt_spf(s,p,f) );                
+
+          //   //   // // Increment number of age observations
+          //   //   // nObsAge_spf(s,p,f) += 1;
+
+          //   // }     
+
+          //   // If ages aren't being used, but lengths exist, then compute 
+          //   // logistic normal likelihood
+          //   // if( (fleetLenObs.sum() > 0) & (fleetLenPred.sum() > 0) &  (lenLikeWt_g(group_f(f)) > 0) )
+          //   // {
+          //   //   lenRes_lspftx.col(x).col(t).col(f).col(p).col(s).segment(minL_s(s)-1,L) = calcLogistNormLikelihood( fleetLenObs, 
+          //   //                                                                                                       fleetLenPred,
+          //   //                                                                                                       minLenProp,
+          //   //                                                                                                       etaSumSqLen_spf(s,p,f),
+          //   //                                                                                                       nResidsLen_spf(s,p,f) );
+              
+          //   //   nObsLen_spf(s,p,f) += 1;
+          //   // }
+          // } // END x loop for age/length comps    
 
           // now compute fits for combined data
           if( nX == 2 )
@@ -2085,11 +2554,12 @@ Type objective_function<Type>::operator() ()
             // logistic normal likelihood
             if( (fleetLenObs.sum() > 0) & (fleetLenPred.sum() > 0) &  (lenLikeWt_g(group_f(f)) > 0) )
             {
-              lenRes_lspftx.col(nX).col(t).col(f).col(p).col(s).segment(minL_s(s)-1,L) = calcLogistNormLikelihood( fleetLenObs, 
-                                                                                                                    fleetLenPred,
-                                                                                                                    minLenProp,
-                                                                                                                    etaSumSqLen_spf(s,p,f),
-                                                                                                                    nResidsLen_spf(s,p,f) );
+              lenRes_lspftx.col(nX).col(t).col(f).col(p).col(s).segment(minL_s(s)-1,L) = 
+              calcLogistNormLikelihood( fleetLenObs, 
+                                        fleetLenPred,
+                                        minLenProp,
+                                        etaSumSqLen_spf(s,p,f),
+                                        nResidsLen_spf(s,p,f) );
               
               nObsLen_spf(s,p,f) += 1;
             }
@@ -2100,7 +2570,11 @@ Type objective_function<Type>::operator() ()
         if( nResidsAge_spf(s,p,f) > 0)
         {
           tau2Age_spf(s,p,f)      += etaSumSqAge_spf(s,p,f) / nResidsAge_spf(s,p,f);
-          ageCompsnll_spf(s,p,f)  += ageLikeWt_g(group_f(f)) * 0.5 * (nResidsAge_spf(s,p,f) - nObsAge_spf(s,p,f)) * log(tau2Age_spf(s,p,f));
+          ageCompsnll_spf(s,p,f)  += ageLikeWt_g(group_f(f)) *( 
+                                        0.5 * nResidsAge_spf(s,p,f) * log(tau2Age_spf(s,p,f)) +
+                                        intAgeLikeCpt_spf(s,p,f) +
+                                        0.5 * etaSumSqAge_spf(s,p,f) / tau2Age_spf(s,p,f)) ;
+
         }
         if( nResidsLen_spf(s,p,f) > 0)
         {
@@ -2337,7 +2811,7 @@ Type objective_function<Type>::operator() ()
   REPORT( predC_spft );
   REPORT( vB_spft );
   REPORT( Nv_spft );
-  REPORT( Nv_aspftx );
+  REPORT( Nv_axspft );
   REPORT( SB_spt );
   REPORT( B_spt );
   REPORT( Z_axspt );
@@ -2466,6 +2940,11 @@ Type objective_function<Type>::operator() ()
   REPORT( aDist_aspftx_hat );
   REPORT( I_spft_hat );
 
+  // Compositional correlation matrices
+  REPORT( CorrAge_faa );
+  REPORT( CorrLen_faa );
+
+  // Vulnerable biomass at age
   REPORT( vB_axspft );
   REPORT( vB_spfxt );
 

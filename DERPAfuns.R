@@ -2861,8 +2861,6 @@ makeCompsTable <- function( compList = ageComps,
 
   compsTable <- compsTable[1:tabRowIdx,]
 
-  browser()
-
   return(compsTable)
 } # END makeCompsArray()
 

@@ -482,6 +482,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                                 xName = "ages",
                                 minSampSize = dataObj$minAgeSampSize )
 
+
   len_lspftx <- makeCompsArray( compList = lenComps,
                                 plusGroups = nL_s,
                                 minX = minL_s,
@@ -502,8 +503,15 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                                 xName = "length",
                                 minSampSize = dataObj$minLenSampSize )
 
+
+  # remove unsexed observations
+  age_table <- age_table[!age_table[,5] == 3,]
+
+
   if( collapseSyn )
   {
+    age_table[age_table[,4] > 4,4] <- 4
+    len_table[len_table[,4] > 4,4] <- 4
     # collapseSyn assumes that the synoptic 
     # surveys are just HS, QCS and WCVI, from
     # N to S, and that Synoptic surveys are 
@@ -512,6 +520,8 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
 
     whichSyn  <- which(grepl("Syn",dimnames(age_aspftx)[[4]]))
     notSyn    <- which(!grepl("Syn",dimnames(age_aspftx)[[4]]))
+
+
 
     notSynNames <- dimnames(newage_aspftx)[[4]][notSyn]
 
@@ -538,6 +548,39 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
 
     len_lspftx <- newlen_lspftx
   }
+
+  age_table <- age_table[age_table[,2] <= 3,]
+  len_table <- len_table[len_table[,2] <= 3,]
+
+  # Compute mean sample size
+  ageSampSizes <- apply(  X = age_table[,-(1:5)],
+                          FUN = sum, MARGIN = 1 )
+  ageSampSizeTable <- cbind(age_table[,1:5],ageSampSizes) %>% as.data.frame()
+
+  lenSampSizes <- apply(  X = len_table[,-(1:5)],
+                          FUN = sum, MARGIN = 1 )
+  lenSampSizeTable <- cbind(len_table[,1:5],lenSampSizes) %>% as.data.frame()
+
+  meanAgeSampSize_spf <- array(0, dim = c(nS,nP,nF))
+  meanLenSampSize_spf <- array(0, dim = c(nS,nP,nF))
+
+  for( s in 1:nS )
+    for( p in 1:nP )
+      for( f in 1:nF )
+      {
+        ageTab <- ageSampSizeTable %>%
+                  filter( species == s, stock == p, fleet == f )
+        lenTab <- lenSampSizeTable %>%
+                  filter( species == s, stock == p, fleet == f )
+
+        if( nrow(ageTab) > 0)
+          meanAgeSampSize_spf[s,p,f] <- mean(ageTab$ageSampSizes)
+
+        if( nrow(lenTab) > 0 )
+          meanLenSampSize_spf[s,p,f] <- mean(lenTab$lenSampSizes)          
+      }
+
+
 
   age_aspftx <- age_aspftx[,useSpecies,useStocks,useFleets,,1:2, drop = FALSE]
   len_lspftx <- len_lspftx[,useSpecies,useStocks,useFleets,,, drop = FALSE]
@@ -888,6 +931,16 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   IWmode <- diag(1,(nS * nP))
   IWnu   <- nS * nP + hypoObj$IWnu
 
+  # Correlations in comp likelihood
+  initPhi1  <- rep(0,nF)
+  initPsi   <- rep(0,nF)
+
+  if( hypoObj$compLikeFun == 2 )
+  {
+    initPhi1  <- rep(0, nF)
+    initPsi   <- rep(-5, nF)
+  }
+
   if( hypoObj$IWscale == "stockCorr" )
   {
     # Create a striped correlation matrix
@@ -962,7 +1015,13 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 recruitVariance       = hypoObj$recModel,
                 recOption             = hypoObj$recOption,
                 debugMode             = ctrlObj$debugMode,
-                condMLEq_f            = hypoObj$condMLEq  )
+                condMLEq_f            = hypoObj$condMLEq,
+                age_table             = age_table,
+                len_table             = len_table,
+                # Compositional data likelihood
+                compLikeFun           = hypoObj$compLikeFun,
+                meanAgeSampSize_spf   = meanAgeSampSize_spf,
+                meanLenSampSize_spf   = meanLenSampSize_spf  )
 
   # Generate parameter list
   pars <- list( ## Leading biological pars ##
@@ -1062,16 +1121,17 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 cvxSel              = hypoObj$cvxSel,
                 mF                  = hypoObj$mF,
                 sdF                 = hypoObj$sdF,
-                sd_omegaRbar        = hypoObj$recDevReg )
+                sd_omegaRbar        = hypoObj$recDevReg,
+                logitphi1Age_f      = initPhi1,
+                logitpsiAge_f       = initPsi,
+                logitphi1Len_f      = initPhi1,
+                logitpsiLen_f       = initPsi )
 
 
 
   # Generate special entries for the 
   # base map list that are sensitive to useFleetsIdx
-  taumap_spf <- array(  1 + 1:(nS*nP*nF),
-                      dim = c(nS,nP,nF) )
-  taumap_spf[calcIndex_spf == 0] <- NA
-
+  
 
   if( hypoObj$identSel )
   {
@@ -1098,6 +1158,24 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
     phases$logitSteep     <- -1
     phases$epsSteep_s     <- -1
     phases$epsSteep_sp    <- -1
+  }
+
+  # Set phases for correlation matrix pars to negative
+  # if not required
+  if( hypoObj$compLikeFun == 0 )
+  {
+    phases$logitphi1Age_f  <- -1
+    phases$logitpsiAge_f   <- -1
+    phases$logitphi1Len_f  <- -1
+    phases$logitpsiLen_f   <- -1
+  }
+
+  # Set phases for correlation matrix pars to negative
+  # if not required
+  if( hypoObj$compLikeFun == 1 )
+  {
+    phases$logitpsiLen_f   <- -1
+    phases$logitpsiAge_f   <- -1
   }
 
   # Turn off tv sel deviations if not being used

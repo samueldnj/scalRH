@@ -56,6 +56,7 @@ data$minAgeSampSize 100
 data$minLenSampSize 100
 data$lambdaB0 0
 data$lambdaPropF 0
+hypo$compLikeFun 0
 hypo$matX "age"
 hypo$selX "length"
 hypo$lenCompMethod "Francis"
@@ -94,25 +95,26 @@ hypo$mM 0.15
 hypo$sdM 0.03
 hypo$pmsigmaM 0.05
 hypo$IGalphaM 10
-hypo$yFirstRecDev c(Dover=1984,English=1984,Rock=1984,Petrale=1994,Arrowtooth=1994)
+hypo$yFirstRecDev c(Dover=1970,English=1970,Rock=1970,Petrale=1994,Arrowtooth=1994)
 hypo$yLastRecDev c(Dover=2011,English=2008,Rock=2008,Petrale=2008,Arrowtooth=2008)
 hypo$sigmaR .4
-hypo$pmsigmaR .4
+hypo$pmsigmaR .8
 hypo$recDevReg .1
 hypo$IGalphaR 10
 hypo$pmtauObs_g c(.5,.2,.2)
-hypo$IGalphaObs 1
+hypo$IGalphaObs 10
 hypo$hBetaPrior c(78,22)
 hypo$pmsigmah .1
 hypo$IGalphah 10
 hypo$fleetGroups list(comm=c("comm.hist","comm.mod"),Ass=c("HSAss"),Syn=c("Syn"))
-hypo$RE c("omegaR_vec","omegaRinit_vec","epslnq_vec")
+#hypo$RE c("omegaR_vec","omegaRinit_vec","epslnq_vec")
+hypo$RE NULL
 hypo$boundRecDevs 0
 phases$lnqSurv_sf 1
 phases$lnqComm_spf 1
 phases$deltaqspf_vec 1
 phases$lntauq_sf -1
-phases$lntauObs_spf 1
+phases$lntauObs_vec 1
 phases$tq50_vec 1
 phases$tq95_vec -1
 phases$epslnq_vec 1
@@ -122,7 +124,7 @@ phases$omegaRinit_vec 2
 phases$lnM 3
 phases$logitSteep 3
 phases$omegaR_vec 4
-phases$recCorr_vec 4
+phases$recCorr_vec -4
 phases$lnxSel50_sg 5
 phases$lnxSelStep_sg 6
 phases$epsM_s 7
@@ -142,4 +144,8 @@ phases$lnsigmah -10
 phases$lnsigmaM -10
 phases$lnsigmah_s -11
 phases$ln_muM -1
+phases$logitphi1Age_f 4
+phases$logitpsiAge_f 3
+phases$logitphi1Len_f 4
+phases$logitpsiLen_f 3
 # <End File>
