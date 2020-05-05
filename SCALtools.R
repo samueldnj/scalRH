@@ -251,16 +251,16 @@ renameReportArrays <- function( repObj = repInit, datObj = data )
                                           stock = stockNames,
                                           fleet = gearNames )  
 
-  dimnames(repObj$probLenAge_laspx)      <- list( len = lenNames,
+  dimnames(repObj$probLenAge_laxsp)      <- list( len = lenNames,
                                                   age = ageNames,
+                                                  sex = sexNames,
                                                   species = specNames,
-                                                  stock = stockNames,
-                                                  sex = sexNames )
+                                                  stock = stockNames )
 
-  dimnames(repObj$lenAge_aspx) <- list( age = ageNames,
+  dimnames(repObj$lenAge_axsp) <- list( age = ageNames,
+                                        sex = sexNames,
                                         species = specNames,
-                                        stock = stockNames,
-                                        sex = sexNames )
+                                        stock = stockNames )
 
   # Growth model parameters
   # vectors

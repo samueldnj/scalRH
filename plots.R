@@ -875,8 +875,6 @@ plotCompFitAvg <- function( repObj = reports$repOpt,
     # Average the observations and
     fleetObs_xsext  <- obs_xsexft[,,fIdx,times,drop = FALSE]
     fleetPred_xsext <- pred_xsexft[,,fIdx,times,drop = FALSE]
-
-    browser()
   
     # Average observations and predictions over time
     compObs_xsex      <- apply( X = fleetObs_xsext, FUN = sum, MARGIN = c(1,2), na.rm = TRUE )
@@ -1345,7 +1343,7 @@ plotProbLenAge <- function( repObj = repInit,
                             nopar = FALSE )
 {
   # Get probability matrix
-  probLenAge_lax <- repObj$probLenAge_laspx[,,sIdx,pIdx,]
+  probLenAge_lax <- repObj$probLenAge_laxsp[,,,sIdx,pIdx]
 
   # Get max length and ages classes
   L   <- repObj$L_s[sIdx]
@@ -1464,7 +1462,7 @@ plotHeatmapProbLenAge <- function(  repObj = repInit,
                                     facets = c("stock","species") )
 {
   # Get probability matrix
-  probLenAge_lax <- repObj$probLenAge_laspx[,,sIdx,pIdx, , drop = FALSE]
+  probLenAge_lax <- repObj$probLenAge_laxsp[,,,sIdx,pIdx, drop = FALSE]
 
   # dimnames(probLenAge_la) <- list(  length = 1:nrow(probLenAge_la),
   #                                   age = 1:ncol(probLenAge_la) )
@@ -1508,14 +1506,13 @@ plotHeatmapProbLenAge <- function(  repObj = repInit,
               ungroup()
 
 
-
   cols <- wes_palette("Zissou1", 50, type = "continuous")
 
 
   melted_probMat <- melt(probLenAge_lax)
   melted_probMat <- melted_probMat %>% filter( value > 1e-4 )
 
-  predLenAtAge_ax <- repObj$lenAge_aspx[,sIdx,pIdx,, drop = FALSE]
+  predLenAtAge_ax <- repObj$lenAge_axsp[,,sIdx,pIdx, drop = FALSE]
   predLenAtAge_ax <- melt(predLenAtAge_ax)  %>%
                       filter( value > 0 )
 
@@ -1746,7 +1743,7 @@ plotLenAge <- function( repObj = repInit,
                         sIdx = 1, pIdx = 1 )
 {
   # Get probability matrix
-  lenAge_ax <- repObj$lenAge_aspx[,sIdx,pIdx,]
+  lenAge_ax <- repObj$lenAge_axsp[,,sIdx,pIdx]
 
   # Get max age classes
   A <- repObj$A_s[sIdx]
@@ -1922,9 +1919,14 @@ plotSelLen <- function( repObj = repInit,
   }
 
   # Get prior mean pars
-  pmxSel50_sg   <- exp(repObj$pmlnxSel50_sg[sIdx,])
-  pmxSelStep_sg <- exp(repObj$pmlnxSelStep_sg[sIdx,])
-  pmxSel95_sg  <- pmxSel50_sg + pmxSelStep_sg
+  
+
+  # Pull in priors from UB/LB w/ Theta = 0
+  
+
+  # pmxSel50_sg   <- exp(repObj$pmlnxSel50_sg[sIdx,])
+  # pmxSelStep_sg <- exp(repObj$pmlnxSelStep_sg[sIdx,])
+  # pmxSel95_sg  <- pmxSel50_sg + pmxSelStep_sg
 
   sel_lf    <- matrix(0, nrow = L, ncol = nF)
   pmSel_lf  <- matrix(0, nrow = L, ncol = nF)
@@ -1932,7 +1934,7 @@ plotSelLen <- function( repObj = repInit,
   for( fIdx in 1:nF )
   {
     sel_lf[,fIdx] <- 1 / (1 + exp(-log(19) * (lenBinMids_l[1:L] - xSel50_f[fIdx])/xSelStep_f[fIdx]))
-    pmSel_lf[,fIdx] <- 1 / (1 + exp(-log(19) * (lenBinMids_l[1:L] - pmxSel50_sg[group_f[fIdx]])/pmxSelStep_sg[group_f[fIdx]]))
+    # pmSel_lf[,fIdx] <- 1 / (1 + exp(-log(19) * (lenBinMids_l[1:L] - pmxSel50_sg[group_f[fIdx]])/pmxSelStep_sg[group_f[fIdx]]))
     if(!is.null(sel_lfs))
       sel_lfs[,fIdx] <- 1 / (1 + exp(-log(19) * (lenBinMids_l[1:L] - xSel50_sf[fIdx])/xSelStep_sf[fIdx]))
   }
@@ -1954,18 +1956,36 @@ plotSelLen <- function( repObj = repInit,
       for( t in 1:nT )
         lines(  x = lenBinMids_l, y = sel_lft[,fIdx,t], col = "grey75",
                 lwd = 1 )
-      # Plot mean selectivity for this species/fleet
-      lines( x = lenBinMids_l[1:L], y = sel_lf[1:L,fIdx], col = "salmon", lwd = 2)
-      lines( x = lenBinMids_l[1:L], y = pmSel_lf[1:L,fIdx], col = "steelblue", lwd = 2, lty = 2 )
+      # Plot stock-specific selectivity
+      lines(  x = lenBinMids_l[1:L], y = sel_lf[1:L,fIdx], col = "salmon", 
+              lwd = 2)
+        segments( x0 = c(xSel50_sf[fIdx],xSel95_sf[fIdx]), 
+                  x1 = c(xSel50_sf[fIdx],xSel95_sf[fIdx]),
+                  y0 = c(0,0), y1 = c(.5,.95), col = "salmon", lty = 2 )
+        segments( x0 = c(0,0), 
+                  x1 = c(xSel50_sf[fIdx],xSel95_sf[fIdx]),
+                  y0 = c(0.5,0.95), y1 = c(.5,.95), col = "salmon", lty = 2 )
+      # lines( x = lenBinMids_l[1:L], y = pmSel_lf[1:L,fIdx], col = "steelblue", lwd = 2, lty = 2 )
       if(!is.null(sel_lfs))
-        lines( x = lenBinMids_l[1:L], y = sel_lfs[1:L,fIdx], col = "grey50", lwd = 2, lty = 3 )
+      {
+        lines( x = lenBinMids_l[1:L], y = sel_lfs[1:L,fIdx], 
+                col = "grey50", lwd = 2, lty = 3 )
+          segments( x0 = c(xSel50_f[fIdx],xSel95_f[fIdx]), 
+                    x1 = c(xSel50_f[fIdx],xSel95_f[fIdx]),
+                    y0 = c(0,0), y1 = c(.5,.95), col = "grey75", lty = 2 )
+          segments( x0 = c(0,0), 
+                    x1 = c(xSel50_f[fIdx],xSel95_f[fIdx]),
+                    y0 = c(0.5,0.95), y1 = c(.5,.95), col = "grey75", lty = 2 )
+
+
+      }
       mtext( side = 4, text = gearNames[fIdx], line = 2, font = 2)
       if(fIdx == 1)
         legend(x = "bottomright",
-                legend = c("Fleet group prior","Stock Estimate","Species Estimate"),
-                col = c("steelblue","salmon","grey50"),
-                lty = c(2,1,3),
-                lwd = c(2,2,2), bty = "n" )
+                legend = c("Stock Estimate","Species Estimate"),
+                col = c("salmon","grey50"),
+                lty = c(1,3),
+                lwd = c(2,2), bty = "n" )
   }
   mtext( side = 1, text= "Length", outer = T, line = 2)
   mtext( side = 2, text= "Selectivity-at-length", outer = T, line = 2)

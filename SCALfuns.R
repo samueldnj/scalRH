@@ -777,7 +777,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   {
 
     # Selectivity by group
-    xSel50_sg <- matrix(  c( 40, 23, 28,
+    xSel50_sg <- matrix(  c( 40, 28, 28,
                              30, 28, 22,
                              33, 35, 29,
                              35, 29, 35,
@@ -799,10 +799,10 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
     xSel50_sg   <- xSel50_sg[useSpecIdx,]
     xSelStep_sg <- xSelStep_sg[useSpecIdx,]
 
-    LB_xSelAlpha_sg  <- xSel50_sg[useSpecIdx,] - 10
-    UB_xSelAlpha_sg  <- xSel50_sg[useSpecIdx,] + 10
-    LB_xSelBeta_sg   <- xSelStep_sg[useSpecIdx,] - 5
-    UB_xSelBeta_sg   <- xSelStep_sg[useSpecIdx,] + 5
+    LB_xSelAlpha_sg  <- xSel50_sg[useSpecIdx,] - hypoObj$selAlphaRadius
+    UB_xSelAlpha_sg  <- xSel50_sg[useSpecIdx,] + hypoObj$selAlphaRadius
+    LB_xSelBeta_sg   <- xSelStep_sg[useSpecIdx,] * hypoObj$selBetaRadius
+    UB_xSelBeta_sg   <- xSelStep_sg[useSpecIdx,] / hypoObj$selBetaRadius
     
 
   }
@@ -919,6 +919,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
     lnsigmaxSel50_sg[s,]    <- log(hypoObj$pmsigmaSel_g)
     lnsigmaxSelStep_sg[s,]  <- log(hypoObj$pmsigmaSel_g)
   }
+
   # IG Prior on recruitment variance
   sigma2R_mode        <- (hypoObj$IGsigmaRmode)^2
   IGbsigmaR           <- (hypoObj$IGasigmaR + 1) * sigma2R_mode
@@ -929,13 +930,13 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   IWnu   <- nS * nP + hypoObj$IWnu
 
   # Correlations in comp likelihood
-  initPhi1  <- rep(0,nF)
-  initPsi   <- rep(0,nF)
+  initPhi1  <- array(0,dim = c(nS,nF))
+  initPsi   <- array(0,dim = c(nS,nF))
 
   if( hypoObj$compLikeFun == 2 )
   {
-    initPhi1  <- rep(0, nF)
-    initPsi   <- rep(-5, nF)
+    initPhi1  <- array(0,dim = c(nS,nF))
+    initPsi   <- array(-5,dim = c(nS,nF))
   }
 
   if( hypoObj$IWscale == "stockCorr" )
@@ -1125,16 +1126,14 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 IWnu                = IWnu,
                 ## Single-level priors ##
                 # Priors on top level selectivity
-                pmlnxSel50_sg       = lnxSel50_sg,
-                pmlnxSelStep_sg     = lnxSelStep_sg,
-                cvxSel              = hypoObj$cvxSel,
+                cvSel               = hypoObj$cvSel,
                 mF                  = hypoObj$mF,
                 sdF                 = hypoObj$sdF,
                 sd_omegaRbar        = hypoObj$recDevReg,
-                logitphi1Age_f      = initPhi1,
-                logitpsiAge_f       = initPsi,
-                logitphi1Len_f      = initPhi1,
-                logitpsiLen_f       = initPsi )
+                logitphi1Age_sf     = initPhi1,
+                logitpsiAge_sf      = initPsi,
+                logitphi1Len_sf     = initPhi1,
+                logitpsiLen_sf      = initPsi )
 
 
 
@@ -1176,18 +1175,18 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   # if not required
   if( hypoObj$compLikeFun == 0 )
   {
-    phases$logitphi1Age_f  <- -1
-    phases$logitpsiAge_f   <- -1
-    phases$logitphi1Len_f  <- -1
-    phases$logitpsiLen_f   <- -1
+    phases$logitphi1Age_sf <- -1
+    phases$logitpsiAge_sf  <- -1
+    phases$logitphi1Len_sf <- -1
+    phases$logitpsiLen_sf  <- -1
   }
 
   # Set phases for correlation matrix pars to negative
   # if not required
   if( hypoObj$compLikeFun == 1 )
   {
-    phases$logitpsiLen_f   <- -1
-    phases$logitpsiAge_f   <- -1
+    phases$logitpsiLen_sf  <- -1
+    phases$logitpsiAge_sf  <- -1
   }
 
   # Turn off tv sel deviations if not being used

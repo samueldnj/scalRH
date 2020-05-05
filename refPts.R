@@ -154,7 +154,7 @@ calcRefPts <- function( obj )
   nL    <- obj$nL
 
   # Probability of being a given length-at-age
-  probLenAge_laspx <- obj$probLenAge_laspx
+  probLenAge_laxsp <- obj$probLenAge_laxsp
 
   # Selectivity - this is mean over each fleet's 
   # time period, not time-varying
@@ -178,7 +178,7 @@ calcRefPts <- function( obj )
       {
         for( a in 1:nA )
         {
-          selAge_axsp[a,x,s,p] <- sum(probLenAge_laspx[,a,s,p,x] * selLen_lsp[,s,p])
+          selAge_axsp[a,x,s,p] <- sum(probLenAge_laxsp[,a,x,s,p] * selLen_lsp[,s,p])
         }
         selAge_axsp[,x,s,p] <- selAge_axsp[,x,s,p] / max(selAge_axsp[,,s,p],na.rm = T)
       }
@@ -213,9 +213,9 @@ calcRefPts <- function( obj )
 
   # Life history schedules
   matAge_asp        <- obj$matAge_asp
-  lenAge_axsp       <- aperm(obj$lenAge_aspx,c(1,4,2,3))
-  wtAge_axsp        <- aperm(obj$meanWtAge_aspx,c(1,4,2,3))
-  probLenAge_laspx  <- obj$probLenAge_laspx
+  lenAge_axsp       <- obj$lenAge_axsp
+  wtAge_axsp        <- obj$meanWtAge_axsp
+  probLenAge_laxsp  <- obj$probLenAge_laxsp
   selAge_axsp       <- obj$selAge_axsp
 
   # Double matAge for easy copying later

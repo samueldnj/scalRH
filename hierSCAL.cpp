@@ -151,14 +151,14 @@ Type posfun(Type x, Type eps, Type &pen){
 //            C_spf     = catch in biomass for spec/pop/fleet
 //            M_xsp     = Natural mortality by spec/pop/sex
 //            A_s       = Number of age classes for each species
-//            wt_aspx    = weight at age/species/pop/sex
+//            wt_axsp    = weight at age/species/pop/sex
 template<class Type>
 array<Type> calcPopesApprox(  array<Type> N_axsp,     // Numbers at age/spec/pop/sex
                               array<Type> sel_axspf,  // Selectivity-at-age (spec/pop/fleet/sex)
                               array<Type> C_spf,      // Catch in biomass units
                               array<Type> M_xsp,      // Natural mortality
                               vector<int> A_s,        // number of age classes by species
-                              array<Type> wt_aspx,    // Mean weight at age
+                              array<Type> wt_axsp,    // Mean weight at age
                               array<Type> vB_axspf,   // Vulnerable biomass at age/spec/pop/fleet/sex
                               array<Type> vB_spf,     // Total vulnerable biomass for each spec/pop/fleet
                               array<Type>& F_spf,     // Fishing mortality for each spec/pop/fleet
@@ -194,7 +194,7 @@ array<Type> calcPopesApprox(  array<Type> N_axsp,     // Numbers at age/spec/pop
 
           // Calculate numbers to remove by converting catch to weight
           Cw_axspf.col(fIdx).col(pIdx).col(sIdx).col(xIdx)  = C_spf(sIdx, pIdx, fIdx) * pvB_axspf.col(fIdx).col(pIdx).col(sIdx).col(xIdx);
-          C_axspf.col(fIdx).col(pIdx).col(sIdx).col(xIdx)   = Cw_axspf.col(fIdx).col(pIdx).col(sIdx).col(xIdx) / wt_aspx.col(xIdx).col(pIdx).col(sIdx);
+          C_axspf.col(fIdx).col(pIdx).col(sIdx).col(xIdx)   = Cw_axspf.col(fIdx).col(pIdx).col(sIdx).col(xIdx) / wt_axsp.col(pIdx).col(sIdx).col(xIdx);
 
           // Now add the catch at age in numbers to the removed fish
           remN_axsp.col(pIdx).col(sIdx).col(xIdx) += C_axspf.col(fIdx).col(pIdx).col(sIdx).col(xIdx);
@@ -1074,18 +1074,16 @@ Type objective_function<Type>::operator() ()
 
 
   // Priors on growth and selectivity
-  PARAMETER_ARRAY(pmlnxSel50_sg);       // Prior mean x-at-50% sel
-  PARAMETER_ARRAY(pmlnxSelStep_sg);     // Prior mean xSelStep from 50% to 95% selectivity
-  PARAMETER(cvxSel);                    // CV on xSel50/xSelStep prior
+  PARAMETER(cvSel);                     // Prior SD on ThetaSel values
   PARAMETER(mF);                        // Prior mean value for mean F
   PARAMETER(sdF);                       // Prior sd for meanF
   PARAMETER(sd_omegaRbar);              // omegaRbar regularisation SD
 
   // Compositional data likelihood correlation matrix parameters
-  PARAMETER_VECTOR(logitphi1Age_f);     // AR1 correlation coefficient, or AR2 parameter
-  PARAMETER_VECTOR(logitpsiAge_f);      // AR2 parameter
-  PARAMETER_VECTOR(logitphi1Len_f);     // AR1 correlation coefficient, or AR2 parameter
-  PARAMETER_VECTOR(logitpsiLen_f);      // AR2 parameter
+  PARAMETER_ARRAY(logitphi1Age_sf);     // AR1 correlation coefficient, or AR2 parameter
+  PARAMETER_ARRAY(logitpsiAge_sf);      // AR2 parameter
+  PARAMETER_ARRAY(logitphi1Len_sf);     // AR1 correlation coefficient, or AR2 parameter
+  PARAMETER_ARRAY(logitpsiLen_sf);      // AR2 parameter
 
   // mortality deviations //
   /*
@@ -1128,9 +1126,9 @@ Type objective_function<Type>::operator() ()
 
   // Growth //
   array<Type>   Wlen_ls(nL,nS);                   // weight-at-length by species
-  array<Type>   lenAge_aspx(nA,nS,nP,nX);         // Mean length-at-age by population
-  array<Type>   probLenAge_laspx(nL,nA,nS,nP,nX);
-  array<Type>   meanWtAge_aspx(nA,nS,nP,nX);
+  array<Type>   lenAge_axsp(nA,nX,nS,nP);         // Mean length-at-age by population
+  array<Type>   probLenAge_laxsp(nL,nA,nX,nS,nP);
+  array<Type>   meanWtAge_axsp(nA,nX,nS,nP);
 
   // Maturity //
   array<Type>   matAge_as(nA,nS);       // Proportion mature at age by species
@@ -1226,26 +1224,26 @@ Type objective_function<Type>::operator() ()
 
   // Compositional likelihood correlation matrix
   // parameters
-  vector<Type> phi1Age_f(nF);
-  vector<Type> psiAge_f(nF);
-  vector<Type> phi2Age_f(nF);
-  vector<Type> phi1Len_f(nF);
-  vector<Type> psiLen_f(nF);
-  vector<Type> phi2Len_f(nF);
+  array<Type> phi1Age_sf(nS,nF);
+  array<Type> psiAge_sf(nS,nF);
+  array<Type> phi2Age_sf(nS,nF);
+  array<Type> phi1Len_sf(nS,nF);
+  array<Type> psiLen_sf(nS,nF);
+  array<Type> phi2Len_sf(nS,nF);
 
-  phi2Age_f.fill(0);
-  phi2Len_f.fill(0);
-  phi1Age_f.fill(0);
-  phi1Len_f.fill(0);
-  psiAge_f.fill(.5);
-  psiLen_f.fill(.5);
+  phi2Age_sf.fill(0);
+  phi2Len_sf.fill(0);
+  phi1Age_sf.fill(0);
+  phi1Len_sf.fill(0);
+  psiAge_sf.fill(.5);
+  psiLen_sf.fill(.5);
 
-  array<Type> corrAge_fa(nF,nA);
-  array<Type> corrLen_fl(nF,nL);
-  corrAge_fa.fill(0);
-  corrAge_fa.col(0) += 1;
-  corrLen_fl.fill(0);
-  corrLen_fl.col(0) += 1;
+  array<Type> corrAge_sfa(nS,nF,nA);
+  array<Type> corrLen_sfl(nS,nF,nL);
+  corrAge_sfa.fill(0);
+  corrAge_sfa.col(0) += 1;
+  corrLen_sfl.fill(0);
+  corrLen_sfl.col(0) += 1;
 
   // Now fill in the rest: 
   if( compLikeFun > 0)
@@ -1253,92 +1251,109 @@ Type objective_function<Type>::operator() ()
     // The LN2 function
     if( compLikeFun == 1 )
     {
-      phi1Age_f = 2 * invlogit(logitphi1Age_f) - 1;
-      phi1Len_f = 2 * invlogit(logitphi1Len_f) - 1;
-      for( int a = 1; a < nA; a++ )
+      for( int f = 0; f < nF; f++ )
       {
-        corrAge_fa.col(a) = corrAge_fa.col(a-1) * phi1Age_f;
-        corrLen_fl.col(a) = corrLen_fl.col(a-1) * phi1Len_f;
+        for( int s = 0; s < nS; s++ )
+        {
+          phi1Age_sf(s,f) = 2 /(1 + exp(-logitphi1Age_sf(s,f))) - 1;
+          phi1Len_sf(s,f) = 2 /(1 + exp(-logitphi1Len_sf(s,f))) - 1;
+        }
+        for( int a = 1; a < nA; a++ )
+          corrAge_sfa.col(a).col(f) = corrAge_sfa.col(a-1).col(f) * phi1Age_sf.col(f);
+        for( int l = 1; l < nL; l++ )
+          corrLen_sfl.col(l).col(f) = corrLen_sfl.col(l-1).col(f) * phi1Len_sf.col(f);
       }
     }  
 
     // The LN3 function
     if( compLikeFun == 2 )
     { 
-      phi1Age_f = 4 * invlogit(logitphi1Age_f) - 2;
-      psiAge_f  = invlogit(logitpsiAge_f);
-      phi2Age_f = -1 + (2 - sqrt(square(phi1Age_f)) ) * psiAge_f;
+      for( int f = 0; f < nF; f++ )
+      {
+        for( int s = 0; s < nS; s++ )
+        {
+          phi1Age_sf(s,f) = 4 * 1/(1 + exp(-logitphi1Age_sf(s,f))) - 2;
+          psiAge_sf(s,f)  = 1/(1 + exp(-logitpsiAge_sf(s,f)));
+          phi2Age_sf(s,f) = -1 + (2 - sqrt(square(phi1Age_sf(s,f))) ) * psiAge_sf(s,f);
 
-      phi1Len_f = 4 * invlogit(logitphi1Len_f) - 2;
-      psiLen_f  = invlogit(logitpsiLen_f);
-      phi2Len_f = -1 + (2 - sqrt(square(phi1Len_f)) ) * psiLen_f;
+          phi1Len_sf(s,f) = 4 * 1/(1 + exp(-logitphi1Len_sf(s,f))) - 2;
+          psiLen_sf(s,f)  = 1/(1 + exp(-logitpsiLen_sf(s,f)));
+          phi2Len_sf(s,f) = -1 + (2 - sqrt(square(phi1Len_sf(s,f))) ) * psiLen_sf(s,f);
+        }
       
-      corrAge_fa.col(1) = phi1Age_f / phi2Age_f;
-      corrLen_fl.col(1) = phi1Len_f / phi2Len_f;
-      for( int a = 2; a < nA; a++ )
-        corrAge_fa.col(a) = phi1Age_f * corrAge_fa.col(a-1) + phi2Age_f * corrAge_fa.col(a-2);
-      for( int l = 2; l < nL; l++)
-        corrLen_fl.col(l) = phi1Len_f * corrLen_fl.col(l-1) + phi2Len_f * corrLen_fl.col(l-2);
+        corrAge_sfa.col(1).col(f) = phi1Age_sf.col(f) / phi2Age_sf.col(f);
+        corrLen_sfl.col(1).col(f) = phi1Len_sf.col(f) / phi2Len_sf.col(f);
+        for( int a = 2; a < nA; a++ )
+          corrAge_sfa.col(a).col(f) = phi1Age_sf.col(f) * corrAge_sfa.col(a-1).col(f) + phi2Age_sf.col(f) * corrAge_sfa.col(a-2).col(f);
+        for( int l = 2; l < nL; l++)
+          corrLen_sfl.col(l).col(f) = phi1Len_sf.col(f) * corrLen_sfl.col(l-1).col(f) + phi2Len_sf.col(f) * corrLen_sfl.col(l-2).col(f);
+      }
       
     }
 
     // LN3m, ARMA model
     if( compLikeFun == 3 )
     {
-      phi1Age_f    = 2 * invlogit(logitphi1Age_f) - 1;
-      psiAge_f    += logitpsiAge_f;
-      phi1Len_f    = 2 * invlogit(logitphi1Len_f) - 1;
-      psiLen_f    += logitpsiLen_f;
+      for( int f = 0; f < nF; f++ )
+      {
+        for( int s = 0; s < nS; s++ )
+        {
+          phi1Age_sf(s,f)    = 2 /(1 + exp(-logitphi1Age_sf(s,f))) - 1;
+          psiAge_sf(s,f)    += logitpsiAge_sf(s,f);
+          phi1Len_sf(s,f)    = 2 /(1 + exp(-logitphi1Len_sf(s,f))) - 1;
+          psiLen_sf(s,f)    += logitpsiLen_sf(s,f);
+        }
 
-      vector<Type> sumPhiPsiAge = phi1Age_f + psiAge_f;
-      vector<Type> sumPhiPsiLen = phi1Len_f + psiLen_f;
+        vector<Type> sumPhiPsiAge = phi1Age_sf.col(f) + psiAge_sf.col(f);
+        vector<Type> sumPhiPsiLen = phi1Len_sf.col(f) + psiLen_sf.col(f);
       
-      corrAge_fa.col(1) = phi1Age_f + psiAge_f * (1 + (sumPhiPsiAge * sumPhiPsiAge )/(1 - phi1Age_f * phi1Age_f ) );
-      corrLen_fl.col(1) = phi1Len_f + psiLen_f * (1 + (sumPhiPsiLen * sumPhiPsiLen )/(1 - phi1Len_f * phi1Age_f ) );
+        corrAge_sfa.col(1).col(f) = phi1Age_sf.col(f) + psiAge_sf.col(f) * (1 + (sumPhiPsiAge * sumPhiPsiAge )/(1 - phi1Age_sf.col(f) * phi1Age_sf.col(f) ) );
+        corrLen_sfl.col(1).col(f) = phi1Len_sf.col(f) + psiLen_sf.col(f) * (1 + (sumPhiPsiLen * sumPhiPsiLen )/(1 - phi1Len_sf.col(f) * phi1Age_sf.col(f) ) );
       
-      for( int a = 2; a < nA; a++ )
-        corrAge_fa.col(a) = phi1Age_f * corrAge_fa.col(a-2);
-      for( int l = 2; l < nL; l++ )
-        corrLen_fl.col(l) = phi1Len_f * corrLen_fl.col(l-2);
+        for( int a = 2; a < nA; a++ )
+          corrAge_sfa.col(a).col(f) = phi1Age_sf.col(f) * corrAge_sfa.col(a-2).col(f);
+        for( int l = 2; l < nL; l++ )
+          corrLen_sfl.col(l).col(f) = phi1Len_sf.col(f) * corrLen_sfl.col(l-2).col(f);
+      }
     }
   }
 
   // Now make correlation matrices
-  array<Type> CorrAge_faa(nF,nA,nA);
-  array<Type> CorrLen_fll(nF,nL,nL);
-  CorrAge_faa.setZero();
-  CorrLen_fll.setZero();
+  array<Type> CorrAge_sfaa(nS,nF,nA,nA);
+  array<Type> CorrLen_sfll(nS,nF,nL,nL);
+  CorrAge_sfaa.setZero();
+  CorrLen_sfll.setZero();
   
 
-
-  for( int f = 0; f < nF; f++ )
-  {
-    for( int rIdx = 0; rIdx < nA; rIdx ++ )
+  for( int s = 0; s < nS; s++)
+    for( int f = 0; f < nF; f++ )
     {
-      CorrAge_faa(f,rIdx,rIdx) = 1;
-      for( int cIdx = rIdx + 1; cIdx < nA; cIdx ++)
+      for( int rIdx = 0; rIdx < nA; rIdx ++ )
       {
-        int idxDiff = cIdx - rIdx;
+        CorrAge_sfaa(s,f,rIdx,rIdx) = 1;
+        for( int cIdx = rIdx + 1; cIdx < nA; cIdx ++)
+        {
+          int idxDiff = cIdx - rIdx;
 
-        CorrAge_faa(f,rIdx,cIdx) = corrAge_fa(f,idxDiff);   
-        CorrAge_faa(f,cIdx,rIdx) = corrAge_fa(f,idxDiff);
+          CorrAge_sfaa(s,f,rIdx,cIdx) = corrAge_sfa(s,f,idxDiff);   
+          CorrAge_sfaa(s,f,cIdx,rIdx) = corrAge_sfa(s,f,idxDiff);
 
+        }
       }
+
+      for( int rIdx = 0; rIdx < nL; rIdx ++ )
+      {
+        CorrLen_sfll(s,f,rIdx,rIdx) = 1;
+        for( int cIdx = rIdx + 1; cIdx < nL; cIdx ++)
+        {
+          int idxDiff = cIdx - rIdx;
+
+          CorrLen_sfll(s,f,rIdx,cIdx) = corrLen_sfl(s,f,idxDiff);   
+          CorrLen_sfll(s,f,cIdx,rIdx) = corrLen_sfl(s,f,idxDiff);
+
+        }
+      }    
     }
-
-    for( int rIdx = 0; rIdx < nL; rIdx ++ )
-    {
-      CorrLen_fll(f,rIdx,rIdx) = 1;
-      for( int cIdx = rIdx + 1; cIdx < nL; cIdx ++)
-      {
-        int idxDiff = cIdx - rIdx;
-
-        CorrLen_fll(f,rIdx,cIdx) = corrLen_fl(f,idxDiff);   
-        CorrLen_fll(f,cIdx,rIdx) = corrLen_fl(f,idxDiff);
-
-      }
-    }    
-  }
 
   // Make a vector of ages/lengths for use in 
   // age and length based quantities later
@@ -1489,7 +1504,7 @@ Type objective_function<Type>::operator() ()
 
   // Exponentiate species/fleetGroup sel
   xSel50_sg = LB_xSelAlpha_sg + (UB_xSelAlpha_sg - LB_xSelAlpha_sg) * (1/20 + 17 * exp(thetaSelAlpha_sg) / 20 / (1 + exp(thetaSelAlpha_sg)));
-  xSelStep_sg = LB_xSelBeta_sg + (UB_xSelBeta_sg - LB_xSelBeta_sg) * (1/20 + 17 * exp(thetaSelBeta_sg) / 20 / (1 + exp(thetaSelBeta_sg)));;
+  xSelStep_sg = log(19) * (UB_xSelAlpha_sg - LB_xSelAlpha_sg) * (0.005 + 0.5 * exp(thetaSelBeta_sg) / (1 + exp(thetaSelBeta_sg)));;
   xSel95_sg = xSel50_sg + xSelStep_sg;  
 
   // SDs for species/fleetgroup sel
@@ -1512,9 +1527,9 @@ Type objective_function<Type>::operator() ()
     for( int p = 0; p < nP; p++ )
     {
       vector<Type> tmpSelAlpha    = thetaSelAlpha_sg.col(group_f(f)) + sigmaxSel50_sg(group_f(f)) * epsxSel50_spf.col(f).col(p);
-      vector<Type> tmpSelBeta     = thetaSelBeta_sg.col(group_f(f)) + sigmaxSel50_sg(group_f(f)) * epsxSel50_spf.col(f).col(p);
+      vector<Type> tmpSelBeta     = thetaSelBeta_sg.col(group_f(f)) + sigmaxSel50_sg(group_f(f)) * epsxSelStep_spf.col(f).col(p);
       xSel50_spf.col(f).col(p)    = LB_xSelAlpha_sg.col(group_f(f)) + (UB_xSelAlpha_sg.col(group_f(f)) - LB_xSelAlpha_sg.col(group_f(f))) *(1/20 + 17 * exp(tmpSelAlpha) / 20 / (1 + exp(tmpSelAlpha)) );
-      xSelStep_spf.col(f).col(p)  = LB_xSelBeta_sg.col(group_f(f)) + (UB_xSelBeta_sg.col(group_f(f)) - LB_xSelBeta_sg.col(group_f(f))) *(1/20 + 17 * exp(tmpSelBeta) / 20 / (1 + exp(tmpSelBeta)) );
+      xSelStep_spf.col(f).col(p)  = log(19) * (UB_xSelAlpha_sg.col(group_f(f)) - LB_xSelAlpha_sg.col(group_f(f))) *(0.005 + 0.5 * exp(tmpSelBeta) /  (1 + exp(tmpSelBeta)) );
       xSel95_spf.col(f).col(p)    = xSel50_spf.col(f).col(p) + xSelStep_spf.col(f).col(p);
       for( int s = 0; s < nS; s++)
       {
@@ -1693,9 +1708,9 @@ Type objective_function<Type>::operator() ()
   // (taken from LIME by Rudd and Thorson, 2017)
   // In the same loop, we're going to compute the ssbpr parameter phi
   // for each stock
-  lenAge_aspx.setZero();
-  probLenAge_laspx.setZero();
-  meanWtAge_aspx.setZero();
+  lenAge_axsp.setZero();
+  probLenAge_laxsp.setZero();
+  meanWtAge_axsp.setZero();
   phi_sp.setZero();
   Surv_axsp.setZero();
   SSBpr_asp.setZero();
@@ -1711,15 +1726,15 @@ Type objective_function<Type>::operator() ()
       for( int x = 0; x < nX; x++)
       {
 
-        lenAge_aspx.col(x).col(p).col(s) += L2_spx(s,p,x) - L1_spx(s,p,x);
-        lenAge_aspx.col(x).col(p).col(s) *= (exp(-vonK_spx(s,p,x) * A1 ) - exp(-vonK_spx(s,p,x) * age) );
-        lenAge_aspx.col(x).col(p).col(s) /= (exp(-vonK_spx(s,p,x) * A1 ) - exp(-vonK_spx(s,p,x) * A2) );
-        lenAge_aspx.col(x).col(p).col(s) += L1_spx(s,p,x);
+        lenAge_axsp.col(p).col(s).col(x) += L2_spx(s,p,x) - L1_spx(s,p,x);
+        lenAge_axsp.col(p).col(s).col(x) *= (exp(-vonK_spx(s,p,x) * A1 ) - exp(-vonK_spx(s,p,x) * age) );
+        lenAge_axsp.col(p).col(s).col(x) /= (exp(-vonK_spx(s,p,x) * A1 ) - exp(-vonK_spx(s,p,x) * A2) );
+        lenAge_axsp.col(p).col(s).col(x) += L1_spx(s,p,x);
 
         for( int a = 0; a < A_s(s); a ++ )
         {
           Type  sumProbs  = 0;
-          Type sigmaL = sigmaLa_s(s) + sigmaLb_s(s) * lenAge_aspx(a,s,p,x);
+          Type sigmaL = sigmaLa_s(s) + sigmaLb_s(s) * lenAge_axsp(a,x,s,p);
           for( int l = 0; l < L_s(s); l++ )
           {
             // Get length bin ranges
@@ -1730,25 +1745,25 @@ Type objective_function<Type>::operator() ()
             
             if( (l >= 0) & (l < L_s(s) - 1 ) )
             {
-              probLenAge_laspx(l,a,s,p,x) = pnorm( log(lenHi), log(lenAge_aspx(a,s,p,x)), sigmaL );
+              probLenAge_laxsp(l,a,x,s,p) = pnorm( log(lenHi), log(lenAge_axsp(a,x,s,p)), sigmaL );
               // Subtract LH tail for interior bins
               if(l > 0)
-                probLenAge_laspx(l,a,s,p,x) -= pnorm( log(lenLo), log(lenAge_aspx(a,s,p,x)), sigmaL );
+                probLenAge_laxsp(l,a,x,s,p) -= pnorm( log(lenLo), log(lenAge_axsp(a,x,s,p)), sigmaL );
               // Accumulate probability
-              sumProbs += probLenAge_laspx(l,a,s,p,x);
+              sumProbs += probLenAge_laxsp(l,a,x,s,p);
             }
             
             // Now the RH tail
             if( l == L_s(s) - 1 ) 
-              probLenAge_laspx(l,a,s,p,x) = Type(1.0) - sumProbs;
+              probLenAge_laxsp(l,a,x,s,p) = Type(1.0) - sumProbs;
 
             // Calculate mean weight at age from probLenAge
-            meanWtAge_aspx(a,s,p,x) += probLenAge_laspx(l,a,s,p,x) * Wlen_ls(l,s);
+            meanWtAge_axsp(a,x,s,p) += probLenAge_laxsp(l,a,x,s,p) * Wlen_ls(l,s);
             // Calculate maturity at age from probLenAge if maturity
             // is length based
             if( matX == "length")
               if( (matLen_ls(l,s) > 0) )
-                matAge_asp(a,s,p) += probLenAge_laspx(l,a,s,p,x) * matLen_ls(l,s);
+                matAge_asp(a,s,p) += probLenAge_laxsp(l,a,x,s,p) * matLen_ls(l,s);
 
 
           } // END l loop
@@ -1767,7 +1782,7 @@ Type objective_function<Type>::operator() ()
         } // END a loop
       } // END x loop
       // Compute ssbpr
-      SSBpr_asp.col(p).col(s) = Surv_axsp.col(p).col(s).col(nX-1) * matAge_asp.col(p).col(s) * meanWtAge_aspx.col(nX-1).col(p).col(s);
+      SSBpr_asp.col(p).col(s) = Surv_axsp.col(p).col(s).col(nX-1) * matAge_asp.col(p).col(s) * meanWtAge_axsp.col(p).col(s).col(nX-1);
     } // END p loop
   } // END s loop
 
@@ -1802,7 +1817,7 @@ Type objective_function<Type>::operator() ()
               {
                 vector<Type> probLenAgea_l(nL) ;
                 probLenAgea_l.setZero();
-                probLenAgea_l = probLenAge_laspx.col(x).col(p).col(s).col(a);
+                probLenAgea_l = probLenAge_laxsp.col(p).col(s).col(x).col(a);
                 sel_axspft(a,x,s,p,f,t) = (probLenAgea_l*sel_lfspt.col(t).col(p).col(s).col(f)).sum();
               }
               // Reduce selectivity below minA to 0
@@ -1987,7 +2002,7 @@ Type objective_function<Type>::operator() ()
           
 
           // Compute biomass at age and total biomass
-          B_axspt.col(t).col(p).col(s).col(x) += N_axspt.col(t).col(p).col(s).col(x) * meanWtAge_aspx.col(x).col(p).col(s);
+          B_axspt.col(t).col(p).col(s).col(x) += N_axspt.col(t).col(p).col(s).col(x) * meanWtAge_axsp.col(p).col(s).col(x);
 
           B_xspt(x,s,p,t) += B_axspt.col(t).col(p).col(s).col(x).sum();
 
@@ -2069,7 +2084,7 @@ Type objective_function<Type>::operator() ()
                                             C_spft.col(t),   
                                             M_xsp,   
                                             A_s,     
-                                            meanWtAge_aspx, 
+                                            meanWtAge_axsp, 
                                             vB_axspft.col(t),
                                             vB_spft.col(t),
                                             tmp_paF_spf,  
@@ -2146,7 +2161,7 @@ Type objective_function<Type>::operator() ()
 
 
                 // Calc catch-at-age
-                C_axspft(a,x,s,p,f,t)  = Cw_axspft(a,x,s,p,f,t) / meanWtAge_aspx(a,s,p,x);  
+                C_axspft(a,x,s,p,f,t)  = Cw_axspft(a,x,s,p,f,t) / meanWtAge_axsp(a,x,s,p);  
               }
 
               // Calculate expected age and length comps
@@ -2176,13 +2191,13 @@ Type objective_function<Type>::operator() ()
                 if( lenComps == "LIME" )
                 {
                   for( int a = 0; a < A; a++ )
-                    probHarvLen(l) += probHarvAge(a)*probLenAge_laspx(l,a,s,p,x);
+                    probHarvLen(l) += probHarvAge(a)*probLenAge_laxsp(l,a,x,s,p);
                 }
 
                 if( lenComps == "Francis" )
                 {
                   for( int a = 0; a < A; a++ )
-                    probHarvLen(l) += probLenAge_laspx(l,a,s,p,x) * N_axspt(a,x,s,p,t) * sel_lfspt(l,f,s,p,t); 
+                    probHarvLen(l) += probLenAge_laxsp(l,a,x,s,p) * N_axspt(a,x,s,p,t) * sel_lfspt(l,f,s,p,t); 
                 }
 
                 // Save to length dists
@@ -2266,13 +2281,13 @@ Type objective_function<Type>::operator() ()
   //         //     if( lenComps == "LIME" )
   //         //     {
   //         //       for( int a = 0; a < A; a++ )
-  //         //         probHarvLen(l) += probHarvAge(a)*probLenAge_laspx(l,a,s,p,x);
+  //         //         probHarvLen(l) += probHarvAge(a)*probLenAge_laxsp(l,a,x,s,p);
   //         //     }
 
   //         //     if( lenComps == "Francis" )
   //         //     {
   //         //       for( int a = 0; a < A; a++ )
-  //         //         probHarvLen(l) += probLenAge_laspx(l,a,s,p,x) * N_axspt(a,x,s,p,t) * sel_lfspt(l,f,s,p,t); 
+  //         //         probHarvLen(l) += probLenAge_laxsp(l,a,x,s,p) * N_axspt(a,x,s,p,t) * sel_lfspt(l,f,s,p,t); 
   //         //     }
 
   //         //     // Save to length dists
@@ -2461,7 +2476,7 @@ Type objective_function<Type>::operator() ()
     if( (fleetAgeObs.sum() > 0) & (fleetAgePred.sum() > 0) & (ageLikeWt_g(group_f(f)) > 0) )
     {
     
-      matrix<Type> tmpCorr_aa = CorrAge_faa.transpose().col(f).matrix();
+      matrix<Type> tmpCorr_aa = CorrAge_sfaa.transpose().col(s).col(f).matrix();
 
       ageRes_axspft.col(t).col(f).col(p).col(s).col(x).segment(minA_s(s) - 1,A) =
         calcCorrLogistNormLikelihood( fleetAgeObs,
@@ -2507,7 +2522,7 @@ Type objective_function<Type>::operator() ()
 
     if( (fleetLenObs.sum() > 0) & (fleetLenPred.sum() > 0) &  (lenLikeWt_g(group_f(f)) > 0) )
     {
-      matrix<Type> tmpCorr_ll = CorrLen_fll.transpose().col(f).matrix();
+      matrix<Type> tmpCorr_ll = CorrLen_sfll.transpose().col(s).col(f).matrix();
 
       lenRes_lxspft.col(t).col(f).col(p).col(s).col(x).segment(minL_s(s)-1,L) = 
         calcCorrLogistNormLikelihood( fleetLenObs, 
@@ -2747,10 +2762,10 @@ Type objective_function<Type>::operator() ()
   for( int g = 0; g < nGroups; g++ )
   {
     vector<Type> value  = thetaSelAlpha_sg.col(g);
-    sel_nlp -= dnorm( value, Type(0) ,1., true).sum();
+    sel_nlp -= dnorm( value, Type(0) ,cvSel, true).sum();
 
     value  = thetaSelAlpha_sg.col(g);
-    sel_nlp -= dnorm( value, Type(0), 1., true).sum();
+    sel_nlp -= dnorm( value, Type(0), cvSel, true).sum();
 
     // Add IG prior for tauq_g and tauq_sg
     for( int s = 0; s < nS; s++)
@@ -2790,6 +2805,7 @@ Type objective_function<Type>::operator() ()
   // Observations
   f += Ctnll_spf.sum();       // Catch
   f += qFdev_nlp;
+  f += lnqF_spf.sum();        // Jeffries prior on qF
   f += lenCompsnll_spf.sum(); // Length compositions
   f += ageCompsnll_spf.sum(); // Age compositions
   f += CPUEnll_spf.sum();     // Survey CPUE
@@ -2806,6 +2822,18 @@ Type objective_function<Type>::operator() ()
   f += Mnlp_s.sum() + Mnlp_sp.sum() + Mnlp_sx.sum() + Mnlp;
   f += lambdaB0 * lnB0_sp.sum();
   f += SRnlp_sp.sum();
+
+  if( compLikeFun == 1 )
+  {
+    f += (logitphi1Age_sf*logitphi1Age_sf).sum();
+    f += (logitphi1Len_sf*logitphi1Len_sf).sum();
+  }
+
+  if( compLikeFun >= 2 )
+  {
+    f += (logitpsiAge_sf*logitpsiAge_sf).sum();
+    f += (logitpsiLen_sf*logitpsiLen_sf).sum();
+  }
 
   joint_nlp += f;
 
@@ -2887,14 +2915,14 @@ Type objective_function<Type>::operator() ()
   REPORT( recb_sp );
 
   // Growth and maturity
-  REPORT( probLenAge_laspx );
-  REPORT( lenAge_aspx );
+  REPORT( probLenAge_laxsp );
+  REPORT( lenAge_axsp );
   REPORT( Wlen_ls );
   REPORT( matLen_ls );
   REPORT( matAge_asp );
   REPORT( xMat50_s );
   REPORT( xMat95_s );
-  REPORT( meanWtAge_aspx );
+  REPORT( meanWtAge_axsp );
   REPORT( L1_s );
   REPORT( L2_spx );
   REPORT( vonK_spx );
@@ -2906,13 +2934,6 @@ Type objective_function<Type>::operator() ()
   REPORT( h );
   REPORT( sigmah_s );
   REPORT( sigmah );
-
-  // Echo input priors
-  if(debugMode == 1)
-  {
-    REPORT( pmlnxSel50_sg );
-    REPORT( pmlnxSelStep_sg );
-  }
 
   // Random effects
   REPORT( epsxSel50_spft );
@@ -3000,8 +3021,8 @@ Type objective_function<Type>::operator() ()
   REPORT( I_spft_hat );
 
   // Compositional correlation matrices
-  REPORT( CorrAge_faa );
-  REPORT( CorrLen_fll );
+  REPORT( CorrAge_sfaa );
+  REPORT( CorrLen_sfll );
 
   // Vulnerable biomass at age
   REPORT( vB_axspft );
