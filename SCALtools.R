@@ -229,10 +229,10 @@ renameReportArrays <- function( repObj = repInit, datObj = data )
   dimnames(repObj$tauObs_spf)   <- list(  species = specNames,
                                           stock = stockNames,
                                           fleet = gearNames )
-  dimnames(repObj$sel_lfspt)    <- list(  len = lenNames, 
-                                          fleet = gearNames,
+  dimnames(repObj$sel_lspft)    <- list(  len = lenNames, 
                                           species = specNames,
                                           stock = stockNames,
+                                          fleet = gearNames,
                                           year = yearNames )
   dimnames(repObj$sel_axspft)     <- list(  age = ageNames, 
                                             sex = sexNames,
@@ -257,6 +257,22 @@ renameReportArrays <- function( repObj = repInit, datObj = data )
                                                   species = specNames,
                                                   stock = stockNames )
 
+  dimnames(repObj$probAgeLen_laxspft)      <- list( len = lenNames,
+                                                    age = ageNames,
+                                                    sex = sexNames,
+                                                    species = specNames,
+                                                    stock = stockNames,
+                                                    fleet = gearNames,
+                                                    year = yearNames )
+
+  dimnames(repObj$ageAtLenResids_laxspft)      <- list( len = lenNames,
+                                                        age = ageNames,
+                                                        sex = sexNames,
+                                                        species = specNames,
+                                                        stock = stockNames,
+                                                        fleet = gearNames,
+                                                        year = yearNames )
+
   dimnames(repObj$lenAge_axsp) <- list( age = ageNames,
                                         sex = sexNames,
                                         species = specNames,
@@ -271,22 +287,25 @@ renameReportArrays <- function( repObj = repInit, datObj = data )
   names(repObj$sigmaLa_s) <- specNames
   names(repObj$sigmaLb_s) <- specNames
   # arrays
-  dimnames(repObj$L1_sp)    <- list(  species = specNames,
-                                      stock = stockNames )
   dimnames(repObj$L2_sp)    <- list(  species = specNames,
                                       stock = stockNames )
+  dimnames(repObj$L2_xs)    <- list(  sex = sexNames,
+                                      species = specNames )
   dimnames(repObj$vonK_sp)  <- list(  species = specNames,
-                                      stock = stockNames )
+                                      stock = stockNames  )
 
-  dimnames(repObj$L1_spx)   <- list(  species = specNames,
-                                      stock = stockNames,
-                                      sex = sexNames )
-  dimnames(repObj$L2_spx)   <- list(  species = specNames,
-                                      stock = stockNames,
-                                      sex = sexNames )
-  dimnames(repObj$vonK_spx) <- list(  species = specNames,
-                                      stock = stockNames,
-                                      sex = sexNames )
+  dimnames(repObj$vonK_xs)  <- list(  sex = sexNames,
+                                      species = specNames )
+
+  dimnames(repObj$L1_xsp)   <- list(  sex = sexNames,
+                                      species = specNames,
+                                      stock = stockNames )
+  dimnames(repObj$L2_xsp)   <- list(  sex = sexNames,
+                                      species = specNames,
+                                      stock = stockNames )
+  dimnames(repObj$vonK_xsp) <- list(  sex = sexNames,
+                                      species = specNames,
+                                      stock = stockNames )
   dimnames(repObj$M_xsp)    <- list(  sex = sexNames,
                                       species = specNames,
                                       stock = stockNames )
@@ -430,13 +449,13 @@ savePlots <- function(  fitObj = reports,
     if(!dir.exists(specPath))
       dir.create(specPath)
 
-    # fileName <- paste("plotAgeLenResids_",specDir,".png",sep = "")
-    # png(  file.path(specPath,fileName),
-    #     width = 11, height = 8.5, units = "in", res = 300)
-    # plotHeatmapAgeLenResids(  repObj = report, 
-    #                           sIdx = sIdx, pIdx = 1:nP,
-    #                           fIdx = 1:nF )
-    # dev.off()  
+    fileName <- paste("plotAgeLenResids_",specDir,".png",sep = "")
+    png(  file.path(specPath,fileName),
+        width = 11, height = 8.5, units = "in", res = 300)
+    plotHeatmapAgeLenResids(  repObj = report, 
+                              sIdx = sIdx, pIdx = 1:nP,
+                              fIdx = 1:nF )
+    dev.off()  
 
     fileName <- paste("plotAgeResids_",specDir,".png",sep = "")
     png(  file.path(specPath,fileName),

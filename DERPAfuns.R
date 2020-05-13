@@ -2582,38 +2582,52 @@ makeCatchDiscArrays <- function(  commData = catchData,
 makeALFreq <- function( ALFreqList = ALfreq,
                         years = 1954:2018,
                         gears = gearNames,
-                        maxA = 45, maxL = 80 )
+                        maxA = 45, maxL = 80,
+                        lenBinWidth = 2 )
 {
   nS <- length(ALFreqList)
   specIDs <- names( ALFreqList )
 
   ALfreqList <- vector(mode = "list", length = nS)
   
-  nGears <- length(gears)
-  nYears <- length(years)
+  nF <- length(gears)
+  nT <- length(years)
+
+  maxLenBins <- ceiling(maxL / lenBinWidth)
 
   for( sIdx in 1:nS)
   {
     ALfreqList[[sIdx]] <- ALFreqList[[sIdx]]$ALfreq
-    maxA <- max(maxA, dim(ALfreqList[[sIdx]])[2])
-    maxL <- max(maxL, dim(ALfreqList[[sIdx]])[3])
+    maxL        <- max(maxL, as.integer(dimnames(ALfreqList[[sIdx]])[[3]]))
+    maxLenBins  <- max(maxLenBins, dim(ALfreqList[[sIdx]])[3])
   }
+
+  nLenBins  <- max(ceiling( maxL / lenBinWidth),maxLenBins)
+
+
+  binUBs  <- seq( from  = lenBinWidth, by = lenBinWidth, length.out = nLenBins )
+  binLBs  <- binUBs - lenBinWidth
+  binMids <- (binLBs + binUBs)/2
 
 
   nP <- dim(ALfreqList[[1]])[1]
   stockIDs  <- dimnames(ALfreqList[[1]])[[1]]
   sexIDs    <-dimnames(ALfreqList[[1]])[[6]]
 
+  nX <- length(sexIDs)
+
+
+
   years <- as.character(years)
 
-  ALK_spalftx <- array( 0, dim = c( nS, nP, maxA, maxL, nGears, nYears, 2),
-                            dimnames = list(  species = specIDs,
-                                              stock = stockIDs,
+  ALK_laxspft <- array( 0, dim = c( nLenBins, maxA, 2, nS, nP, nF, nT),
+                            dimnames = list(  lenBin = binMids,
                                               age = 1:maxA,
-                                              length = 1:maxL,
+                                              sex = sexIDs,
+                                              species = specIDs,
+                                              stock = stockIDs,
                                               fleet = gears,
-                                              year = years,
-                                              sex = sexIDs ) )
+                                              year = years ) )
 
 
 
@@ -2623,14 +2637,159 @@ makeALFreq <- function( ALFreqList = ALfreq,
     specAL <- ALfreqList[[sIdx]]
     specAL[specAL < 0] <- NA
     specA <- dim(specAL)[2]
-    specL <- dim(specAL)[3]
-    ALK_spalftx[specID, stockIDs, 1:specA, 1:specL, gears, years, ]  <- specAL[stockIDs,1:specA,1:specL, gears, years, ]
+    specL <- dim(specAL)[3]  # ALREADY BINNED
 
-    
+    maxAgeClass <- min(specA,maxA)
+
+    for( x in 1:nX )
+      for( t in 1:nT )
+        for(l in 1:specL )
+          for( p in 1:nP )
+            for( f in 1:nF )
+            {
+
+              yearLab <- as.character(years[t])
+
+              if( all(specAL[p,,l,f,yearLab,x] <= 0) )
+                next
+              
+              ALK_laxspft[l,1:maxAgeClass,x,sIdx,p,f, yearLab]  <- specAL[p,1:maxAgeClass,l, f, yearLab,x ]
+
+
+              if( specA > maxA )
+              {
+                ALK_laxspft[l,maxAgeClass,1,sIdx,p,f, yearLab ]  <- 
+                  ALK_laxspft[l,maxAgeClass,1,sIdx,p, f, yearLab ] +
+                    sum(specAL[p,(maxAgeClass+1):specA,l, f, yearLab, 1])
+
+                ALK_laxspft[l,maxAgeClass,2,sIdx,p,f, yearLab ]  <- 
+                  ALK_laxspft[l,maxAgeClass,2,sIdx,p, f, yearLab ] +
+                    sum(specAL[p,(maxAgeClass+1):specA,l, f, yearLab, 2])
+              }
+
+            }
+
 
   }
 
-  return(ALK_spalftx)
+  return(ALK_laxspft)
+} # END makeALFreq()
+
+# makeALFreq()
+# Makes the time-averaged Age-length frequency
+# array for the hierSCAL integrated vonB growth model
+makeALFreqTable <- function(  ALFreqList = ALfreq,
+                              years = 1954:2018,
+                              gears = gearNames,
+                              maxA = 45, 
+                              maxL = 80,
+                              lenBinWidth = 2 )
+{
+  nS <- length(ALFreqList)
+  specIDs <- names( ALFreqList )
+
+  ALfreqList <- vector(mode = "list", length = nS)
+  
+  nF <- length(gears)
+  nT <- length(years)
+
+  maxLenBins <- 1
+
+  for( sIdx in 1:nS)
+  {
+    ALfreqList[[sIdx]] <- ALFreqList[[sIdx]]$ALfreq
+    maxL        <- max(maxL, as.integer(dimnames(ALfreqList[[sIdx]])[[3]]))
+    maxLenBins  <- max(maxLenBins, dim(ALfreqList[[sIdx]])[3])
+  }
+
+  nLenBins  <- max(ceiling( maxL / lenBinWidth),maxLenBins)
+
+  binUBs  <- seq( from  = lenBinWidth, by = lenBinWidth, length.out = nLenBins )
+  binLBs  <- binUBs - lenBinWidth
+  binMids <- (binLBs + binUBs)/2
+
+  nP <- dim(ALfreqList[[1]])[1]
+  stockIDs  <- dimnames(ALfreqList[[1]])[[1]]
+  sexIDs    <- dimnames(ALfreqList[[1]])[[6]]
+  nX        <- length(sexIDs)
+
+  # browser()
+
+  years <- as.character(years)
+  ageLabels <- 1:maxA
+
+  # Table columns
+  tabColNames <- c( "year",
+                    "species",
+                    "stock",
+                    "fleet",
+                    "sex",
+                    "lenBin",
+                    ageLabels )
+
+  compsTable <- matrix( NA, nrow = maxL * nS * nP * nF * nT * nX , 
+                            ncol = length( tabColNames) )
+
+  colnames(compsTable) <- tabColNames
+
+  tabRowIdx <- 0
+
+  for( sIdx in 1:nS )
+  {
+    specID <- specIDs[sIdx]
+    specAL <- ALfreqList[[sIdx]]
+    specAL[specAL < 0] <- NA
+    specA <- dim(specAL)[2]
+    specL <- dim(specAL)[3]
+
+
+    for( sexIdx in 1:2)
+    {
+      sexID <- sexIDs[sexIdx]
+      # Now loop over fleetIDs
+      for( fleetIdx in 1:nF )
+      { 
+        fleetID <- gears[fleetIdx]
+        # Need to aggregate plus group
+        for( stockIdx in 1:nP )
+        {
+          stockID <- stockIDs[stockIdx]
+          for( tIdx in 1:nT)
+          {
+            yearLab <- as.character(years[tIdx])
+            
+            for( binIdx in 1:specL )
+            {
+              sumComps <- sum(specAL[stockIdx,,binIdx,fleetIdx,yearLab,sexIdx ],na.rm = T)
+
+              if(sumComps > 0 )
+              {                
+                tabRowIdx <- tabRowIdx + 1
+                compsTable[tabRowIdx,1] <- tIdx
+                compsTable[tabRowIdx,2] <- sIdx
+                compsTable[tabRowIdx,3] <- stockIdx
+                compsTable[tabRowIdx,4] <- fleetIdx
+                compsTable[tabRowIdx,5] <- sexIdx
+                compsTable[tabRowIdx,6] <- binIdx
+                maxAgeClass <- min(maxA,specA)
+
+                compsTable[tabRowIdx,7:(7 + maxAgeClass - 1)] <- specAL[stockIdx,1:maxAgeClass,binIdx,fleetIdx,yearLab,sexIdx ]
+
+                if( specA > maxA )
+                  compsTable[tabRowIdx,(7 + maxAgeClass - 1)] <- 
+                    compsTable[tabRowIdx,(7 + maxAgeClass - 1)] + 
+                    sum(specAL[stockIdx,(maxAgeClass + 1):specA,binIdx,fleetIdx,tIdx,sexIdx ])
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  compsTable <- compsTable[1:tabRowIdx,]
+
+  return(compsTable)
 } # END makeALFreq()
 
 # makeCompsArray()
@@ -3009,7 +3168,8 @@ makeALFreq_FleetYear <- function( data = bioData$Dover,
                                   stocksComm = stocksCommBio,
                                   stocksSurv = stocksSurvey,
                                   survIDs = surveyIDs,
-                                  years = 1954:2018  )
+                                  years = 1954:2018,
+                                  lenBinWidth = 2  )
 {
   # Get survey and commercial data
   survData <- data$survey %>%
@@ -3063,27 +3223,42 @@ makeALFreq_FleetYear <- function( data = bioData$Dover,
   # combine total data for likelihood
   combData <- rbind(survData,commData)
 
+  # Now make length bins
+  # First, get array dimensions
+  lengths   <- unique(combData$length)
+  ages      <- unique(combData$age)
+
+  maxAge <- max(ages)
+  maxLen <- max(lengths)
+
+  allAges     <- 1:maxAge
+  allLengths  <- 1:max(lengths)
+
+  nLenBins  <- ceiling( max(lengths) / lenBinWidth)
+
+  binUBs  <- seq( from  = lenBinWidth, by = lenBinWidth, length.out = nLenBins )
+  binLBs  <- binUBs - lenBinWidth
+  binMids <- (binLBs + binUBs)/2
+
+  combData$midLenBin <- cut(  combData$length,
+                              breaks = c(0,binUBs),
+                              right = TRUE,
+                              labels = binMids )
+
   bioDataBoys   <- combData %>% filter( sex == 1 )
   bioDataGirls  <- combData %>% filter( sex == 2 )
 
-  # initialise age-length freq
-  # First, get array dimensions
-  lengths <- unique(combData$length)
-  ages    <- unique(combData$age)
-
-  allAges     <- 1:max(ages)
-  allLengths  <- 1:max(lengths)
 
   # initialise array
-  ALfreq <- array( 0,  dim = c(  nStocks,
-                                  length(allAges),
-                                  length(allLengths),
-                                  nGears,
-                                  nYears,
-                                  2 ),
+  ALfreq <- array( 0,  dim = c( nStocks,
+                                maxAge,
+                                nLenBins,
+                                nGears,
+                                nYears,
+                                2 ),
                         dimnames = list(  stock = stockNames, 
                                           age = allAges, 
-                                          length = allLengths, 
+                                          lenBinMid = binMids, 
                                           fleet = gearNames,
                                           year = years,
                                           sex = c("boys","girls") ) )
@@ -3093,7 +3268,7 @@ makeALFreq_FleetYear <- function( data = bioData$Dover,
   # might need to aggregate further
   frqData <-  combData %>%
               mutate( length = round(length) ) %>%
-              group_by( stockName, year, age, length, sex, fleetID ) %>%
+              group_by( stockName, year, age, midLenBin, sex, fleetID ) %>%
               filter( sex %in% c(1,2), !is.na(fleetID) ) %>%
               summarise( nObs = n() ) %>%
               ungroup()
@@ -3109,29 +3284,29 @@ makeALFreq_FleetYear <- function( data = bioData$Dover,
                   filter( stockName == stockNames[stockIdx],
                           fleetID == gearNames[gearIdx] )
 
-      gearAges <- unique( gearData$age )
-      gearLengths <- unique( gearData$length )
+      gearAges  <- unique( gearData$age )
+      lenBins   <- unique( gearData$midLenBin )
 
       for( a in gearAges )
-        for( l in gearLengths )
+        for( lenB in lenBins )
         {
 
           boyObs <- gearData %>% 
                     filter( sex == 1, 
                             age == a, 
-                            length == l )
+                            midLenBin == lenB )
           girlObs <-  gearData %>% 
                       filter( sex == 2, 
                               age == a, 
-                              length == l )
+                              midLenBin == lenB )
 
           if(nrow(boyObs) > 0)
           {
-            ALfreq[ stockNames[stockIdx], a, l, gearName, as.character(boyObs$year), "boys" ] <- boyObs$nObs
+            ALfreq[ stockNames[stockIdx], a, as.character(lenB), gearName, as.character(boyObs$year), "boys" ] <- boyObs$nObs
           }
           if(nrow(girlObs) > 0)
           {
-            ALfreq[ stockNames[stockIdx], a, l, gearName, as.character(girlObs$year), "girls" ] <- girlObs$nObs
+            ALfreq[ stockNames[stockIdx], a, as.character(lenB), gearName, as.character(girlObs$year), "girls" ] <- girlObs$nObs
           }
 
         }

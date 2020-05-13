@@ -205,7 +205,7 @@ plotScaledIdxGrid <- function(repObj = repOpt )
                                           group = fleet, colour = fleet) ) +
                 geom_point( mapping = aes(  x = year, y = scaledIdx,
                                             colour = fleet, group = fleet ) ) +
-                facet_grid( stock ~ species, scales = "free_y" ) +
+                facet_grid( stock ~ species, scales = "free" ) +
                 theme_sleek()
 
   print(idxFitPlot)
@@ -388,13 +388,13 @@ plotSelLen_spf <- function( repObj = repOpt,
 {
   
   # get estimates of selectivity
-  sel_lfsp   <- repObj$sel_lfspt[,,sIdx,pIdx,1,drop = FALSE]
+  sel_lspf   <- repObj$sel_lspft[,sIdx,pIdx,,1,drop = FALSE]
   L_s        <- repObj$L_s[sIdx]
 
   C_spft     <- repObj$C_spft
   posCat_spf <- apply(X = C_spft, FUN = sum, MARGIN = c(1,2,3))
   posCat_spf[posCat_spf > 0] <- 1
-  dimnames(posCat_spf) <- dimnames(sel_lfsp)[c(3,4,2)]
+  dimnames(posCat_spf) <- dimnames(sel_lspf)[2:4]
 
   # species/stocks
   nS <- repObj$nS
@@ -405,7 +405,7 @@ plotSelLen_spf <- function( repObj = repOpt,
   posCat.df <- melt(posCat_spf) %>%
                 rename( indicator = value )
 
-  meltSel <- melt(sel_lfsp ) %>%
+  meltSel <- melt(sel_lspf ) %>%
               rename( selectivity = value ) %>%
               left_join( posCat.df, by = c("species","stock","fleet")) %>%
               filter( indicator == 1 )
@@ -802,8 +802,6 @@ plotCompFitAvg <- function( repObj = reports$repOpt,
   }
   if( comps == "length" )
   {
-    if( nX == 2 )
-      nX <- 3
 
     binMids     <- repObj$lenBinMids_l
     max         <- repObj$L_s[sIdx]  
@@ -1478,9 +1476,9 @@ plotHeatmapProbLenAge <- function(  repObj = repInit,
   # Get vonB parameters
   A1_s      <- repObj$A1_s[sIdx,drop = FALSE]
   A2_s      <- repObj$A2_s[sIdx,drop = FALSE]
-  vonK_spx  <- repObj$vonK_spx[sIdx,pIdx,, drop = FALSE]
-  L1_spx    <- repObj$L1_spx[sIdx,pIdx,, drop = FALSE]
-  L2_spx    <- repObj$L2_spx[sIdx,pIdx,, drop = FALSE]
+  vonK_xsp  <- repObj$vonK_xsp[,sIdx,pIdx, drop = FALSE]
+  L1_xsp    <- repObj$L1_xsp[,sIdx,pIdx, drop = FALSE]
+  L2_xsp    <- repObj$L2_xsp[,sIdx,pIdx, drop = FALSE]
 
   assignAgePar <- function( spec, ageVec )
   {
@@ -1490,15 +1488,15 @@ plotHeatmapProbLenAge <- function(  repObj = repInit,
   }
 
   # Combine vonB parameters into a data.frame
-  vonK.df <- melt(vonK_spx) %>%
+  vonK.df <- melt(vonK_xsp) %>%
               mutate( par = "vonK")
-  L1.df   <- melt(L1_spx) %>%
+  L1.df   <- melt(L1_xsp) %>%
               mutate( par = "L1",
                       zero = 0 ) %>%
               group_by( species ) %>%
               mutate( age = assignAgePar( species, A1_s ) ) %>%
               ungroup()
-  L2.df   <- melt(L2_spx) %>%
+  L2.df   <- melt(L2_xsp) %>%
               mutate( par = "L2",
                       zero = 0 ) %>%
               group_by( species ) %>%
@@ -1559,8 +1557,8 @@ plotHeatmapAgeLenResids <- function(  repObj = repInit,
                                       fIdx = 1 )
 {
   # Get resids matrix
-  resids <- repObj$ageAtLenResids_alspftx[,,sIdx,pIdx,fIdx,,,drop = FALSE]
-  resids <- apply( X = resids, FUN = mean, MARGIN = c(1,2,3,4,5,7))
+  resids <- repObj$ageAtLenResids_laxspft[,,,sIdx,pIdx,fIdx,,drop = FALSE]
+  resids <- apply( X = resids, FUN = mean, MARGIN = c(1,2,3,4,5,6))
 
   resids[resids == 0] <- NA
   
@@ -1581,7 +1579,7 @@ plotHeatmapAgeLenResids <- function(  repObj = repInit,
   nL <- repObj$nL
   nA <- repObj$nA
 
-  predLenAtAge <- repObj$lenAge_aspx[,sIdx,pIdx,, drop = FALSE]
+  predLenAtAge <- repObj$lenAge_axsp[,,sIdx,pIdx, drop = FALSE]
   predLenAtAge <- melt(predLenAtAge) %>%
                   filter( value > 0 )
 

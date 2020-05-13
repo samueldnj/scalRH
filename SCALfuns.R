@@ -399,54 +399,87 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   # Growth parameters come from vonBFits
   L1_s        <- vonBFits$L1_s
   L2_spx      <- vonBFits$L2_spx
-  A1_s        <- vonBFits$A1_s
+  # A1_s        <- vonBFits$A1_s
   A2_s        <- vonBFits$A2_s
   sigA_s      <- vonBFits$sigA_s 
   sigB_s      <- vonBFits$sigB_s 
   vonK_spx    <- vonBFits$VonK_spx
 
-  # Calculate L2step_spx
-  L2step_spx <- L2_spx
+  A1_s        <- dataObj$minA_s
 
-  for( sIdx in 1:length(L1_s) )
-    L2step_spx[sIdx,,] <- L2_spx[sIdx,,] - L1_s[sIdx] 
+  # Get L1_s and L2_s from data
+  LBL1_s      <- numeric(length = nS)
+  UBL1_s      <- numeric(length = nS)
+  LBL2_s      <- numeric(length = nS)
+  UBL2_s      <- numeric(length = nS)
 
+  LBVonK_s      <- numeric(length = nS)
+  UBVonK_s      <- numeric(length = nS)
+
+  for( s in 1:nS )
+  {
+    surveyDataA1  <- ALfreq[[s]]$data$survey %>%
+                      filter( age == A1_s[s] )
+
+    surveyDataA2  <- ALfreq[[s]]$data$survey %>%
+                      filter( age == A2_s[s] )                      
+    
+    LBL1_s[s]   <- min(surveyDataA1$length)
+    LBL2_s[s]   <- min(surveyDataA2$length)
+
+    UBL1_s[s]   <- max(surveyDataA1$length)
+    UBL2_s[s]   <- max(surveyDataA2$length)
+
+    LBVonK_s[s] <- mean(vonK_spx[s,,]) - hypoObj$VonKRadius
+    UBVonK_s[s] <- mean(vonK_spx[s,,]) + hypoObj$VonKRadius
+
+  }
 
 
   # Make the age-length key - this might be useful,
   # or we can include it so we can integrate a growth
   # model
   # Aggregate ages into plus groups later.
-  ALFreq_spalftx <- makeALFreq( ALFreqList = ALfreq,
+  ALFreq_laxspft <- makeALFreq( ALFreqList = ALfreq,
                                 years = years,
                                 gears = c(commNames_g,survNames_g),
                                 maxA = max(nA_s), maxL = max(nL_s) )
 
+
+
+  ALFreq_table  <- makeALFreqTable( ALFreqList = ALfreq,
+                                    years = years,
+                                    gears = c(commNames_g,survNames_g),
+                                    maxA = max(nA_s), maxL = max(nL_s) )
+
+  ALFreq_table[is.na(ALFreq_table)] <- 0
+  ALFreq_sampSize <- apply(X = ALFreq_table[,7:ncol(ALFreq_table)], FUN = sum, MARGIN = 1)
+  ALFreq_table <- ALFreq_table[which(ALFreq_sampSize > dataObj$minAgeLenSampSize),]
   if( collapseSyn )
   {
     # collapseSyn assumes that the synoptic 
     # surveys are just HS, QCS and WCVI, from
     # N to S, and that Synoptic surveys are 
     # at the end of the fleetidx
-    newALFreq_spalftx <- ALFreq_spalftx
+    newALFreq_laxspft <- ALFreq_laxspft
 
-    whichSyn  <- which(grepl("Syn",dimnames(ALFreq_spalftx)[[5]]))
-    notSyn    <- which(!grepl("Syn",dimnames(ALFreq_spalftx)[[5]]))
+    whichSyn  <- which(grepl("Syn",dimnames(ALFreq_laxspft)[[6]]))
+    notSyn    <- which(!grepl("Syn",dimnames(ALFreq_laxspft)[[6]]))
 
-    notSynNames <- dimnames(newALFreq_spalftx)[[5]][notSyn]
+    notSynNames <- dimnames(newALFreq_laxspft)[[6]][notSyn]
 
-    newALFreq_spalftx <- ALFreq_spalftx[,,,,c(notSynNames,"HSSyn"),,]
-    dimnames(newALFreq_spalftx)[[5]] <- c(notSynNames,"Syn")
+    newALFreq_laxspft <- ALFreq_laxspft[,,,,,c(notSynNames,"HSSyn"),]
+    dimnames(newALFreq_laxspft)[[6]] <- c(notSynNames,"Syn")
     
-    newALFreq_spalftx[,"QCS",,,"Syn",,] <- ALFreq_spalftx[,"QCS",,,"QCSSyn",,]
-    newALFreq_spalftx[,"WCVI",,,"Syn",,] <- ALFreq_spalftx[,"WCVI",,,"WCVISyn",,]
+    newALFreq_laxspft[,,,,"QCS","Syn",] <- ALFreq_laxspft[,,,,"QCS","QCSSyn",]
+    newALFreq_laxspft[,,,,"WCVI","Syn",] <- ALFreq_laxspft[,,,,"WCVI","WCVISyn",]
 
-    ALFreq_spalftx <- newALFreq_spalftx
+    ALFreq_laxspft <- newALFreq_laxspft
   }
 
   # Pare down to specific fleets for growth
   # CAAL data - Lee et al 2019+ (shared privately)
-  ALfleetNames    <- dimnames(ALFreq_spalftx)[[5]]
+  ALfleetNames    <- dimnames(ALFreq_laxspft)[[6]]
   growthFleetIdx  <- which(ALfleetNames %in% dataObj$growthFleets)
 
   growthYears     <- dataObj$growthYears[1]:dataObj$growthYears[2]
@@ -454,7 +487,11 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
 
   
   # Set all observations outside those fleets to 0
-  ALFreq_spalftx[,,,,-growthFleetIdx,-growthYrIdx,] <- 0
+  ALFreq_laxspft[,,,,,-growthFleetIdx,-growthYrIdx] <- 0
+  # Cut down to growthFleets and growthYrs
+  freqTableRows <- which( (ALFreq_table[,4] %in% growthFleetIdx) &
+                          (ALFreq_table[,1] %in% growthYrIdx))
+  ALFreq_table <- ALFreq_table[freqTableRows,]
 
 
 
@@ -507,12 +544,14 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
 
   # remove unsexed observations
   age_table <- age_table[!age_table[,5] == 3,]
+  len_table <- len_table[!len_table[,5] == 3,]
 
 
   if( collapseSyn )
   {
     age_table[age_table[,4] > 4,4] <- 4
     len_table[len_table[,4] > 4,4] <- 4
+    ALFreq_table[ALFreq_table[,4] > 4,4] <- 4
     # collapseSyn assumes that the synoptic 
     # surveys are just HS, QCS and WCVI, from
     # N to S, and that Synoptic surveys are 
@@ -550,8 +589,9 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
     len_lspftx <- newlen_lspftx
   }
 
-  age_table <- age_table[age_table[,2] <= 3,]
-  len_table <- len_table[len_table[,2] <= 3,]
+  age_table     <- age_table[age_table[,2] <= 3,]
+  len_table     <- len_table[len_table[,2] <= 3,]
+  ALFreq_table  <- ALFreq_table[ALFreq_table[,2] <= 3,]
 
   # Compute mean sample size
   ageSampSizes <- apply(  X = age_table[,-(1:5)],
@@ -561,6 +601,9 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   lenSampSizes <- apply(  X = len_table[,-(1:5)],
                           FUN = sum, MARGIN = 1 )
   lenSampSizeTable <- cbind(len_table[,1:5],lenSampSizes) %>% as.data.frame()
+
+  ALSampSizes <- apply( X = ALFreq_table[,-(1:6)],
+                        FUN = sum, MARGIN = 1, na.rm = T )
 
   meanAgeSampSize_spf <- array(0, dim = c(nS,nP,nF))
   meanLenSampSize_spf <- array(0, dim = c(nS,nP,nF))
@@ -772,7 +815,14 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
         break
       }
   
+  
+  
 
+
+
+
+  # Selectivity priors - need a better way to
+  # do this
   if( hypoObj$selX == "length")
   {
 
@@ -801,8 +851,6 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
 
     LB_xSelAlpha_sg  <- xSel50_sg[useSpecIdx,] - hypoObj$selAlphaRadius
     UB_xSelAlpha_sg  <- xSel50_sg[useSpecIdx,] + hypoObj$selAlphaRadius
-    LB_xSelBeta_sg   <- xSelStep_sg[useSpecIdx,] * hypoObj$selBetaRadius
-    UB_xSelBeta_sg   <- xSelStep_sg[useSpecIdx,] / hypoObj$selBetaRadius
     
 
   }
@@ -861,6 +909,9 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
       # Count number of fleets in the group, skip if == 1
       gp <- group_f[f]
       nFleetsInGp <- length(fleetGroups[[gp]])
+      for(p in 1:nP)
+        posCatch_spf[s,p,f] <- ifelse(sum(C_spft[s,p,f,]) > 0,1,0)
+
       if( allFleets[f] == "HSAss" ) next
 
       for(p in 1:nP)  
@@ -876,7 +927,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
           calcStockQDevs_spf[s,p,f] <- 1
         }
 
-        posCatch <- ifelse(sum(C_spft[s,p,f,] > 0),1,0)
+        
         
 
         # Add a small effort for surveys in years where there's catch
@@ -964,6 +1015,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   # Reorder age dims
   age_axspft <- aperm(age_aspftx,c(1,6,2:5))
   len_lxspft <- aperm(len_lspftx,c(1,6,2:5))
+  len_lxspft <- len_lxspft[,1:nX,,,,]
 
 
 
@@ -972,7 +1024,6 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 C_spft                = C_spft,
                 D_spft                = D_spft,
                 E_pft                 = E_pft,
-                ALK_spalftx           = ALFreq_spalftx,
                 age_axspft            = age_axspft,
                 len_lxspft            = len_lxspft,
                 lenBinMids_l          = lenBinMids,
@@ -996,10 +1047,12 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 idxLikeWt_g           = dataObj$idxLikeWt_g,
                 ageLikeWt_g           = dataObj$ageLikeWt_g,
                 lenLikeWt_g           = dataObj$lenLikeWt_g,
+                growthLikeWt          = dataObj$growthLikeWt,
                 tFirstRecDev_s        = as.integer(tFirstRecDev_s),
                 tLastRecDev_s         = as.integer(tLastRecDev_s),
                 minAgeProp            = dataObj$minAgeProp,
                 minLenProp            = dataObj$minLenProp,
+                minPropAAL            = dataObj$minPropAAL,
                 matX                  = hypoObj$matX,
                 selX                  = hypoObj$selX,
                 lenComps              = hypoObj$lenCompMethod,
@@ -1021,6 +1074,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 condMLEq_f            = hypoObj$condMLEq,
                 age_table             = age_table,
                 len_table             = len_table,
+                aal_table             = ALFreq_table,
                 # Compositional data likelihood
                 compLikeFun           = hypoObj$compLikeFun,
                 meanAgeSampSize_spf   = meanAgeSampSize_spf,
@@ -1032,9 +1086,20 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 lnRbar_sp           = array(10, dim = c(nS,nP)),
                 logitSteep          = log((mh - .2)/(1 - mh)),
                 lnM                 = log(mM),
-                lnL2step_spx        = log(L2step_spx[useSpecIdx,useStockIdx,,drop = FALSE]),
-                lnvonK_spx          = log(vonK_spx[useSpecIdx,useStockIdx,,drop=FALSE]),
-                lnL1_s              = log(L1_s[useSpecIdx]),
+                # Growth
+                thetaL2_s           = rep(-1,nS),
+                thetaL1_s           = rep(-1,nS),
+                thetaVonK_s         = rep(-1,nS),
+                LBL2_s              = LBL2_s,
+                LBL1_s              = LBL1_s,
+                LBVonK_s            = LBVonK_s,
+                UBL2_s              = UBL2_s,
+                UBL1_s              = UBL1_s,
+                UBVonK_s            = UBVonK_s,
+                deltaL2_sp          = array(0, dim = c(nS,nP)),
+                deltaL2_xs          = array(0, dim = c(nX,nS)),
+                deltaVonK_sp        = array(0, dim = c(nS,nP)),
+                deltaVonK_xs        = array(0, dim = c(nX,nS)),
                 # process error in growth model
                 lnsigmaLa_s         = log(sigA_s[useSpecIdx]),
                 sigmaLb_s           = sigB_s[useSpecIdx],
@@ -1058,8 +1123,6 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 epsSelBetaspf_vec   = rep(0,nStockSelDevs),
                 LB_xSelAlpha_sg     = LB_xSelAlpha_sg,
                 UB_xSelAlpha_sg     = UB_xSelAlpha_sg,
-                LB_xSelBeta_sg      = LB_xSelBeta_sg,
-                UB_xSelBeta_sg      = UB_xSelBeta_sg,
                 # discards obs SD
                 lntauD_f            = rep(log(0.01),nF),
                 lnqF_spf            = array(log(.01),dim = c(nS,nP,nF)),
@@ -1127,8 +1190,15 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 ## Single-level priors ##
                 # Priors on top level selectivity
                 cvSel               = hypoObj$cvSel,
+                # Regularisation prior on F
                 mF                  = hypoObj$mF,
                 sdF                 = hypoObj$sdF,
+                # Prior on VonB pars
+                lnsigmaL2           = log(hypoObj$sigmaL2),
+                lnsigmaVonK         = log(hypoObj$sigmaVonK),
+                cvL1                = hypoObj$cvL1,
+                cvL2                = hypoObj$cvL2,
+                cvVonK              = hypoObj$cvVonK,
                 sd_omegaRbar        = hypoObj$recDevReg,
                 logitphi1Age_sf     = initPhi1,
                 logitpsiAge_sf      = initPsi,
@@ -1160,16 +1230,35 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   lnqFMap[posCatch_spf == 0] <- NA
   map$lnqF_spf <- factor(lnqFMap)
 
+  # Map for vonB pars
+  L2map_sp    <- array(1:(nS * nP), dim = c(nS,nP)) + 100
+  VonKmap_sp  <- array(1:(nS * nP), dim = c(nS,nP)) + max(L2map_sp)
+
+  # Now look at # of observations
+  for( s in 1:nS )
+    for(p in 1:nP )
+    {
+      if( all(ALFreq_laxspft[,,,s,p,growthFleetIdx,growthYrIdx] <= 0 ) )
+      {
+        L2map_sp[s,p] <- NA
+        VonKmap_sp[s,p] <- NA
+      }
+    }
+
+  map$deltaL2_sp    <- factor(L2map_sp)
+  map$deltaVonK_sp  <- factor(VonKmap_sp)
+
+
   # Adjust phase of B0/Rbar based on recOption
   if( hypoObj$recOption == "BH" )
-    phases$lnRbar_sp  <- -1
-  if( hypoObj$recOption == "avgR" )
-  {
-    phases$lnB0_sp        <- -1
-    phases$logitSteep     <- -1
-    phases$epsSteep_s     <- -1
-    phases$epsSteep_sp    <- -1
-  }
+    phases$lnRbar_sp      <- -1
+
+  # if( hypoObj$recOption == "avgR" )
+  # {
+  #   phases$logitSteep     <- -1
+  #   phases$epsSteep_s     <- -1
+  #   phases$epsSteep_sp    <- -1
+  # }
 
   # Set phases for correlation matrix pars to negative
   # if not required
@@ -1215,36 +1304,55 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
     phases$epsM_sp            <- -1
     phases$lnsigmah_s         <- -1
     phases$lntauq_sf          <- -1
+    phases$deltaL1_sp         <- -1
+    phases$deltaL2_sp         <- -1
+    phases$deltaVonK_sp       <- -1
+  }
+
+  if( dataObj$growthLikeWt == 0 )
+  {
+    phases$thetaL1_s          <- -1
+    phases$thetaL2_s          <- -1
+    phases$thetaVonK_s        <- -1
+    phases$deltaL1_sp         <- -1
+    phases$deltaL2_sp         <- -1
+    phases$deltaVonK_sp       <- -1
+    phases$deltaL1_xs         <- -1
+    phases$deltaL2_xs         <- -1
+    phases$deltaVonK_xs       <- -1
   }
 
   # Turn off species specific devs if nS == 1
   if( nS == 1 )
   {
-    phases$epsSteep_s       <- -1
-    phases$epsM_s           <- -1
-    phases$deltaq_sf        <- -1     
-    phases$lnxSel50_sf      <- -1
-    phases$lnxSelStep_sf    <- -1
-    phases$lntauq_f         <- -1
+    phases$epsSteep_s         <- -1
+    phases$epsM_s             <- -1
+    phases$deltaq_sf          <- -1     
+    phases$lnxSel50_sf        <- -1
+    phases$lnxSelStep_sf      <- -1
+    phases$lntauq_f           <- -1
 
   }
   # Turn off sexual dimorphism if nX == 1
   if( nX == 1 )
   {
-    phases$epsM_sx          <- -1
+    phases$epsM_sx            <- -1
+    phases$deltaL1_xs         <- -1
+    phases$deltaL2_xs         <- -1
+    phases$deltaVonK_xs       <- -1
   }
   # Turn off recruitment correlation cholesky factor 
   if( hypoObj$recModel == "uncorr" )
   {
-    phases$recCorr_vec      <- -1
+    phases$recCorr_vec        <- -1
   }
 
   # Turn off F estimation if solving for
   # F numerically
   if( ctrlObj$calcFmethod != "effortModel" )
   {
-    phases$lnqF_spf         <- -1
-    phases$deltalnqFspft_vec<- -1
+    phases$lnqF_spf           <- -1
+    phases$deltalnqFspft_vec  <- -1
   }
 
   checkDat <- lapply( X = data, FUN = .checkNA )
@@ -1399,18 +1507,36 @@ TMBphase <- function( data,
 
       if( parName %in% names(phases) )
       {
-        if( (phases[[parName]] > phase_cur) | phases[[parName]] < 0 ) 
-        { 
-          # Check if parName is included in the base_map
-          if(parName %in% names(map_use))
-            map_use[[parName]] <- fill_vals(parameters[[i]],NA)
-          else
-          {
-            j <- j + 1
-            map_use[[j]] <- fill_vals(parameters[[i]],NA)
-            names(map_use)[j] <- parName
-          }
+        if( length(phases[[parName]]) == 1 )
+        {
+          if( (phases[[parName]] > phase_cur) | phases[[parName]] < 0 ) 
+          { 
+            # Check if parName is included in the base_map
+            if(parName %in% names(map_use))
+              map_use[[parName]] <- fill_vals(parameters[[i]],NA)
+            else
+            {
+              j <- j + 1
+              map_use[[j]] <- fill_vals(parameters[[i]],NA)
+              names(map_use)[j] <- parName
+            }
 
+          }
+        }
+        if( length(phases[[parName]]) > 1)
+        {
+          if( !(phase_cur %in% phases[[parName]]) )
+          {
+            # Check if parName is included in the base_map
+            if(parName %in% names(map_use))
+              map_use[[parName]] <- fill_vals(parameters[[i]],NA)
+            else
+            {
+              j <- j + 1
+              map_use[[j]] <- fill_vals(parameters[[i]],NA)
+              names(map_use)[j] <- parName
+            }
+          }
         }
       } else {
         j <- j + 1
@@ -1446,6 +1572,8 @@ TMBphase <- function( data,
 
     }
 
+    
+    
 
     # Fit the model
     obj <- TMB::MakeADFun(  data = data,
@@ -1463,7 +1591,8 @@ TMBphase <- function( data,
     tmbCtrl <- list(  eval.max = maxEval, 
                       iter.max = maxIter  )
 
-    repInit <- obj$report()
+    if(phase_cur == 1)
+      repInit <- obj$report()
 
 
 
@@ -1489,6 +1618,7 @@ TMBphase <- function( data,
                           objective = obj$fn,
                           gradient  = obj$gr,
                           control   = tmbCtrl ) )
+
 
     # break if there is an issue
     if( class(opt) == "try-error" )
