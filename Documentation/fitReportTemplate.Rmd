@@ -186,7 +186,7 @@ plotScaledIdxGrid( repObj = repObj )
 ```
 
 ```{r, idxResidsAll, echo = FALSE, fig.cap = IdxResCap }
-plotIdxResidsGrid( repObj = repObj )
+plotIdxResidsGrid( reports = reports )
 ```
 
 ## Recruitment

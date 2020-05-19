@@ -212,48 +212,87 @@ plotScaledIdxGrid <- function(repObj = repOpt )
 
 }
 
-
-plotIdxResidsGrid <- function(repObj = repOpt )
+# plotIdxResidsGrid()
+plotIdxResidsGrid <- function( reports )
 {
+  repObj <- reports$repOpt
+  datObj <- reports$data
   # Load vulnerable biomass, indices and catchability scalar
-  Bv_spft <- repObj$vB_spft
-  I_spft  <- repObj$I_spft
-  q_spft  <- repObj$q_spft
+  stdResids_spft  <- repObj$residCPUE_spft
 
-  # Load observation error variance
-  tauObs_spf <- repObj$tauObs_spf
+  stdResids_spft[stdResids_spft == 0] <- NA
 
-  tauObs.df   <- melt(tauObs_spf) %>%
-                  rename( tau = value )
+  specLabs  <- reports$species
+  stockLabs <- reports$stocks
 
-  # rescale indices
-  scaledI_spft <- I_spft / q_spft
+  fYear <- reports$fYear
 
-  scaledI_spft[scaledI_spft < 0] <- NA
+  nS <- repObj$nS
+  nP <- repObj$nP
+  nF <- repObj$nF
+  nT <- repObj$nT
 
-  scaledI_spft.df <-  melt(scaledI_spft) %>%
-                      rename( scaledIdx = value)
-  # Create a df of standardised values
-  stdResids_spft.df <-  melt(Bv_spft) %>%
-                        rename( vulnBiomass = value ) %>%
-                        left_join( scaledI_spft.df, by = c("species","stock","fleet","year")) %>%
-                        left_join( tauObs.df, by = c("species","stock","fleet") ) %>%
-                        mutate( stdResids = (log(vulnBiomass) - log(scaledIdx))/tau )
+  fleetCols <- RColorBrewer::brewer.pal(nF, "Dark2")
+  years <- seq( from = fYear, by = 1, length.out = nT)
 
-  idxResidsPlot <- ggplot(  data = stdResids_spft.df,
-                            mapping = aes(x = year, y = stdResids,
-                                          group = fleet) ) +
-                    geom_point(mapping = aes(  x = year, y = stdResids,
-                                              group = fleet, colour = fleet) ) +
-                    geom_smooth(  aes(colour = fleet, group = fleet),
-                                  method = 'loess', level = .2, span = 3 ) +
-                    facet_grid( stock ~ species, scales = "fixed" ) +
-                    geom_hline( yintercept = 0, linetype = "dashed", size = .8) +
-                    theme_sleek()
+  par(mfcol = c(nS,nP), mar = c(.1,.1,.1,.1),
+        oma = c(3,3,2,2) )
+  
+  for( s in 1:nS )
+    for( p in 1:nP )
+    {
+      plot( x= range(years), y = c(-3,3),
+            type = "n", axes = FALSE )
+        # Axes and labels
+        mfg <- par( "mfg")
+        if( mfg[1] == mfg[3] )
+          axis( side = 1 )
 
-  print(idxResidsPlot)
+        if( mfg[2] == 1 )
+          axis( side = 2, las = 1 )
 
-}
+        if( mfg[1] == 1 )
+          mtext( side = 3, text = specLabs[s], font = 2)
+
+        if( mfg[2] == mfg[4] )
+          mtext( side = 4, text = stockLabs[p], font = 2 )
+
+        grid()
+        box()
+
+        abline( h = 0, lty= 2, lwd = 2)
+
+        for( f in 1:nF )
+        {
+          if( all(is.na(stdResids_spft[s,p,f,])) )
+            next
+
+          points( x = years, y = stdResids_spft[s,p,f,],
+                  col = fleetCols[f] )
+
+          # Fit trend line
+          posIdx <- which(!is.na(stdResids_spft[s,p,f,]))
+
+          dat <- data.frame(x = years[posIdx], y = stdResids_spft[s,p,f,posIdx])
+
+          lmTrend <- lm( y~x, data = dat )
+          dat$pred <- predict.lm(object = lmTrend, newdata = dat)
+
+          pVal <- round(summary(lmTrend)$coefficients[2,4],2)
+
+          lines( x = dat$x, y = dat$pred,
+                  col = fleetCols[f], lwd = 2 )
+          text( x = dat$x[4], y = -3, 
+                label = paste("p = ", pVal, sep = ""),
+                col = fleetCols[f], font = 2 )
+        }
+
+    }
+
+  mtext( side = 1, text = "Year", outer = TRUE, line = 2)
+  mtext( side = 2, text = "Std. log-residuals", outer = TRUE, line = 3)
+
+} # END plotIdxResidsGrid
 
 # plotCorrRecDevs()
 # Plot empirical correlation matrix for estimated recruitment
@@ -627,33 +666,35 @@ plotCatchFit_ft <- function(  repObj = repInit,
 } # END plotCatchFit_ft()
 
 # Plot comp fits
-plotCompFitYrs <- function( repObj = repInit,
-                            initYear = fYear,
+plotCompFitYrs <- function( reports,
                             sIdx = 1, pIdx = 1,
                             sex = "girls",
                             comps = "age",
                             save = FALSE,
                             savePath = "plotFitYrs" )
 {
+  repObj    <- reports$repOpt
+  initYear  <- reports$fYear
+  datObj    <- reports$data
+
   nX <- repObj$nX
   # Pull predicted and observed ages
   if( comps == "age" )
   {
     max         <- repObj$A_s[sIdx]
-    pred_xftsex <- repObj$aDist_aspftx_hat[1:max,sIdx,pIdx,,,1:nX]
-    obs_xftsex  <- repObj$age_aspftx[1:max,sIdx,pIdx,,,1:nX]  
+    pred_xsexft <- repObj$aDist_axspft_hat[1:max,1:nX,sIdx,pIdx,,]
+    obs_xsexft  <- datObj$age_axspft[1:max,1:nX,sIdx,pIdx,,]  
     xLab        <- "Age"
     minProp     <- repObj$minAgeProp
-    binMids     <- dimnames(repObj$age_aspftx)[[1]]
+    binMids     <- dimnames(datObj$age_axspft)[[1]]
   }
   if( comps == "length" )
   {
-    if(nX == 2)
-      nX <- 3
-    binMids       <- repObj$lenBinMids_l
+
+    binMids       <- datObj$lenBinMids_l
     max           <- repObj$L_s[sIdx]
-    pred_xftsex   <- repObj$lDist_lspftx_hat[1:max,sIdx,pIdx,,,(1:nX)]
-    obs_xftsex    <- repObj$len_lspftx[1:max,sIdx,pIdx,,,(1:nX)] 
+    pred_xsexft   <- repObj$lDist_lxspft_hat[1:max,(1:nX),sIdx,pIdx,,]
+    obs_xsexft    <- datObj$len_lxspft[1:max,(1:nX),sIdx,pIdx,,] 
     xLab          <- "Length"
     minProp       <- repObj$minLenProp
   }
@@ -661,10 +702,10 @@ plotCompFitYrs <- function( repObj = repInit,
   # if( sIdx == 2 & comps == "age" )
   #   browser()
 
-  dimNames  <- dimnames(pred_xftsex)
+  dimNames  <- dimnames(pred_xsexft)
   compNames <- dimNames[[1]]
-  gearNames <- dimNames[[2]]
-  yearNames <- dimNames[[3]]
+  gearNames <- dimNames[[3]]
+  yearNames <- dimNames[[4]]
 
   # Pull model dims
   nF      <- repObj$nF
@@ -684,19 +725,23 @@ plotCompFitYrs <- function( repObj = repInit,
   for( fIdx in 1:nF )
   {
     for( sex in 1:nX)
-      if( any(obs_xftsex[1,fIdx,,sex] >= 0) )
+      if( any(obs_xsexft[1,sex,fIdx,] >= 0) )
       {
         obsGears <-  union(obsGears,fIdx)
-        obsTimes <-  which(obs_xftsex[1,fIdx,,sex] >= 0)
+        obsTimes <-  which(obs_xsexft[1,sex,fIdx,] >= 0)
         if( is.null(gearTimes[[fIdx]]))
           gearTimes[[fIdx]] <- obsTimes
         else gearTimes[[fIdx]] <- union(gearTimes[[fIdx]], obsTimes)
       }
     if( is.null(gearTimes[[fIdx]]) )
       gearTimes[[fIdx]] <- 1
+
+    gearTimes[[fIdx]] <- gearTimes[[fIdx]][order(gearTimes[[fIdx]])]
   }
 
-  obs_xftsex[obs_xftsex < 0] <- 0
+
+
+  obs_xsexft[obs_xsexft < 0] <- 0
 
 
   # ok, obsGears are the ones we want to plot,
@@ -744,9 +789,9 @@ plotCompFitYrs <- function( repObj = repInit,
       # get age obs and preds
       for( sex in 1:nX )
       {
-        nObs[sex]               <- sum(obs_xftsex[,fIdx,tIdx,sex])
-        compObsProp_xsex[,sex]  <- obs_xftsex[,fIdx,tIdx,sex]/max(1,nObs[sex])
-        compPred_xsex[,sex]     <- pred_xftsex[,fIdx,tIdx,sex]
+        nObs[sex]               <- sum(obs_xsexft[,sex,fIdx,tIdx])
+        compObsProp_xsex[,sex]  <- obs_xsexft[,sex,fIdx,tIdx]/max(1,nObs[sex])
+        compPred_xsex[,sex]     <- pred_xsexft[,sex,fIdx,tIdx]
       }
 
       plot( x = c(1,max), y = c(0,max(compObsProp_xsex,compPred_xsex,na.rm = T) ),
@@ -781,6 +826,105 @@ plotCompFitYrs <- function( repObj = repInit,
   }
 
 } # END plotCompFitYrs()
+
+
+plotAALfitYrs <- function( reports,
+                            sIdx = 1, pIdx = 1,
+                            sexIdx = 2, fIdx = 2 )
+{
+  # Get report and data
+  repObj <- reports$repOpt
+  datObj <- reports$data
+
+  browser()
+
+  # Get data and fits
+  aal_table <- datObj$aal_table %>%
+                as.data.frame() %>%
+                filter( species == sIdx, stock == pIdx,
+                        sex == sexIdx, fleet %in% fIdx ) %>%
+                arrange( year ) %>%
+                as.matrix()
+
+
+
+  probAgeLen_lat <- repObj$probAgeLen_laxspft[,,sexIdx,sIdx,pIdx,fIdx,]
+
+
+
+  # Get length-at-age
+  lenAge_a <- repObj$lenAge_axsp[,sexIdx,sIdx,pIdx]
+
+  years <- seq(from = reports$fYear, by = 1, length.out =repObj$nT)
+
+  # Length-bin midpoints
+  lenBinMids_l <- datObj$lenBinMids_l
+  lenBinWidth  <- datObj$lenBinWidth
+
+  maxLenBin <- max(aal_table[,6])
+
+  # Get min and max ages
+  A       <- datObj$A_s[sIdx]
+  minA    <- datObj$minA_s[sIdx]
+
+  # Get nObs
+  nObs <- length(unique(aal_table[,"year"]))
+  obsYrs <- unique(aal_table[,"year"])
+  obsYrs <- obsYrs[order(obsYrs)]
+
+  nRowPlots <- ceiling(sqrt(nObs))
+  nColPlots <- ceiling(sqrt(nObs))
+  # Make plotting area
+  par( mfcol = c(nRowPlots, nColPlots),
+        mar = c(.1,.1,.1,.1),
+        oma = c(3,3,2,2) )
+    for( tIdx in 1:length(obsYrs) )
+    {
+      plot( x = c(1,A), y = c(0,lenBinMids_l[maxLenBin] + lenBinWidth),
+            type = "n", xlab = "", ylab = "",
+            axes = FALSE )
+        mfg <- par("mfg")
+        # x axis in bottom row
+        if( mfg[1] == mfg[3])
+          axis( side = 1)
+        # y axis on all plots
+        if( mfg[2] == 1)
+          axis( side = 2, las = 1)
+      box()
+      grid()
+      yr <- obsYrs[tIdx]
+      aal_table.this <- aal_table %>%
+                        as.data.frame() %>%
+                        filter( year == yr ) %>%
+                        as.matrix()
+
+      # Now loop over the rows and plot
+      # the age comps-at-length
+      lenBins <- aal_table.this[,"lenBin"]
+      
+      for( lIdx in 1:length(lenBins) )
+      {
+        binIdx <- lenBins[lIdx]
+        abline( h = lenBinMids_l[binIdx]-1, lty = 1, lwd = .6 )
+        AALcomps_a <- aal_table.this[lIdx,7:(7+A-1)]
+        AALcomps_a <- AALcomps_a / sum(AALcomps_a)
+        rect( xleft = minA:A-.3, xright = minA:A + .3,
+              ybottom = lenBinMids_l[binIdx] - 1,
+              ytop = lenBinMids_l[binIdx] - 1 + 4*AALcomps_a[minA:A],
+              border = NA, col = "grey50" )
+        lines(  x = minA:A, 
+                y = lenBinMids_l[binIdx] - 1 + 4*probAgeLen_lat[binIdx,minA:A,yr],
+                col = "red" )   
+      }
+      text( x = 3, y = lenBinMids_l[maxLenBin],
+            label = years[yr] )
+      
+      lines(x = 1:A, y = lenAge_a, lwd = 3, lty = 2 )
+
+    }
+
+
+}
 
 # Plot comp fits averaged over time (good for early diagnostics)
 plotCompFitAvg <- function( repObj = reports$repOpt,
@@ -2036,4 +2180,130 @@ plotSelAge <- function( repObj = repInit,
 
 } # END plotSelAge()
 
+
+# plotDataSummary()
+# Data summary for each species and stock
+plotDataSummary <- function( reports )
+{
+  datObj <- reports$data
+  repObj <- reports$repOpt
+  
+  # Pull data
+  I_spft      <- datObj$I_spft
+  age_axspft  <- datObj$age_axspft
+  len_lxspft  <- datObj$len_lxspft
+  C_spft      <- datObj$C_spft
+  aal_table   <- datObj$aal_table
+
+
+  # Model dims
+  nS      <- repObj$nS
+  nP      <- repObj$nP
+  nF      <- repObj$nF
+  nT      <- repObj$nT
+
+  # Year sequence for x axis
+  fYear <- reports$fYear
+  years <- seq(from = fYear, by = 1, length.out = nT)
+
+
+  yLabs <- c("Catch","AAL","Lengths","Ages","Indices")
+  specLabs <- reports$species
+  stockLabs <- reports$stocks
+
+
+
+  fleetCols <- RColorBrewer::brewer.pal(nF,"Dark2")
+
+  checkPosObs <- function( arr, out = 16 )
+  {
+
+    if(any(arr > 0) )
+      return(out)
+    else return(NA)
+  }
+
+  par( mfcol = c(nS,nP),
+        mar = c(.5,.5,.5,.5),
+        oma = c(3,6,2,2) )
+
+
+  # Prepare catch data
+  
+  C_spt <- apply( X = C_spft, FUN = sum, MARGIN = c(1,2,4), na.rm = T)
+  C_sp.max <- apply(C_spt, FUN = max, MARGIN = c(1,2))
+  C_spt <- sweep( x = C_spt, MARGIN = c(1,2), C_sp.max, FUN = "/")
+
+  fleetJitter <- seq( from = -.8, to = .8, 
+                      length.out = nF )
+
+  # Prepare pch
+
+  for( s in 1:nS )
+    for( p in 1:nP )
+    {
+      plot( x = range(years), y = c(0,10),
+            type = "n", axes = FALSE )
+        # Axes and labels
+        mfg <- par( "mfg")
+        if( mfg[1] == mfg[3] )
+          axis( side = 1 )
+
+        if( mfg[2] == 1 )
+          axis( side = 2, las = 1,
+                at = c(1,3,5,7,9),
+                labels = yLabs )
+
+        if( mfg[1] == 1 )
+          mtext( side = 3, text = specLabs[s], font = 2)
+
+        if( mfg[2] == mfg[4] )
+          mtext( side = 4, text = stockLabs[p], font = 2 )
+
+        grid()
+        box()
+        # Break up window with hz lines
+        abline( h = c(2,4,6,8), lwd = .8 )
+
+        # Plot catch
+        rect( xleft = years - .3, xright = years + .3,
+              ybottom = 0, ytop = C_spt[s,p,],
+              col = "grey50", border = NA )
+
+        # Plot AAL
+        # Prepare table
+        aal_table.this <- aal_table %>%
+                          as.data.frame() %>%
+                          filter( species == s, stock == p )%>%
+                          group_by( year, fleet ) %>%
+                          summarise( posSamp = 1 )
+        points( x =  years[aal_table.this$year],
+                y = 3 + fleetJitter[aal_table.this$fleet],
+                pch = 16, col = fleetCols[aal_table.this$fleet] )
+
+        # Plot Lengths
+        len_spft <- apply(X = len_lxspft, FUN = checkPosObs, MARGIN = c(3:6) )
+        for(f in 1:nF )
+        {
+          plotPts <- which(!is.na(len_spft[s,p,f,]))
+          nPts <- length(plotPts)
+          points( x = years[plotPts], y = rep(5 + fleetJitter[f],nPts),
+                  col = fleetCols[f], pch = len_spft[s,p,f,plotPts] )
+        }
+
+        # Plot Ages
+        age_spft <- apply(X = age_axspft, FUN = checkPosObs, MARGIN = c(3:6) )
+        for(f in 1:nF )
+          points( x = years, y = rep(7 + fleetJitter[f],nT),
+                  col = fleetCols[f], pch = age_spft[s,p,f,] )
+        
+        # Plot indices
+        I_spft[I_spft > 0] <- 16
+        I_spft[I_spft <= 0] <- NA
+        for( f in 1:nF )
+          points( x = years, y = rep(9 + fleetJitter[f],nT),
+                  col = fleetCols[f], pch = I_spft[s,p,f,] )
+
+    }
+} 
 

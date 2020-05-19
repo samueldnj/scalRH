@@ -382,7 +382,9 @@ appendBlockID <- function(  blocks = grids$HS,
   }
 
   outList <- list(  densityBlocks = do.call(rbind, densByGrpCode),
-                    blocks        = blocksByGrpCode )
+                    densByGrpCode = densByGrpCode,
+                    blocks        = blocksByGrpCode,
+                    nGrpCodes     = nGrpCodes )
 
   return( outList )
 }
@@ -604,9 +606,19 @@ filterSurveyBlocks <- function( blocks = grids$HS,
                                 survey = "HS",
                                 stratAreas = stratArea )
 {
-  densityBlocks <- appendBlockID( blocks = grids$HS,
-                                  density = synTab )
+  densityBlockList <- appendBlockID(  blocks = grids$HS,
+                                      density = density,
+                                      stratAreas = stratAreas )
 
+  grpCodes    <- unique(density$GROUPING_CODE)
+  nGrpCodes   <- length(grpCodes)
+
+  browser()
+
+  blocksByGrpCode <- densityBlockList$blocks
+  densByGrpCode   <- densityBlockList$densByGrpCode
+
+  densityBlocks <- densityBlockList$densityBlocks
   # 2. identify blocks with positive tows >= minPosTow
   posTowBlocks    <-  densityBlocks %>%
                       group_by( block, assGrCd ) %>%
@@ -648,6 +660,8 @@ filterSurveyBlocks <- function( blocks = grids$HS,
     nRows <- ceiling(nGrpCodes/nCols)
 
     mapExtent <- extent(blocks)
+
+    summGrpCode <- vector(mode = "list", length = nGrpCodes)
 
     savePlotRoot <- paste(species,survey,sep = "")
     plotFile <- paste( savePlotRoot,"blockDesign.png", sep = "" )
@@ -2639,6 +2653,13 @@ makeALFreq <- function( ALFreqList = ALfreq,
     specA <- dim(specAL)[2]
     specL <- dim(specAL)[3]  # ALREADY BINNED
 
+    # Reorder gears
+    specAL[,,,1:7,,] <- specAL[,,,c(gears,"WCHGSyn"),,]
+
+    # Add WCHG samples to HSHG
+    specAL[,,,"HSSyn",,] <- specAL[,,,"HSSyn",,] + specAL[,,,"WCHGSyn",,]
+    specAL[,,,"WCHGSyn",,] <- 0
+
     maxAgeClass <- min(specA,maxA)
 
     for( x in 1:nX )
@@ -2742,6 +2763,14 @@ makeALFreqTable <- function(  ALFreqList = ALfreq,
     specA <- dim(specAL)[2]
     specL <- dim(specAL)[3]
 
+    # Reorder gears
+    specAL[,,,1:7,,] <- specAL[,,,c(gears,"WCHGSyn"),,]
+    dimnames(specAL)[[4]] <- c(gears,"WCHGSyn")
+
+    # Add WCHG samples to HSHG
+    specAL[,,,"HSSyn",,] <- specAL[,,,"HSSyn",,] + specAL[,,,"WCHGSyn",,]
+    specAL[,,,"WCHGSyn",,] <- 0
+
 
     for( sexIdx in 1:2)
     {
@@ -2754,6 +2783,7 @@ makeALFreqTable <- function(  ALFreqList = ALfreq,
         for( stockIdx in 1:nP )
         {
           stockID <- stockIDs[stockIdx]
+
           for( tIdx in 1:nT)
           {
             yearLab <- as.character(years[tIdx])
@@ -2762,8 +2792,13 @@ makeALFreqTable <- function(  ALFreqList = ALfreq,
             {
               sumComps <- sum(specAL[stockIdx,,binIdx,fleetIdx,yearLab,sexIdx ],na.rm = T)
 
+
+
               if(sumComps > 0 )
-              {                
+              {            
+                # if( stockID == "QCS" & sIdx == 1 & fleetIdx == 1 )
+                #   browser() 
+
                 tabRowIdx <- tabRowIdx + 1
                 compsTable[tabRowIdx,1] <- tIdx
                 compsTable[tabRowIdx,2] <- sIdx
@@ -3186,7 +3221,7 @@ makeALFreq_FleetYear <- function( data = bioData$Dover,
 
   # Make a vector of gear names - split
   # commercial data into modern and historic
-  gearNames <- c(names(survIDs),"comm.hist","comm.mod")
+  gearNames <- c("comm.hist","comm.mod",names(survIDs))
   stockNames <- names(stocksComm)
 
   # Count dimensions
@@ -3977,7 +4012,7 @@ makeLenComps <- function( data = bioData$Dover,
                           stocksSurv = stocksSurvey,
                           survIDs = surveyIDs,
                           years = 1954:2018,
-                          binWidth = 2,
+                          binWidth = 3,
                           minCommTrips = 3 )
 {
   # Pull survey and commercial data

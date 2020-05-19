@@ -547,8 +547,7 @@ savePlots <- function(  fitObj = reports,
       dev.off()
 
       # Plot age comp fits
-      plotCompFitYrs( repObj = report,
-                      initYear = fYear,
+      plotCompFitYrs( reports = fitObj,
                       sIdx = sIdx, pIdx = pIdx,
                       comps = "age", save = TRUE,
                       savePath = file.path(stockPath,"plotFitAgeYrs") )
@@ -563,8 +562,7 @@ savePlots <- function(  fitObj = reports,
       dev.off()
 
       # Plot length comp fits
-      plotCompFitYrs( repObj = report,
-                      initYear = fYear,
+      plotCompFitYrs( reports = fitObj,
                       sIdx = sIdx, pIdx = pIdx,
                       comps = "length", save = TRUE,
                       savePath = file.path(stockPath,"plotFitLenYrs") )

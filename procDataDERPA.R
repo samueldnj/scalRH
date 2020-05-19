@@ -26,7 +26,7 @@ library( MASS )
 library( boot )
 library( RCurl )
 library( scales )
-# library( rgeos )
+library( rgeos )
 
 
 
@@ -89,15 +89,15 @@ commSpecNames <- c( Dover = "dover-sole",
                     Petrale = "petrale-sole",
                     Arrowtooth = "arrowtooth-flounder" )
 
-# loadCRS()
+loadCRS()
 
-# surveys     <- c("HS", "QCS", "WCHG", "WCVI")
-# shapeFiles  <- paste(surveys,"_Synoptic_Survey_Active_Blocks",sep = "")
-# shapePath   <- file.path("./Data/ShapeFiles/SynSurveyBlocks")
+surveys     <- c("HS", "QCS", "WCHG", "WCVI")
+shapeFiles  <- paste(surveys,"_Synoptic_Survey_Active_Blocks",sep = "")
+shapePath   <- file.path("./Data/ShapeFiles/SynSurveyBlocks")
 
 # Load grids in a list
-# grids <- lapply(X = shapeFiles, FUN = openShapeFile, path = shapePath)
-# names(grids) <- surveys
+grids <- lapply(X = shapeFiles, FUN = openShapeFile, path = shapePath)
+names(grids) <- surveys
 
 # These have been coerced to UTM so the grids are nice
 # and rectangular.
@@ -133,7 +133,7 @@ names(bioData) <- names(commSpecNames)
 save(bioData, file = "./Data/Proc/bioData.RData")
 
 # # 2. Length at age plots - stock and sex - spit out age-length freq array
-ALfreq <- lapply( X = bioData, FUN = makeALFreq_FleetYear )
+ALfreq <- lapply( X = bioData, FUN = makeALFreq_FleetYear, lenBinWidth = 2 )
 names(ALfreq) <- names(commSpecNames)
 # # Save data out
 save(ALfreq, file = "./Data/Proc/ALfreq.RData")
@@ -161,14 +161,14 @@ ageComps <- lapply( X = bioData, FUN = makeAgeComps )
 save(ageComps, file = "./Data/Proc/ageComps.RData")
 
 # 5b. length compositions by fleet, stock, and species - spit out comp data array
-lenComps <- lapply( X = bioData, FUN = makeLenComps )
+lenComps <- lapply( X = bioData, FUN = makeLenComps, binWidth = 2 )
 save(lenComps, file = "./Data/Proc/lenComps.RData")
 
 
 
 # 6. Maturity at age by stock and species
-matOgives <- lapply( X = bioData, FUN = makeSpecMat )
-save(matOgives, file = "./Data/Proc/matOgives.RData" )
+# matOgives <- lapply( X = bioData, FUN = makeSpecMat )
+# save(matOgives, file = "./Data/Proc/matOgives.RData" )
 # matAgeLen.df <- makeMatDF(matOgives)
 # write.csv(matAgeLen.df, file = "./Data/Proc/matAgeLen.csv")
 

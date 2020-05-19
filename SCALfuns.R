@@ -397,24 +397,21 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
 
 
   # Growth parameters come from vonBFits
-  L1_s        <- vonBFits$L1_s
-  L2_spx      <- vonBFits$L2_spx
-  # A1_s        <- vonBFits$A1_s
-  A2_s        <- vonBFits$A2_s
+  L2_xsp      <- aperm(vonBFits$L2_spx,c(3,1,2))
+  
   sigA_s      <- vonBFits$sigA_s 
   sigB_s      <- vonBFits$sigB_s 
-  vonK_spx    <- vonBFits$VonK_spx
+  vonK_xsp    <- aperm(vonBFits$VonK_spx,c(3,1,2))
 
-  A1_s        <- dataObj$minA_s
+  A1_s        <- dataObj$vonBA1_s[1:nS]
+  A2_s        <- dataObj$vonBA2_s[1:nS]
 
-  # Get L1_s and L2_s from data
-  LBL1_s      <- numeric(length = nS)
-  UBL1_s      <- numeric(length = nS)
-  LBL2_s      <- numeric(length = nS)
-  UBL2_s      <- numeric(length = nS)
+  L1_s      <- numeric(length = nS)
+  L2_s      <- numeric(length = nS)
+  VonK_s    <- numeric(length = nS)
+  L2step_s  <- numeric(length = nS)
+  
 
-  LBVonK_s      <- numeric(length = nS)
-  UBVonK_s      <- numeric(length = nS)
 
   for( s in 1:nS )
   {
@@ -424,15 +421,19 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
     surveyDataA2  <- ALfreq[[s]]$data$survey %>%
                       filter( age == A2_s[s] )                      
     
-    LBL1_s[s]   <- min(surveyDataA1$length)
-    LBL2_s[s]   <- min(surveyDataA2$length)
+    L1_s[s]      <- mean(surveyDataA1$length)
+    L2_s[s]      <- mean(surveyDataA2$length)
+    L2step_s[s]  <- L2_s[s] - L1_s[s]
 
-    UBL1_s[s]   <- max(surveyDataA1$length)
-    UBL2_s[s]   <- max(surveyDataA2$length)
+    VonK_s[s]    <- mean(vonK_xsp[,s,])
 
-    LBVonK_s[s] <- mean(vonK_spx[s,,]) - hypoObj$VonKRadius
-    UBVonK_s[s] <- mean(vonK_spx[s,,]) + hypoObj$VonKRadius
+  }
 
+  if( hypoObj$fixVonB )
+  {
+    L1_s        <- vonBFits$L1_s
+    A1_s        <- vonBFits$A1_s
+    A2_s        <- vonBFits$A2_s
   }
 
 
@@ -446,7 +447,6 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                                 maxA = max(nA_s), maxL = max(nL_s) )
 
 
-
   ALFreq_table  <- makeALFreqTable( ALFreqList = ALfreq,
                                     years = years,
                                     gears = c(commNames_g,survNames_g),
@@ -455,6 +455,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   ALFreq_table[is.na(ALFreq_table)] <- 0
   ALFreq_sampSize <- apply(X = ALFreq_table[,7:ncol(ALFreq_table)], FUN = sum, MARGIN = 1)
   ALFreq_table <- ALFreq_table[which(ALFreq_sampSize > dataObj$minAgeLenSampSize),]
+
   if( collapseSyn )
   {
     # collapseSyn assumes that the synoptic 
@@ -546,6 +547,11 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   age_table <- age_table[!age_table[,5] == 3,]
   len_table <- len_table[!len_table[,5] == 3,]
 
+  age_table     <- age_table[age_table[,2] <= 3,]
+  len_table     <- len_table[len_table[,2] <= 3,]
+  ALFreq_table  <- ALFreq_table[ALFreq_table[,2] <= 3,]
+
+
 
   if( collapseSyn )
   {
@@ -588,10 +594,6 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
 
     len_lspftx <- newlen_lspftx
   }
-
-  age_table     <- age_table[age_table[,2] <= 3,]
-  len_table     <- len_table[len_table[,2] <= 3,]
-  ALFreq_table  <- ALFreq_table[ALFreq_table[,2] <= 3,]
 
   # Compute mean sample size
   ageSampSizes <- apply(  X = age_table[,-(1:5)],
@@ -1017,8 +1019,6 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   len_lxspft <- aperm(len_lspftx,c(1,6,2:5))
   len_lxspft <- len_lxspft[,1:nX,,,,]
 
-
-
   # Generate the data list
   data <- list( I_spft                = I_spft,
                 C_spft                = C_spft,
@@ -1078,7 +1078,11 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 # Compositional data likelihood
                 compLikeFun           = hypoObj$compLikeFun,
                 meanAgeSampSize_spf   = meanAgeSampSize_spf,
-                meanLenSampSize_spf   = meanLenSampSize_spf  )
+                meanLenSampSize_spf   = meanLenSampSize_spf,
+                fixVonB               = as.integer(hypoObj$fixVonB),
+                inputL1_s             = L1_s[1:nS],
+                inputL2_xsp           = L2_xsp[,1:nS,],
+                inputVonK_xsp         = vonK_xsp[,1:nS,]  )
 
   # Generate parameter list
   pars <- list( ## Leading biological pars ##
@@ -1087,15 +1091,15 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 logitSteep          = log((mh - .2)/(1 - mh)),
                 lnM                 = log(mM),
                 # Growth
-                thetaL2_s           = rep(-1,nS),
-                thetaL1_s           = rep(-1,nS),
-                thetaVonK_s         = rep(-1,nS),
-                LBL2_s              = LBL2_s,
-                LBL1_s              = LBL1_s,
-                LBVonK_s            = LBVonK_s,
-                UBL2_s              = UBL2_s,
-                UBL1_s              = UBL1_s,
-                UBVonK_s            = UBVonK_s,
+                lnL1_s              = log(L1_s[1:nS]),
+                lnL2step_s          = log(L2step_s),
+                lnVonK_s            = log(VonK_s),
+                # LBL2_s              = LBL2_s,
+                # LBL1_s              = LBL1_s,
+                # LBVonK_s            = LBVonK_s,
+                # UBL2_s              = UBL2_s,
+                # UBL1_s              = UBL1_s,
+                # UBVonK_s            = UBVonK_s,
                 deltaL2_sp          = array(0, dim = c(nS,nP)),
                 deltaL2_xs          = array(0, dim = c(nX,nS)),
                 deltaVonK_sp        = array(0, dim = c(nS,nP)),
@@ -1249,6 +1253,21 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   map$deltaVonK_sp  <- factor(VonKmap_sp)
 
 
+  phi1AgeMap_sf <- array(1:(nS*nF), dim = c(nS,nF)) + 200
+  phi1LenMap_sf <- array(1:(nS*nF), dim = c(nS,nF)) + max(phi1AgeMap_sf)
+
+  for( s in 1:nS )
+    for( f in 1:nF )
+    {
+      if(all(age_aspftx[,s,,f,,] <= 0))
+        phi1AgeMap_sf[s,f] <- NA
+      if(all(len_lspftx[,s,,f,,] <= 0))
+        phi1LenMap_sf[s,f] <- NA
+    }
+
+  map$logitphi1Age_sf <- factor(phi1AgeMap_sf)
+  map$logitphi1Len_sf <- factor(phi1LenMap_sf)
+
   # Adjust phase of B0/Rbar based on recOption
   if( hypoObj$recOption == "BH" )
     phases$lnRbar_sp      <- -1
@@ -1309,11 +1328,11 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
     phases$deltaVonK_sp       <- -1
   }
 
-  if( dataObj$growthLikeWt == 0 )
+  if( dataObj$growthLikeWt == 0 | hypoObj$fixVonB )
   {
-    phases$thetaL1_s          <- -1
-    phases$thetaL2_s          <- -1
-    phases$thetaVonK_s        <- -1
+    phases$lnL1_s             <- -1
+    phases$lnL2step_s         <- -1
+    phases$lnVonK_s           <- -1
     phases$deltaL1_sp         <- -1
     phases$deltaL2_sp         <- -1
     phases$deltaVonK_sp       <- -1
