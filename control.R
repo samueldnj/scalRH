@@ -51,6 +51,8 @@ source("refPts.R")
 # Survey ids for plotting/legends/array dims
 loadStockSpecNameLists()
 
+Sys.unsetenv("PKG_CXXFLAGS")
+
 # Make Outputs directory if it doesn't exists
 if(!dir.exists("Outputs"))
   dir.create("Outputs")

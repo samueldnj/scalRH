@@ -613,8 +613,6 @@ filterSurveyBlocks <- function( blocks = grids$HS,
   grpCodes    <- unique(density$GROUPING_CODE)
   nGrpCodes   <- length(grpCodes)
 
-  browser()
-
   blocksByGrpCode <- densityBlockList$blocks
   densByGrpCode   <- densityBlockList$densByGrpCode
 
@@ -1821,6 +1819,8 @@ makeLenAge <- function( data = bioData$Dover,
                       length > 0 ) %>%
               mutate( length = length/10 )
 
+
+
   data$survey <- survData
   data$comm   <- commData 
 
@@ -2500,11 +2500,13 @@ makeCatchDiscArrays <- function(  commData = catchData,
                               discardWt     = DISCARDED_KG,
                               discardNum  = DISCARDED_PCS,
                               species, stockName ) %>%
-              group_by( species, stockName, year ) %>%
+              group_by( year, species, stockName ) %>%
               summarise(  catch   = sum(catch)/1e6,
                           discWt  = sum(discardWt)/1e6,
-                          discNum = sum(discardNum) ) %>%
+                          discNum = sum(discardNum),
+                          .groups = "drop_last" ) %>%
               ungroup()
+
 
   # Array dimensions
   nS <- length(speciesCodes)
@@ -2792,9 +2794,10 @@ makeALFreqTable <- function(  ALFreqList = ALfreq,
             {
               sumComps <- sum(specAL[stockIdx,,binIdx,fleetIdx,yearLab,sexIdx ],na.rm = T)
 
+              yearComps <- sum(specAL[stockIdx,,,fleetIdx,yearLab, ],na.rm = T)
 
 
-              if(sumComps > 0 )
+              if(sumComps > 0 & yearComps > 100 )
               {            
                 # if( stockID == "QCS" & sIdx == 1 & fleetIdx == 1 )
                 #   browser() 
@@ -3382,6 +3385,7 @@ makeAgeComps <- function( data = bioData$Dover,
                 summarise(  nAges = sum(nObs),
                             nSamples = n() ) %>%
                 ungroup() 
+
 
 
   # save number of trips information
@@ -4017,14 +4021,14 @@ makeLenComps <- function( data = bioData$Dover,
 {
   # Pull survey and commercial data
   survData <- data$survey %>%
-              filter(is.na(AGE)) %>%
+              filter(is.na(AGE),!is.na(LENGTH_MM)) %>%
               mutate( survID = sapply(  X = SURVEY_SERIES_ID,
                                         FUN = appendName,
                                         survIDs),
                       length = LENGTH_MM/10 )
 
   commData <- data$comm %>%
-              filter(is.na(AGE)) %>%
+              filter(is.na(AGE),!is.na(LENGTH_MM)) %>%
               mutate( length = LENGTH_MM/10 )
 
   commTrips <-  commData %>%

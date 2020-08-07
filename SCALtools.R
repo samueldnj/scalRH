@@ -580,8 +580,7 @@ savePlots <- function(  fitObj = reports,
        # Plot length comp fits (average)
       png(  file.path(stockPath,"tvqPlot.png"),
             width = 8.5, height = 11, units = "in", res = 300)
-      plotTVq(  repObj = report,
-                sIdx = sIdx, pIdx = pIdx  )
+      plotTVq(  reports = fitObj )
       dev.off()
 
 

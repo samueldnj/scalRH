@@ -31,14 +31,17 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   controlTable <- .readParFile ( ctlFile )
 
   # Replace complex if provided
-  if( !is.null(cplx) )
+  if( !is.null(cplx)  )
   {
-    specRow <- which(controlTable$parameter == "data$species")
+    if(!is.na(cplx))
+    {
+      specRow <- which(controlTable$parameter == "data$species")
 
-    cplx <- paste(cplx,collapse = "','")
-    cplx <- paste("c('",cplx,"')",sep = "")
+      cplx <- paste(cplx,collapse = "','")
+      cplx <- paste("c('",cplx,"')",sep = "")
 
-    controlTable[specRow,"value"] <- cplx
+      controlTable[specRow,"value"] <- cplx
+    }
   }
   # Create control list
   controlList <- .createList  ( controlTable )
@@ -241,6 +244,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   survCatchPath  <- file.path("./Data/Proc",dataObj$catchData["survey"])
   load(  file = survCatchPath )
 
+
   # Update makeCatchDiscArrays to use the commFleetYrRange vector
   catchDiscArrays <- makeCatchDiscArrays( commData = commCatch,
                                           survData = surveyCatch,
@@ -294,7 +298,6 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
 
     D_spft <- newD_spft
   }
-
 
 
   # Sum catch for initial B0 estimate
@@ -395,7 +398,6 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   for( i in 1:length(growthFiles))
     load(growthFilePaths[i])
 
-
   # Growth parameters come from vonBFits
   L2_xsp      <- aperm(vonBFits$L2_spx,c(3,1,2))
   
@@ -431,9 +433,13 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
 
   if( hypoObj$fixVonB )
   {
-    L1_s        <- vonBFits$L1_s
-    A1_s        <- vonBFits$A1_s
-    A2_s        <- vonBFits$A2_s
+    L1_s        <- vonBFits$L1_s[1:nS]
+    A1_s        <- vonBFits$A1_s[1:nS]
+    A2_s        <- vonBFits$A2_s[1:nS]
+
+    L2_s        <- vonBFits$L2_s[1:nS]
+    L2_sp       <- vonBFits$L2_sp[1:nS]
+
   }
 
 
@@ -496,6 +502,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
 
 
 
+
   # Load age and length compositions
   load(file.path("./Data/Proc",dataObj$ageData))
   load(file.path("./Data/Proc",dataObj$lenData))
@@ -550,6 +557,17 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   age_table     <- age_table[age_table[,2] <= 3,]
   len_table     <- len_table[len_table[,2] <= 3,]
   ALFreq_table  <- ALFreq_table[ALFreq_table[,2] <= 3,]
+
+  # Also, age data that's being used in growthFleets
+  age_aspftx[,,,growthFleetIdx,,] <- -1
+  freqTableRows <- which( (ALFreq_table[,4] %in% growthFleetIdx) &
+                          (ALFreq_table[,1] %in% growthYrIdx))
+  growthAgeRows <- which( (age_table[,4] %in% growthFleetIdx) &
+                          (age_table[,1] %in% growthYrIdx) )
+  age_table <- age_table[-growthAgeRows,]
+
+
+  
 
 
 
@@ -829,8 +847,8 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   {
 
     # Selectivity by group
-    xSel50_sg <- matrix(  c( 40, 28, 28,
-                             30, 28, 22,
+    xSel50_sg <- matrix(  c( 40, 30, 30,
+                             30, 25, 22,
                              33, 35, 29,
                              35, 29, 35,
                              41, 35, 35 ), 
@@ -848,12 +866,20 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                             ncol = nGroups, 
                             byrow = TRUE )
 
+
+
+    LB_xSelAlpha_sg  <- xSel50_sg[useSpecIdx,]
+    UB_xSelAlpha_sg  <- xSel50_sg[useSpecIdx,]
+    
+
+    for( g in 1:nGroups)
+    {
+      LB_xSelAlpha_sg[,g]  <- xSel50_sg[useSpecIdx,g] - hypoObj$selAlphaRadius
+      UB_xSelAlpha_sg[,g]  <- xSel50_sg[useSpecIdx,g] + hypoObj$selAlphaRadius
+    }
+    
     xSel50_sg   <- xSel50_sg[useSpecIdx,]
     xSelStep_sg <- xSelStep_sg[useSpecIdx,]
-
-    LB_xSelAlpha_sg  <- xSel50_sg[useSpecIdx,] - hypoObj$selAlphaRadius
-    UB_xSelAlpha_sg  <- xSel50_sg[useSpecIdx,] + hypoObj$selAlphaRadius
-    
 
   }
 
@@ -1610,14 +1636,11 @@ TMBphase <- function( data,
     tmbCtrl <- list(  eval.max = maxEval, 
                       iter.max = maxIter  )
 
-    if(phase_cur == 1)
-      repInit <- obj$report()
-
 
 
     if( phase_cur == 1 )
     {
-
+      repInit <- obj$report()
 
       checkInitNaN    <- lapply( X = repInit, FUN = .checkNaN )
       checkInitFinite <- lapply( X = repInit, FUN = .checkFinite )

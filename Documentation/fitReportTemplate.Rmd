@@ -86,10 +86,11 @@ library(here)
 # library( RCurl )
 # library( scales )
 # library( rgeos )
-knitr::opts_knit$set(   fig.pos = 'p',
+knitr::opts_chunk$set(  fig.pos = 'p',
                         out.width = '100%', dpi=300, 
                         root.dir = params$rootDir,
-                        message = FALSE, warning = FALSE, echo = FALSE )
+                        message = FALSE, warning = FALSE, echo = FALSE,
+                        fig.width = 12, fig.height = 8 )
 options(warn = -1)
 source(here("plots.R"))
 source(here("SCALfuns.R"))
@@ -104,8 +105,10 @@ fYear   <- reports$fYear
 nS      <- repObj$nS
 nP      <- repObj$nP
 nT      <- repObj$nT
+nF      <- repObj$nF
 species <- reports$ctlList$data$species
 stock   <- reports$ctlList$data$stock
+fleets  <- reports$gearLabs
 
 # Optimisation performance
 calcSD        <- reports$ctlList$ctrl$calcSD
@@ -167,8 +170,9 @@ gradient components, and coefficients of variation. Gradients with a magnitude
 above 1e-3 are shown in bold red, while the coefficients of variation (cv) are  
 coloured so that smaller values are lighter in colour, and larger values 
 are darker, with cvs above .5 in bold, and cvs above 3 in red."
-```
 
+dataSummCaption <- "Summary of data used to fit hierSCAL."
+```
 
 # Full complex
 
@@ -182,7 +186,7 @@ plotSBspt( repObj = repObj, initYear = fYear)
 ## Fits to indices
 
 ```{r, idxFitsall, echo = FALSE, fig.cap = StdIdxCap }
-plotScaledIdxGrid( repObj = repObj )
+plotScaledIdxGrid( reports = reports )
 ```
 
 ```{r, idxResidsAll, echo = FALSE, fig.cap = IdxResCap }
@@ -207,10 +211,10 @@ plotSRsp( repObj = repObj, initYear = fYear )
 ## Time-varying catchability
 
 
-<!-- ```{r, tvq, echo = FALSE, fig.cap = tvqCap }
-plotTVq( repObj = repObj, sIdx = 1:nS, pIdx = 1:nP )
+```{r, tvq, echo = FALSE, fig.cap = tvqCap }
+plotTVq( reports = reports )
 ```
- -->
+
 ## Fishing mortality
 
 ```{r, fishingMortPlot, echo = FALSE, fig.cap = fishingMortCap }
@@ -327,12 +331,29 @@ plotRecDevCorrMat(repObj)
  -->
 # Individual species
 
-**UNDER CONSTRUCTION**
+```{r makeSpeciesChild, echo = FALSE, results = "asis"}
+for( sIdx in 1:nS )
+{
+  cat(paste("## ", species[sIdx], "\n",sep = "")) 
 
-## Compositional data
+  childDoc <- knitr::knit_child(here::here("Documentation","speciesChild.Rmd"),options = list(results = "asis"),quiet = TRUE)
 
-## Growth
+  cat(childDoc)
+}
+```
 
+
+
+
+# Growth
+
+
+
+
+# Data Summary
+```{r, plotDataSummary, echo = FALSE, message = FALSE, fig.cap = dataSummCaption }
+plotDataSummary(reports)
+```
 
 # Optimisation performance
 

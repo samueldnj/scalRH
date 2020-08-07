@@ -168,17 +168,24 @@ plotFspft <- function( repObj = repInit,
           lty = c(1), lwd = c(2) )
 } # END plotF_spt
 
-plotScaledIdxGrid <- function(repObj = repOpt )
+plotScaledIdxGrid <- function(reports )
 {
   # Load vulnerable biomass
+  repObj  <- reports$repOpt
+  datObj  <- reports$data
   Bv_spft <- repObj$vB_spft
-  I_spft  <- repObj$I_spft
+  I_spft  <- datObj$I_spft
   q_spft  <- repObj$q_spft
 
-  nS      <- repObj$nS
-  nP      <- repObj$nP
-  nF      <- repObj$nF
+  specLabs  <- reports$species
+  stockLabs <- reports$stocks
 
+  fYear <- reports$fYear
+
+  nS <- repObj$nS
+  nP <- repObj$nP
+  nF <- repObj$nF
+  nT <- repObj$nT
 
   # rescale indices
   scaledI_spft <- I_spft / q_spft
@@ -191,24 +198,54 @@ plotScaledIdxGrid <- function(repObj = repOpt )
         if(all(is.na(scaledI_spft[s,p,f,])))
           Bv_spft[s,p,f,] <- NA
 
-  scaledI_spft.df <-  melt(scaledI_spft) %>%
-                      rename( scaledIdx = value)
-  # Create a df of standardised values
-  stdBv_spft <- melt(Bv_spft) %>%
-                rename( vulnBiomass = value ) %>%
-                left_join( scaledI_spft.df, by = c("species","stock","fleet","year"))
+  
+  fleetCols <- RColorBrewer::brewer.pal(nF, "Dark2")
+  years <- seq( from = fYear, by = 1, length.out = nT)
 
-  idxFitPlot <- ggplot( data = stdBv_spft,
-                        mapping = aes(x = year, y = vulnBiomass,
-                                      group = fleet) ) +
-                geom_line(mapping = aes(  x = year, y = vulnBiomass,
-                                          group = fleet, colour = fleet) ) +
-                geom_point( mapping = aes(  x = year, y = scaledIdx,
-                                            colour = fleet, group = fleet ) ) +
-                facet_grid( stock ~ species, scales = "free" ) +
-                theme_sleek()
+  par(mfcol = c(nS,nP), mar = c(.1,2,.1,1),
+        oma = c(3,3,2,2) )
+  
+  for( s in 1:nS )
+    for( p in 1:nP )
+    {
+      plot( x = range(years), 
+            y = c(0,max( Bv_spft[s,p,,], scaledI_spft[s,p,,], na.rm = T)),
+            type = "n", axes = FALSE )
+        # Axes and labels
+        mfg <- par( "mfg")
+        if( mfg[1] == mfg[3] )
+          axis( side = 1 )
 
-  print(idxFitPlot)
+        axis( side = 2, las = 1 )
+
+        if( mfg[1] == 1 )
+          mtext( side = 3, text = specLabs[s], font = 2)
+
+        if( mfg[2] == mfg[4] )
+          mtext( side = 4, text = stockLabs[p], font = 2 )
+
+        grid()
+        box()
+
+        abline( h = 0, lty= 2, lwd = 2)
+
+        for( f in 1:nF )
+        {
+          if( all(is.na(scaledI_spft[s,p,f,])) )
+            next
+
+          points( x = years, y = scaledI_spft[s,p,f,],
+                  col = fleetCols[f] )
+
+          lines( x = years, y = Bv_spft[s,p,f,],
+                  col = fleetCols[f], lwd = 2 )
+        }
+
+    }
+
+  mtext( side = 1, text = "Year", outer = TRUE, line = 2)
+  mtext( side = 2, text = "Std. log-residuals", outer = TRUE, line = 3)
+
 
 }
 
@@ -671,6 +708,7 @@ plotCompFitYrs <- function( reports,
                             sex = "girls",
                             comps = "age",
                             save = FALSE,
+                            quartz = TRUE,
                             savePath = "plotFitYrs" )
 {
   repObj    <- reports$repOpt
@@ -757,7 +795,7 @@ plotCompFitYrs <- function( reports,
     nCols <- round(sqrt(nObs))
     nRows <- ceiling(nObs/nCols)
 
-    if(!save)
+    if(!save & quartz)
       dev.new()
 
     if(save)
@@ -777,7 +815,7 @@ plotCompFitYrs <- function( reports,
     sexcols <- c("steelblue","salmon","grey60")
 
     par(  mfcol = c(nRows,nCols), 
-          mar = c(1,1,1,1),
+          mar = c(.1,.1,.1,.1),
           oma = c(3,3,3,3) )
 
     for( tIdx in times )
@@ -794,11 +832,16 @@ plotCompFitYrs <- function( reports,
         compPred_xsex[,sex]     <- pred_xsexft[,sex,fIdx,tIdx]
       }
 
-      plot( x = c(1,max), y = c(0,max(compObsProp_xsex,compPred_xsex,na.rm = T) ),
+      plot( x = c(1,max), y = c(0,max(pred_xsexft[,,fIdx,],na.rm = T) ),
             xlab = "", ylab = "", type = "n", las = 1,
             axes = FALSE )
-        axis( side = 1, at = xTickLocs,
-              labels = xTickLabs )
+        mfg <- par("mfg")
+        if( mfg[1] == mfg[3])
+          axis( side = 1, at = xTickLocs,
+                labels = xTickLabs )
+        if( mfg[2] == 1)
+          axis( side = 2, las = 1 )
+        grid()
         box()
         for( sex in 1:nX)
         {
@@ -828,15 +871,15 @@ plotCompFitYrs <- function( reports,
 } # END plotCompFitYrs()
 
 
-plotAALfitYrs <- function( reports,
-                            sIdx = 1, pIdx = 1,
-                            sexIdx = 2, fIdx = 2 )
+plotAALfitYrs <- function(  reports,
+                            sIdx = 1, 
+                            pIdx = 1,
+                            fIdx = 2,
+                            sexIdx = 1 )
 {
   # Get report and data
   repObj <- reports$repOpt
   datObj <- reports$data
-
-  browser()
 
   # Get data and fits
   aal_table <- datObj$aal_table %>%
@@ -853,7 +896,7 @@ plotAALfitYrs <- function( reports,
 
 
   # Get length-at-age
-  lenAge_a <- repObj$lenAge_axsp[,sexIdx,sIdx,pIdx]
+  lenAge_a <- repObj$lenAge_axsp[,,sIdx,pIdx]
 
   years <- seq(from = reports$fYear, by = 1, length.out =repObj$nT)
 
@@ -866,6 +909,7 @@ plotAALfitYrs <- function( reports,
   # Get min and max ages
   A       <- datObj$A_s[sIdx]
   minA    <- datObj$minA_s[sIdx]
+
 
   # Get nObs
   nObs <- length(unique(aal_table[,"year"]))
@@ -892,6 +936,9 @@ plotAALfitYrs <- function( reports,
           axis( side = 2, las = 1)
       box()
       grid()
+      lines(x = 1:A, y = lenAge_a[1:A], lwd = 3, lty = 2,
+            col = "grey65" )
+      
       yr <- obsYrs[tIdx]
       aal_table.this <- aal_table %>%
                         as.data.frame() %>%
@@ -919,7 +966,7 @@ plotAALfitYrs <- function( reports,
       text( x = 3, y = lenBinMids_l[maxLenBin],
             label = years[yr] )
       
-      lines(x = 1:A, y = lenAge_a, lwd = 3, lty = 2 )
+      
 
     }
 
@@ -1026,7 +1073,7 @@ plotCompFitAvg <- function( repObj = reports$repOpt,
     for( sex in 1:nX)
     {
       compObsProp_xsex[,sex]  <- compObs_xsex[,sex] / max(1,sum(compObs_xsex[,sex]))
-      # Multiple predicted compositions by observed sample size
+      # Multiply predicted compositions by observed sample size
       # to avoid bias in averaged preds
       for( t in 1:length(times) )
       {
@@ -1520,38 +1567,73 @@ plotProbLenAge <- function( repObj = repInit,
 
 # plotTVq()
 # Time-varying catchability plots
-plotTVq <- function(  repObj = repObj,
-                      sIdx = 1, pIdx = 1 )
+plotTVq <- function( reports )
 {
+  repObj <- reports$repOpt
+  datObj <- reports$data
   # Pull catchability time series
-  q_spft <- repObj$q_spft[sIdx,pIdx,,,drop = FALSE]
+  q_spft <- repObj$q_spft
 
   # use indices to mask q in years with no idx
-  I_spft <- repObj$I_spft[sIdx,pIdx,,,drop = FALSE]
+  I_spft <- datObj$I_spft
   q_spft[I_spft < 0] <- NA
 
+  nS <- repObj$nS
+  nP <- repObj$nP
+  nF <- repObj$nF
+  nT <- repObj$nT
+
+  specLabs  <- reports$species
+  stockLabs <- reports$stocks
+
+  fYear <- reports$fYear
+  years <- seq( from = fYear, by = 1, length.out = nT)
+
   # Cut down to fleets with tvq
-  tvqFleets <- which(repObj$tvqFleets == 1 | repObj$solveQ_f == 1)
+  tvqFleets <- which(repObj$tvqFleets == 1 )
+
+  fleetCols <- RColorBrewer::brewer.pal(nF,"Dark2")
 
   if(length(tvqFleets) == 0)
     return()
 
-  q_spft <- q_spft[,,tvqFleets,,drop = FALSE ]
+  # q_spft <- q_spft[,,tvqFleets,,drop = FALSE ]
 
-  # Now melt and plot
-  q_spft.df <- melt(q_spft) %>%
-                rename( lnq = value ) %>%
-                mutate( lnq = log(lnq) )
+  par(  mfcol = c(nS,nP), mar = c(1,3,1,1), 
+        oma = c(3,4,2,2) )
 
-  lnqPlot <- ggplot(  data = q_spft.df, mapping = aes( x = year, y = lnq) ) +              
-              geom_smooth( aes( group = fleet, colour = fleet), se = FALSE, method = 'loess',
-                            span = 1.5, alpha = .3, size = .8 ) +
-              geom_point( aes(x = year, y = lnq, group = fleet, colour = fleet) ) + 
-              facet_grid( stock ~ species, scales = "fixed") +
-              theme_sleek()
-              
+  for( s in 1:nS )
+    for(p in 1:nP )
+      for( f in tvqFleets )
+      {
+        plot( x = range(years), y = range(q_spft[s,p,tvqFleets,],na.rm = T),
+              type = "n", axes = FALSE )
+          # Axes and labels
+          mfg <- par( "mfg")
+          if( mfg[1] == mfg[3] )
+            axis( side = 1 )
 
-  print(lnqPlot)
+          axis( side = 2, las = 1 )
+          
+          if( mfg[1] == 1 )
+            mtext( side = 3, text = specLabs[s], font = 2)
+
+          if( mfg[2] == mfg[4] )
+            mtext( side = 4, text = stockLabs[p], font = 2, line = 1 )
+
+          grid()
+          box()
+
+          points( x = years, y = q_spft[s,p,f,], pch = 16, col = fleetCols[f] )
+          # Add a loess smoother
+          nonNAidx <- !is.na(q_spft[s,p,f,])
+          lines(  loess.smooth(  x = years[nonNAidx], y = q_spft[s,p,f,nonNAidx]), 
+                lwd = 2, col = fleetCols[f] )
+
+      }
+  
+  mtext( side = 1, text = "Year", outer = TRUE, line = 2 )
+  mtext( side = 2, text = "Catchability", outer = TRUE, line = 2 )
 }
 
 # plotYeq
@@ -2306,4 +2388,22 @@ plotDataSummary <- function( reports )
 
     }
 } 
+
+
+
+# rmtext()
+rmtext <- function( line = 1, 
+                    txt = "Sample", 
+                    font = 1,
+                    cex = 1)
+{
+  corners <- par("usr") #Gets the four corners of plot area (x1, x2, y1, y2)
+  par(xpd = TRUE) #Draw outside plot area
+  text( x = corners[2]+line, 
+        y = mean(corners[3:4]), 
+        labels = txt, srt = 270,
+        font = font, cex = cex )
+  par(xpd = FALSE)
+}
+
 

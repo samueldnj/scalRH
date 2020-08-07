@@ -1603,8 +1603,8 @@ Type objective_function<Type>::operator() ()
 
 
   // Exponentiate species/fleetGroup sel
-  xSel50_sg = LB_xSelAlpha_sg + (UB_xSelAlpha_sg - LB_xSelAlpha_sg) * (1/20 + 18 * exp(thetaSelAlpha_sg) / 20 / (1 + exp(thetaSelAlpha_sg)));
-  xSelStep_sg = log(19) * (UB_xSelAlpha_sg - LB_xSelAlpha_sg) * (0.005 + 0.5 * exp(thetaSelBeta_sg) / (1 + exp(thetaSelBeta_sg)));;
+  xSel50_sg = LB_xSelAlpha_sg + (UB_xSelAlpha_sg - LB_xSelAlpha_sg) * (1/20 + (18/20) * exp(thetaSelAlpha_sg) / (1 + exp(thetaSelAlpha_sg)));
+  xSelStep_sg = log(19) * (UB_xSelAlpha_sg - LB_xSelAlpha_sg) * (0.005 + 0.11 * exp(thetaSelBeta_sg) / (1 + exp(thetaSelBeta_sg)));;
   xSel95_sg = xSel50_sg + xSelStep_sg;  
 
   // SDs for species/fleetgroup sel
@@ -1659,7 +1659,7 @@ Type objective_function<Type>::operator() ()
             if( calcFmethod == "effortModel" )
             {
               qF_spft(s,p,f,t) = exp(lnqF_spf(s,p,f) + tauqFdev * deltalnqFspft_vec(qFVecIdx));
-              F_spft(s,p,f,t) += qF_spft(s,p,f,t) * E_pft(p,f,t);
+              F_spft(s,p,f,t) = qF_spft(s,p,f,t) * E_pft(p,f,t);
               qFVecIdx++;
             }
           }
@@ -1966,7 +1966,7 @@ Type objective_function<Type>::operator() ()
   // Derived parameters
   for( int p = 0; p < nP; p++ )
     for( int s = 0; s < nS; s++)
-      phi_sp(s,p) = SSBpr_asp.col(p).col(s).sum();
+      phi_sp(s,p) = SSBpr_asp.col(p).col(s).sum() / nX ;
 
   // Calculate B0 from Rbar
   if( recOption == "avgR")
@@ -2071,10 +2071,10 @@ Type objective_function<Type>::operator() ()
             // or using the estimated fished initialisation
             // Populate first year - split into nX groups
             if( recOption == "BH")
-              N_axspt.col(t).col(p).col(s).col(x) += R0_sp(s,p) * Surv_axsp.col(p).col(s).col(x);
+              N_axspt.col(t).col(p).col(s).col(x) += R0_sp(s,p) * Surv_axsp.col(p).col(s).col(x) * 1/Type(nX);
 
             if( recOption == "avgR")
-              N_axspt.col(t).col(p).col(s).col(x) += Rbar_sp(s,p) * Surv_axsp.col(p).col(s).col(x);
+              N_axspt.col(t).col(p).col(s).col(x) += Rbar_sp(s,p) * Surv_axsp.col(p).col(s).col(x) * 1/Type(nX);
 
             // // Non-eqbm initialisation
             if(swRinit_s(s) == 1)
@@ -2089,9 +2089,9 @@ Type objective_function<Type>::operator() ()
             // Generate recruitment
             Type SBt = SB_spt(s,p,t-1);
             if( recOption == "avgR" )
-              N_axspt(0,x,s,p,t) = Rbar_sp(s,p);
+              N_axspt(0,x,s,p,t) = Rbar_sp(s,p) / nX;
             if( recOption == "BH" )
-              N_axspt(0,x,s,p,t) = reca_sp(s,p) * SBt / (1 + recb_sp(s,p) * SBt);
+              N_axspt(0,x,s,p,t) = reca_sp(s,p) * SBt / (1 + recb_sp(s,p) * SBt) / nX;
             
             N_axspt(0,x,s,p,t) *= exp( sigmaR_sp(s,p) * omegaR_spt(s,p,t) );
 
@@ -2121,7 +2121,7 @@ Type objective_function<Type>::operator() ()
 
 
           // Save recruits in R_pt
-          R_spt(s,p,t) += N_axspt(0,x,s,p,t) / 2;
+          R_spt(s,p,t) += N_axspt(0,x,s,p,t);
           
 
           // Compute biomass at age and total biomass
@@ -2364,6 +2364,12 @@ Type objective_function<Type>::operator() ()
                     probHarvLen(l) += probLenAge_laxsp(l,a,x,s,p) * N_axspt(a,x,s,p,t) * sel_lspft(l,s,p,f,t); 
                 }
 
+                if( lenComps == "Catch" )
+                {
+                  for( int a = 0; a < A; a++)
+                    probHarvLen(l) += probLenAge_laxsp(l,a,x,s,p) * C_axspft(a,x,s,p,f,t);
+                }
+
                 // Save to length dists
                 // lDist_lxspft_hat(l,x,s,p,f,t) = probHarvLen(l);
                 // // Add total length dist so we can fit
@@ -2406,10 +2412,12 @@ Type objective_function<Type>::operator() ()
   // --------- Statistical Model ----------- //
 
   // Post-fit recruitment model
-  array<Type> deltaRec_spt(nS,nP,nT-1);
-  array<Type> expRec_spt(nS,nP,nT-1);
+  array<Type> deltaRec_spt(nS,nP,nT);
+  array<Type> expRec_spt(nS,nP,nT);
   array<Type> SRnlp_sp(nS,nP);
   SRnlp_sp.setZero();
+  deltaRec_spt.setZero();
+  expRec_spt.setZero();
 
   if( (recOption == "avgR") & (postFitSR == 1) )
   {
@@ -2417,9 +2425,9 @@ Type objective_function<Type>::operator() ()
       for( int p = 0; p < nP; p++ )
         for( int t = 1; t < nT; t++ )
         {
-          expRec_spt(s,p,t-1) = reca_sp(s,p) * SB_spt(s,p,t-1) / (1 + recb_sp(s,p) * SB_spt(s,p,t-1));
-          deltaRec_spt(s,p,t-1) = log( R_spt(s,p,t) / expRec_spt(s,p,t-1) );  
-          Type resid = deltaRec_spt(s,p,t-1) / sigmaR_sp(s,p);
+          expRec_spt(s,p,t) = reca_sp(s,p) * SB_spt(s,p,t-1) / (1 + recb_sp(s,p) * SB_spt(s,p,t-1));
+          deltaRec_spt(s,p,t) = log( R_spt(s,p,t) / expRec_spt(s,p,t) );  
+          Type resid = deltaRec_spt(s,p,t) / sigmaR_sp(s,p);
           SRnlp_sp(s,p) -= dnorm( resid, Type(0.), Type(1), true);
         } // END t loop
   } // END postfit SR model
@@ -2624,8 +2632,6 @@ Type objective_function<Type>::operator() ()
   for( int s = 0; s < nS; s++ )
     for( int p = 0; p < nP; p++ )
     {
-      int A      = A_s(s) - minA_s(s) + 1;
-      int L      = L_s(s) - minL_s(s) + 1;
       // Loop over fleets
       for( int f = 0; f < nF; f++ )
       {   
@@ -2879,7 +2885,7 @@ Type objective_function<Type>::operator() ()
     vector<Type> value  = thetaSelAlpha_sg.col(g);
     sel_nlp -= dnorm( value, Type(0) ,cvSel, true).sum();
 
-    value  = thetaSelAlpha_sg.col(g);
+    value  = thetaSelBeta_sg.col(g);
     sel_nlp -= dnorm( value, Type(0), cvSel, true).sum();
 
     // Add IG prior for tauq_g and tauq_sg

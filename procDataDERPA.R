@@ -15,7 +15,7 @@ rm(list = ls())
 library( dplyr )
 # library( ggmap )
 library( maptools )
-library( rgdal )
+# library( rgdal )
 library( PBSmapping ) 
 library( RColorBrewer )
 # library( RgoogleMaps)
@@ -24,7 +24,7 @@ library( raster )
 library( MASS )
 # library( psyphy )
 library( boot )
-library( RCurl )
+# library( RCurl )
 library( scales )
 library( rgeos )
 
@@ -96,8 +96,8 @@ shapeFiles  <- paste(surveys,"_Synoptic_Survey_Active_Blocks",sep = "")
 shapePath   <- file.path("./Data/ShapeFiles/SynSurveyBlocks")
 
 # Load grids in a list
-grids <- lapply(X = shapeFiles, FUN = openShapeFile, path = shapePath)
-names(grids) <- surveys
+# grids <- lapply(X = shapeFiles, FUN = openShapeFile, path = shapePath)
+# names(grids) <- surveys
 
 # These have been coerced to UTM so the grids are nice
 # and rectangular.
@@ -118,25 +118,26 @@ names(grids) <- surveys
 # names(relBioList_Survey) <- names(survSpecNames)
 # save(relBioList_Survey, file = "./Data/surveyBio.RData")
 
-commCPUEList <- lapply( X = commSpecNames,
-                        FUN = readCommCPUE,
-                        stocks = stocksCommCPUE )
-names(commCPUEList) <- names(commSpecNames)
-save(commCPUEList, file = "./Data/Proc/commCPUE.RData")
+# commCPUEList <- lapply( X = commSpecNames,
+#                         FUN = readCommCPUE,
+#                         stocks = stocksCommCPUE )
+# names(commCPUEList) <- names(commSpecNames)
+# save(commCPUEList, file = "./Data/Proc/commCPUE.RData")
 
 
 # Read in bio data, join survey density by tripID
 # to add data for year and location
-bioData <- lapply(  X = survSpecNames,
-                    FUN = readProcBioData )
-names(bioData) <- names(commSpecNames)
-save(bioData, file = "./Data/Proc/bioData.RData")
+# bioData <- lapply(  X = survSpecNames,
+#                     FUN = readProcBioData )
+# names(bioData) <- names(commSpecNames)
+# save(bioData, file = "./Data/Proc/bioData.RData")
+load("./Data/Proc/bioData.RData")
 
 # # 2. Length at age plots - stock and sex - spit out age-length freq array
-ALfreq <- lapply( X = bioData, FUN = makeALFreq_FleetYear, lenBinWidth = 2 )
-names(ALfreq) <- names(commSpecNames)
+# ALfreq <- lapply( X = bioData, FUN = makeALFreq_FleetYear, lenBinWidth = 2 )
+# names(ALfreq) <- names(commSpecNames)
 # # Save data out
-save(ALfreq, file = "./Data/Proc/ALfreq.RData")
+# save(ALfreq, file = "./Data/Proc/ALfreq.RData")
 
 # # 3. Length/wt plots - stock and sex
 # wtLen <- lapply( X = bioData, FUN = makeWtLen, stocks = names(stocksCommBio))
