@@ -53,34 +53,35 @@ readBatchInfo <- function(batchDir = here("Outputs","fits") )
 # inputs:   fit=ordinal indicator of sim in project folder
 # ouputs:   NULL
 # usage:    Prior to plotting simulation outputs
-.loadFit <- function( fit = 1, groupFolder = "." )
+.loadFit <- function( fit = 1, groupFolder = "", 
+                      retObj = FALSE,
+                      baseDir = "Outputs/fits" )
 {
-  fitFolder <- here::here("Outputs","fits",groupFolder)
-
+  groupFolder <- here::here(baseDir,groupFolder)
   # List directories in project folder, remove "." from list
-  dirList <- list.dirs (path=fitFolder,full.names = FALSE,
+  dirList <- list.dirs (path=groupFolder,full.names = FALSE,
                         recursive=FALSE)
-  # Restrict to fit_ folders, pick the nominated simulation
+  # Restrict to sim_ folders, pick the nominated simulation
   fitList <- dirList[grep(pattern="fit",x=dirList)]
-  folder <- fitList[fit]
+
+  # Load fit object
+  if( is.character(fit) )
+    folder <- fit
+  else
+    folder <- fitList[fit]
 
   # Load the nominated blob
   reportsFileName <- paste(folder,".RData",sep="")
-  reportsPath <- file.path(fitFolder,folder,reportsFileName)
+  reportsPath <- file.path(groupFolder,folder,reportsFileName)
   load ( file = reportsPath )
 
-  reports$repOpt <- renameReportArrays(reports$repOpt,reports$data)
-
-  # Update the path object - not sure if this is necessary
-  reports$path <- file.path(fitFolder, folder) 
-
-  # Assign to global environment
   assign( "reports",reports,pos=1 )
+  cat("MSG (loadFit) Reports in ", folder, " loaded from ", groupFolder, "\n", sep="" )
 
-  message("(.loadFit) Reports in ", folder, " loaded\n", sep="" )
+  if(retObj )
+    return(reports)
+} # END .loadFit
 
-  return( file.path(fitFolder, folder) )
-} # END .loadFit()
 
 # Make a vector of complex prefixes - need to
 # pick off first letter of each name

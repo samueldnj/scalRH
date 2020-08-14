@@ -1043,9 +1043,6 @@ Type objective_function<Type>::operator() ()
   // PARAMETER_VECTOR(LBVonK_s);           // Upper bound on VonK_s
   PARAMETER(lnsigmaL2);                 // log SD in L2 deviations (sex and stock) 
   PARAMETER(lnsigmaVonK);               // log SD in VonK deviations (sex and stock) 
-  PARAMETER(cvL2);                      // Prior CV on L2
-  PARAMETER(cvL1);                      // Prior CV on L1
-  PARAMETER(cvVonK);                    // Prior CV on VonK
 
 
   // catchability //
@@ -1473,7 +1470,6 @@ Type objective_function<Type>::operator() ()
   sigmaR_sp  = exp(lnsigmaR_sp);
 
 
-  int stockGrowthVecIdx   = 0;
   int stockSpecSelVecIdx  = 0;
   int stockSpecQVecIdx    = 0;
   int tauObsIdx           = 0;
@@ -2908,10 +2904,18 @@ Type objective_function<Type>::operator() ()
       // Normal prior on catchability
       if( commSurv_f(f) == 0)
       {
-        int fleetIdx = f - nComm;
-        qnlp_gps  -= dnorm( qSurv_sf(s,fleetIdx), mq_f(fleetIdx), sdq_f(fleetIdx), true);
-        qnlp_gps  -= dinvgamma( pow(tauqSurv_sf(s,fleetIdx),2), IGalphaq, square(pmtauqSurv_f(fleetIdx)) * (IGalphaq + 1), 1);
+        qnlp_gps  -= dnorm( qSurv_sf(s,f-2), mq_f(f), sdq_f(f), true);
+        qnlp_gps  -= dinvgamma( pow(tauqSurv_sf(s,f-2),2), IGalphaq, square(pmtauqSurv_f(f-2)) * (IGalphaq + 1), 1);
       }
+
+      if( commSurv_f(f) == 1 )
+      {
+        for( int p = 0; p < nP; p++)
+        {
+          qnlp_gps -= dnorm( qComm_spf(s,p,f), mq_f(f), sdq_f(f), true);
+        }
+      }
+
 
       if( solveQ_f(f) == 1)
         for( int p = 0; p < nP; p++ )

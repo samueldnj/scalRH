@@ -549,6 +549,24 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                                 xName = "length",
                                 minSampSize = dataObj$minLenSampSize )
 
+  # Remove shitty english sole age data
+  # from comm.hist fleet
+  tIdx1980 <- 1980 - 1956 + 1
+  age_aspftx[,2,,1,c(tIdx1980,tIdx1980 + 1),] <- -1
+  remAgeTableRows <- which(age_table[,1] %in% c(tIdx1980,tIdx1980+1) & age_table[,2] == 2)
+  age_table <- age_table[-(remAgeTableRows),]
+
+  # Remove HSAss ages for English sole
+  age_aspftx[,2,,3,,] <- -1
+  remAgeTableRows <- which(age_table[,2] == 2 & age_table[,4] == 3)
+  age_table <- age_table[-(remAgeTableRows),]
+
+  # Remove male ages from commercial rock sole
+  age_aspftx[,3,,1:2,,1] <- -1
+  remAgeTableRows <- which( age_table[,2] == 3 & 
+                            age_table[,4] %in% c(1,2) &
+                            age_table[,5] == 1 )
+  age_table <- age_table[-(remAgeTableRows),]
 
   # remove unsexed observations
   age_table <- age_table[!age_table[,5] == 3,]
@@ -1226,9 +1244,6 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 # Prior on VonB pars
                 lnsigmaL2           = log(hypoObj$sigmaL2),
                 lnsigmaVonK         = log(hypoObj$sigmaVonK),
-                cvL1                = hypoObj$cvL1,
-                cvL2                = hypoObj$cvL2,
-                cvVonK              = hypoObj$cvVonK,
                 sd_omegaRbar        = hypoObj$recDevReg,
                 logitphi1Age_sf     = initPhi1,
                 logitpsiAge_sf      = initPsi,
@@ -1856,3 +1871,76 @@ TMBphase <- function( data,
   return( outList )  
 
 } # END TMBphase()
+
+
+makeParEstTable <- function( repList )
+{
+  repObj <- repList$repOpt
+  # Pull number of species/stocks from 
+  # the blob
+  nS <- repObj$nS
+  nP <- repObj$nP
+  nT <- repObj$nT
+
+  species <- repList$species
+  stock   <- repList$stocks
+
+  FmsyRefPts <- repObj$refPts$FmsyRefPts
+
+  # need to combine these all into a table - also want B0/R0 etc
+  B0_sp       <- round(repObj$B0_sp,2)
+  R0_sp       <- round(repObj$R0_sp,2)
+  h_sp        <- round(repObj$h_sp,2)
+  M_xsp       <- round(repObj$M_xsp,2)
+  Bmsy_sp     <- round(FmsyRefPts$BeqFmsy_sp,2)
+  Fmsy_sp     <- round(FmsyRefPts$Fmsy_sp,2)
+  Umsy_sp     <- round(FmsyRefPts$Umsy_sp,2)
+  MSY_sp      <- round(FmsyRefPts$YeqFmsy_sp,2)
+  SSBT_sp     <- round(repObj$SB_spt[,,nT,drop = FALSE],2)
+  DT_sp       <- round(SSBT_sp[,,1]/B0_sp,2)
+  DmsyT_sp    <- round(SSBT_sp[,,1]/Bmsy_sp,2)
+  
+  nTabRow <- nS * nP
+  nTabCol <- 14
+  
+  refPtsTab <- matrix(NA, nrow = nTabRow, ncol = nTabCol )
+  
+  colnames(refPtsTab) <- c( "Species",
+                            "Stock",
+                            "B0",
+                            "R0",
+                            "M_m",
+                            "M_f",
+                            "h",
+                            "Bmsy",
+                            "Fmsy",
+                            "Umsy",
+                            "MSY",
+                            "SSB_T",
+                            "D_T",
+                            "Dmsy_T" )
+
+  refPtsTab <- as.data.frame(refPtsTab)
+  for( s in 1:nS )
+    for(p in 1:nP )
+    {
+      rowIdx <- (s - 1) * nP + p
+      refPtsTab$Species[rowIdx]   <- species[s]
+      refPtsTab$Stock[rowIdx]     <- stock[p]
+      refPtsTab$B0[rowIdx]        <- B0_sp[s,p]
+      refPtsTab$R0[rowIdx]        <- R0_sp[s,p]
+      refPtsTab$M_m[rowIdx]       <- M_xsp[1,s,p]
+      refPtsTab$M_f[rowIdx]       <- M_xsp[2,s,p]
+      refPtsTab$h[rowIdx]         <- h_sp[s,p]
+      refPtsTab$Bmsy[rowIdx]      <- Bmsy_sp[s,p]
+      refPtsTab$Fmsy[rowIdx]      <- Fmsy_sp[s,p]
+      refPtsTab$Umsy[rowIdx]      <- Umsy_sp[s,p]
+      refPtsTab$MSY[rowIdx]       <- MSY_sp[s,p]
+      refPtsTab$SSB_T[rowIdx]     <- SSBT_sp[s,p,1]
+      refPtsTab$D_T[rowIdx]       <- DT_sp[s,p]
+      refPtsTab$Dmsy_T[rowIdx]    <- DmsyT_sp[s,p]
+    }
+
+
+  refPtsTab
+}

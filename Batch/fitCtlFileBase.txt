@@ -1,7 +1,7 @@
-# fitCtlFile.txt, written to fit_05082020225627on 1596693530
+# fitCtlFile.txt, written to fit_parBatfitAAL6on 1597102826
 parameter value
-ctrl$dataScenarioName '1956_allFleets'
-ctrl$modelHypName 'baseModel_corrComps'
+ctrl$dataScenarioName '1956_surveys'
+ctrl$modelHypName 'AgeLen_fixVonB'
 ctrl$maxFunEval 10000
 ctrl$maxIterations 10000
 ctrl$quiet FALSE
@@ -40,7 +40,7 @@ data$catchData c(survey="surveyCatch.RData",comm="catch_by_maj.csv")
 data$modelDisc FALSE
 data$ageData c("ageComps.RData")
 data$lenData c("lenComps.RData")
-data$growthFleets c("comm.hist","comm.mod","HSAss","Syn")
+data$growthFleets c("HSAss","Syn")
 data$growthYears c(1956,2016)
 data$posPenFactor 1e2
 data$matFiles c("matAgeLen.csv")
@@ -48,9 +48,9 @@ data$wtLenFile c("wtLen.csv")
 data$growthFiles c(alFreq="ALfreq.RData",vonB="vonBFits.RData")
 data$commCPUEscalar 1e3
 data$idxLikeWt_g c(comm=1,Ass=1,Syn=1)
-data$ageLikeWt_g c(comm=.5,Ass=.5,Syn=.5)
+data$ageLikeWt_g c(comm=1,Ass=1,Syn=1)
 data$lenLikeWt_g c(comm=1,Ass=1,Syn=1)
-data$growthLikeWt 1
+data$growthLikeWt 0
 data$minAgeProp 0.02
 data$minLenProp 0.02
 data$minPropAAL 0.02
@@ -61,16 +61,16 @@ data$lambdaB0 1
 data$lambdaPropF 0
 data$vonBA1_s c(Dover=3,English=2,Rock=2,Petrale=2,Arrowtooth=2)
 data$vonBA2_s c(Dover=20,English=12,Rock=10,Petrale=15,Arrowtooth=17)
-hypo$fixVonB FALSE
+hypo$fixVonB TRUE
 hypo$compLikeFun 1
 hypo$matX "age"
 hypo$selX "length"
-hypo$lenCompMethod "Catch"
+hypo$lenCompMethod "Francis"
 hypo$selFun rep(0,4)
 hypo$tvSel FALSE
 hypo$identSel FALSE
 hypo$tvSelFleets c("comm.hist","comm.mod")
-hypo$sigmaSelDevs .1
+hypo$sigmaSelDevs 1
 hypo$cvSel 10
 hypo$selAlphaRadius 5
 hypo$pmsigmaSel_g c(.2,1,1)
@@ -94,8 +94,8 @@ hypo$logitq FALSE
 hypo$tq50_vec c(comm.hist=5)
 hypo$tq95_vec c(comm.hist=13)
 hypo$pmtauqSurv_f c(.3,.7)
-hypo$mq_f rep(.3,2)
-hypo$sdq_f rep(.5,2)
+hypo$mq_f c(.01,.01,.3,.3)
+hypo$sdq_f c(1,1,.5,.5)
 hypo$IGalphaq 1
 hypo$recModel "uncorr"
 hypo$recOption "BH"
@@ -142,7 +142,7 @@ phases$lnM 5
 phases$logitSteep 5
 phases$omegaR_vec 6
 phases$recCorr_vec -4
-phases$lnL1_s -12
+phases$lnL1_s 12
 phases$lnL2step_s 12
 phases$lnVonK_s 12
 phases$deltaL2_sp 12
@@ -156,7 +156,7 @@ phases$epsM_sx 10
 phases$epsSelAlphaspf_vec 11
 phases$epsSelBetaspf_vec 11
 phases$epsM_sp 11
-phases$epsSteep_s -11
+phases$epsSteep_s 11
 phases$epsSteep_sp -11
 phases$epsSelAlpha_vec -11
 phases$epsSelBeta_vec -11

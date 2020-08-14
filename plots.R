@@ -2265,7 +2265,8 @@ plotSelAge <- function( repObj = repInit,
 
 # plotDataSummary()
 # Data summary for each species and stock
-plotDataSummary <- function( reports )
+plotDataSummary <- function(  reports,
+                              fleetLabs = c("Historical","Modern","HS Ass.","Synoptic") )
 {
   datObj <- reports$data
   repObj <- reports$repOpt
@@ -2306,8 +2307,8 @@ plotDataSummary <- function( reports )
   }
 
   par( mfcol = c(nS,nP),
-        mar = c(.5,.5,.5,.5),
-        oma = c(3,6,2,2) )
+        mar = c(.1,.1,.1,.1),
+        oma = c(5,6,2,2) )
 
 
   # Prepare catch data
@@ -2340,7 +2341,8 @@ plotDataSummary <- function( reports )
           mtext( side = 3, text = specLabs[s], font = 2)
 
         if( mfg[2] == mfg[4] )
-          mtext( side = 4, text = stockLabs[p], font = 2 )
+          rmtext( txt = stockLabs[p], font = 2, line = 2, outer = TRUE,
+                  cex = 1.5 )
 
         grid()
         box()
@@ -2387,6 +2389,14 @@ plotDataSummary <- function( reports )
                   col = fleetCols[f], pch = I_spft[s,p,f,] )
 
     }
+
+    par(xpd=TRUE, oma = c(0,0,0,0), mfcol = c(1,1))
+    # plot( x = c(0,1), y = c(0,1), add = TRUE)
+    legend( x = "bottom", bty = "n",
+            # inset = c(0,-1), xpd = TRUE,
+            legend = fleetLabs, 
+            pch = 16, col = fleetCols,
+            horiz = TRUE, cex = 1, pt.cex = 1.5)
 } 
 
 
@@ -2395,10 +2405,14 @@ plotDataSummary <- function( reports )
 rmtext <- function( line = 1, 
                     txt = "Sample", 
                     font = 1,
-                    cex = 1)
+                    cex = 1,
+                    outer = FALSE)
 {
   corners <- par("usr") #Gets the four corners of plot area (x1, x2, y1, y2)
-  par(xpd = TRUE) #Draw outside plot area
+  if(outer)
+    par(xpd = NA) #Draw outside plot area
+  else par(xpd = FALSE)
+
   text( x = corners[2]+line, 
         y = mean(corners[3:4]), 
         labels = txt, srt = 270,
