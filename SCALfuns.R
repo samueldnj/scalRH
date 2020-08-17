@@ -1441,8 +1441,10 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                           parBen = ctrlObj$parBen,
                           regFPhases = hypoObj$regFPhases,
                           intMethod = ctrlObj$intMethod,
-                          mcChainLength = ctrlObj$mcChainLength,
+                          mcIter = ctrlObj$mcIter,
                           mcChains = ctrlObj$mcChains,
+                          adapt_delta = ctrlObj$mcAdaptDelta,
+                          max_treedepth = ctrlObj$mcMaxTreeDepth,
                           savePhases = ctrlObj$savePhases ) 
 
   repOpt <- phaseList$repOpt
@@ -1473,11 +1475,14 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                     map = phaseList$map,
                     data = data,
                     grad = phaseList$grad,
+                    fitReport = phaseList$fitReport,
                     optPars = phaseList$optPars,
                     initPars = pars,
-                    phaseList = phaseList,
+                    post = phaseList$post,
                     ctlList = obj )
 
+  if( ctrlObj$savePhases )
+    outList$phaseList <- phaseList
 
 
   return(outList)
@@ -1509,8 +1514,10 @@ TMBphase <- function( data,
                       regFPhases = 3,
                       parBen = FALSE,
                       intMethod = "RE",
-                      mcChainLength = 100,
+                      mcIter = 100,
                       mcChains = 1,
+                      adapt_delta = .95,
+                      max_treedepth = 12,
                       savePhases = TRUE ) 
 {
   # function to fill list component with a factor
@@ -1686,12 +1693,9 @@ TMBphase <- function( data,
       outList$success                   <- FALSE
       outList$maxPhaseComplete          <- phase_cur - 1
 
-      if( savePhases )
-      {
-        phaseReports[[phase_cur]]$opt     <- opt
-        phaseReports[[phase_cur]]$success <- FALSE
-      }
-
+      phaseReports[[phase_cur]]$opt     <- opt
+      phaseReports[[phase_cur]]$success <- FALSE
+      
       break
     }
     # Save max phase complete
@@ -1699,13 +1703,10 @@ TMBphase <- function( data,
 
     # Save reports and optimisation
     # output
-    if(savePhases)
-    {
-      phaseReports[[phase_cur]]$pars    <- obj$env$parList(opt$par)
-      phaseReports[[phase_cur]]$opt     <- opt
-      phaseReports[[phase_cur]]$success <- TRUE
-      phaseReports[[phase_cur]]$map     <- map_use
-    }
+    phaseReports[[phase_cur]]$pars    <- obj$env$parList(opt$par)
+    phaseReports[[phase_cur]]$opt     <- opt
+    phaseReports[[phase_cur]]$success <- TRUE
+    phaseReports[[phase_cur]]$map     <- map_use
 
     # Update fitReport
     if(class(opt) != "try-error")
@@ -1724,32 +1725,6 @@ TMBphase <- function( data,
           opt$convergence, " and following message:\n", sep = "" )
     cat("\n", opt$message, "\n\n", sep = "" )
     
-
-    # Want to test MCMC performance, so let's MCMC every phase!
-    if( intMethod == "phaseMCMC" & class(opt) != "try-error" )
-    {
-      tBegin      <- proc.time()[3]
-      params_use  <- obj$env$parList( opt$par )
-
-      obj <- TMB::MakeADFun(  data = data,
-                              parameters = params_use,
-                              random = NULL,
-                              DLL = DLL_use,
-                              map = map_use,
-                              silent = silent ) 
-      mcmc <- tmbstan(  obj, 
-                        init = "last.par.best", 
-                        iter = mcChainLength,
-                        chains = mcChains )
-
-      phaseReports[[phase_cur]]$mcmc <- mcmc
-
-      mcmcTime <- (proc.time()[3] - tBegin)/60
-
-      fitReport[phase_cur,]$mcmcTime <- mcmcTime
-
-    } # END phaseMCMC
-
   } # close phase loop
 
   # integration of the posterior using Laplace Approximation
@@ -1801,72 +1776,141 @@ TMBphase <- function( data,
     outList$randEffList <- randEffList
   }
 
-  # HMC using tmbstan package
-  if( intMethod == "MCMC" & class(opt) != "try-error" )
-  {
-    tBegin      <- proc.time()[3]
-    params_use  <- obj$env$parList( opt$par )
 
-    obj <- TMB::MakeADFun(  data = data,
-                            parameters = params_use,
-                            random = NULL,
-                            DLL = DLL_use,
-                            map = map_use,
-                            silent = silent ) 
-
-
-    mcmc <- tmbstan(  obj, 
-                      init = "last.par.best", 
-                      iter = mcChainLength,
-                      chains = mcChains )
-
-    outList$mcmc <- mcmc
-
-  }
-  
   # Save sdreport object
-  if(outList$success & calcSD )
+  stanfit <- NULL
+  posts <- NULL
+  if( outList$success & calcSD )
   {
-    sdrep         <- TMB::sdreport(obj)
+    outList$sdrep         <- TMB::sdreport(obj)
 
-    gradTable <- data.frame(  par = names(sdrep$par.fixed),
-                              est = sdrep$par.fixed,
-                              sd  = sqrt(diag(sdrep$cov.fixed)),
-                              grad = as.numeric(sdrep$gradient.fixed) )
-
-    outList$gradReport  <- gradTable
-    outList$sdrep       <- sdrep
-    outList$pdHess      <- sdrep$pdHess
-
-    
     grad <- summary(outList$sdrep)[1:length(opt$par),]
     grad <- cbind( grad, as.vector(obj$gr()), grad[ ,2]/abs(grad[ ,1]) )
     colnames(grad) <- c("est","se","gr","cv")
     grad <- as.data.frame(grad)
     outList$grad <- grad
-  }
 
-  # Save phase reports
-  if( savePhases )
-    outList$phaseReports      <- phaseReports
+    MLErpt <- obj$report()
+
+    if( mcIter )
+    {
+      # Initial conditions for each chain
+      npar  <- length(opt$par)
+      mcinit <- list()
+      for( i in 1:mcChains )
+        mcinit[[i]] <- rnorm(n=nrow(grad),mean=grad$est,sd=0.05*grad$se)
+
+      options(mc.cores = mcChains)
+
+      # Draw MCMC samples
+      stanfit <- tmbstan( obj = obj,
+                          chains = mcChains,
+                          iter = mcIter,
+                          init = mcinit,
+                          control = list( adapt_delta=adapt_delta,
+                                          max_treedepth=max_treedepth ) )
+
+      samps <- as.data.frame(stanfit)
+      samps$lp__ <- NULL
+
+
+      # Pull model dimensions
+      nA <- MLErpt$nA
+      nL <- MLErpt$nL
+      nX <- MLErpt$nX
+      nS <- MLErpt$nS
+      nP <- MLErpt$nP
+      nF <- MLErpt$nF
+      nT <- MLErpt$nT
+
+      nSamps <- dim(samps)[1]
+
+      # Posteriors of quantities of interest
+      print("Calculating posteriors...")
+      posts <- list(  SB_ispt           = array( data=NA,  dim=c(nSamps,nS,nP,nT) ),
+                      R_ispt            = array( data=NA,  dim=c(nSamps,nS,nP,nT) ),
+                      M_ixsp            = array( data=NA, dim=c(nSamps,nX,nS,nP) ),
+                      q_ispft           = array( NA, dim = c(nSamps,nS,nP,nF,nT) ),
+                      q_ispf            = array( NA, dim = c(nSamps,nS,nP,nF) ),
+                      xSel50_ispf       = array( data=NA, dim=c(nSamps,nS,nP,nF) ),
+                      xSelStep_ispf     = array( data=NA, dim=c(nSamps,nS,nP,nF) ),
+                      sel_ilspft        = array( data = NA, dim = c(nSamps,nL,nS,nP,nF,nT)),
+                      sel_iaxspft       = array( data = NA, dim = c(nSamps,nA,nX,nS,nP,nF,nT)),
+                      B0_isp            = array( NA, dim = c(nSamps,nS,nP)),
+                      R0_isp            = array( NA, dim = c(nSamps,nS,nP)),
+                      F_ispft           = array( NA, dim = c(nSamps,nS,nP,nF,nT)),
+                      vB_ispft          = array( NA, dim = c(nSamps,nS,nP,nF,nT)),
+                      h_isp             = array( NA, dim = c(nSamps,nS,nP) ),
+                      lDist_ilxspft_hat = array( NA, dim = c(nSamps,nL,nX,nS,nP,nF,nT)),
+                      aDist_iaxspft_hat = array( NA, dim = c(nSamps,nA,nX,nS,nP,nF,nT)),
+                      corrAge_isfaa     = array( NA, dim = c(nSamps,nS,nF,nA,nA) ),
+                      corrAge_isfll     = array( NA, dim = c(nSamps,nS,nF,nL,nL) ),
+                      residCPUE_ispft   = array( NA, dim = c(nSamps,nS,nP,nF,nT) )
+                     )
+      # Progress bar
+      pb <- txtProgressBar( min=0, max=nSamps, style=3 )
+      # Loop over each set of parameter estimates
+      for( i in 1:nSamps )
+      {
+
+        r <- obj$report(samps[i, ])
+        posts$SB_ispt[i,,,]               <- r$SB_spt
+        posts$R_ispt[i,,,]                <- r$R_spt
+        posts$M_ixsp[i,,,]                <- r$M_xsp
+        posts$q_ispft[i,,,,]              <- r$q_spft
+        posts$q_ispf[i,,,]                <- r$q_spf
+        posts$xSel50_ispf[i,,,]           <- r$xSel50_spf
+        posts$xSelStep_ispf[i,,,]         <- r$xSelStep_spf
+        posts$sel_ilspft[i,,,,,]          <- r$sel_lspft
+        posts$sel_iaxspft[i,,,,,,]        <- r$sel_axspft
+        posts$B0_isp[i,,]                 <- r$B0_sp
+        posts$R0_isp[i,,]                 <- r$R0_sp
+        posts$F_ispft[i,,,,]              <- r$F_spft
+        posts$vB_ispft[i,,,,]             <- r$vB_spft
+        posts$h_isp[i,,]                  <- r$h_sp
+        posts$lDist_ilxspft_hat[i,,,,,,]  <- r$lDist_lxspft_hat
+        posts$aDist_iaxspft_hat[i,,,,,,]  <- r$aDist_axspft_hat
+        posts$CorrAge_isfaa[i,,,,]        <- r$CorrAge_isfaa
+        posts$CorrLen_isfll[i,,,,]        <- r$CorrLen_isfll
+        posts$residCPUE_ispft[i,,,,]      <- r$residCPUE_spft
+        setTxtProgressBar(pb, i)
+      }
+      close(pb)
+
+    }
+
+    gradTable <- data.frame(  par = names(outList$sdrep$par.fixed),
+                              est = outList$sdrep$par.fixed,
+                              sd  = sqrt(diag(outList$sdrep$cov.fixed)),
+                              grad = as.numeric(outList$sdrep$gradient.fixed) )
+
+    outList$gradReport  <- gradTable
+    outList$pdHess      <- outList$sdrep$pdHess
+    
+  }
 
   # Now save report object
   if(outList$success)
   {
     outList$repOpt            <- obj$report()
     outList$optPar            <- obj$env$parList( opt$par )
-  } else {
+  } else { # save last phase
     outList$optPar         <- params_use
     outList$repOpt         <- repInit
   }
 
+  outList$phaseReports    <- phaseReports 
+
   # And the remainder of the details
   outList$objfun            <- obj$fn()
+  outList$posts             <- posts
+  outList$stanfit           <- stanfit
   outList$optOutput         <- opt
   outList$map               <- map_use
   outList$maxGrad           <- max(obj$gr())
   outList$fitReport         <- fitReport
   outList$totTime           <- sum(fitReport$time,na.rm = TRUE)
+
   
   return( outList )  
 

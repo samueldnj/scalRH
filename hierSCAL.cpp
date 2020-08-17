@@ -3007,7 +3007,7 @@ Type objective_function<Type>::operator() ()
   REPORT( xSel95_sf );      // length at 95% sel by species/fleet
   REPORT( xSelStep_sf );    // length at 95% sel by species/fleet
   REPORT( F_spft );         // Fishing mortality
-  REPORT( paF_spft );         // Fishing mortality
+  REPORT( paF_spft );       // Fishing mortality
   REPORT( U_spft );         // Harvest rate
   REPORT( sel_lspft );      // Selectivity at length
   REPORT( sel_axspft );     // Selectivity at age

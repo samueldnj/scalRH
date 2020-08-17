@@ -360,7 +360,7 @@ plotDataSummary(reports)
 ## Phase fit table
 
 ```{r, phaseTable, echo = FALSE }
-phaseReportTable <- reports$phaseList$fitReport
+phaseReportTable <- reports$fitReport
 kable(  phaseReportTable, escape = FALSE, 
         caption = "Optimisation performance of hierSCAL for each phase.", booktabs = T,
         align = rep("c",ncol(phaseReportTable))) %>%

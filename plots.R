@@ -273,12 +273,12 @@ plotIdxResidsGrid <- function( reports )
   years <- seq( from = fYear, by = 1, length.out = nT)
 
   par(mfcol = c(nS,nP), mar = c(.1,.1,.1,.1),
-        oma = c(3,3,2,2) )
+        oma = c(3,4,2,2) )
   
   for( s in 1:nS )
     for( p in 1:nP )
     {
-      plot( x= range(years), y = c(-3,3),
+      plot( x= range(years), y = c(-2.5,2.5),
             type = "n", axes = FALSE )
         # Axes and labels
         mfg <- par( "mfg")
@@ -292,37 +292,59 @@ plotIdxResidsGrid <- function( reports )
           mtext( side = 3, text = specLabs[s], font = 2)
 
         if( mfg[2] == mfg[4] )
-          mtext( side = 4, text = stockLabs[p], font = 2 )
+          rmtext( txt = stockLabs[p], font = 2, line = 1.5, cex = 1.5, outer = TRUE )
 
         grid()
         box()
 
         abline( h = 0, lty= 2, lwd = 2)
 
+        meanRes_f <- rep(NA,nF)
+        pVal_f    <- rep(NA,nF)
+
         for( f in 1:nF )
         {
           if( all(is.na(stdResids_spft[s,p,f,])) )
             next
 
+
+
           points( x = years, y = stdResids_spft[s,p,f,],
-                  col = fleetCols[f] )
+                  col = fleetCols[f], pch = 16 )
 
           # Fit trend line
           posIdx <- which(!is.na(stdResids_spft[s,p,f,]))
+
+          meanRes_f[f] <- round(mean(stdResids_spft[s,p,f,posIdx]),2)
 
           dat <- data.frame(x = years[posIdx], y = stdResids_spft[s,p,f,posIdx])
 
           lmTrend <- lm( y~x, data = dat )
           dat$pred <- predict.lm(object = lmTrend, newdata = dat)
 
-          pVal <- round(summary(lmTrend)$coefficients[2,4],2)
+          pVal_f[f] <- round(summary(lmTrend)$coefficients[2,4],2)
 
           lines( x = dat$x, y = dat$pred,
                   col = fleetCols[f], lwd = 2 )
-          text( x = dat$x[4], y = -3, 
-                label = paste("p = ", pVal, sep = ""),
-                col = fleetCols[f], font = 2 )
+          # text( x = dat$x[4], y = -2.5, 
+          #       label = paste("p = ", pVal, sep = ""),
+          #       col = fleetCols[f], font = 2 )
+
+          
         }
+
+        legTxt_f <- paste("m = ", meanRes_f, ", p = ", pVal_f, sep = "")
+
+        if( p == 1 )
+          legend( x = "topleft",
+                  bty = "n",
+                  legend = legTxt_f,
+                  col = fleetCols, pch = 16 )
+        if( p != 1 )
+          legend( x = "topleft",
+                  bty = "n",
+                  legend = legTxt_f[-3],
+                  col = fleetCols[-3], pch = 16 )
 
     }
 
@@ -1345,7 +1367,8 @@ plotALFreq <- function( repObj = repOpt,
 plotSBt <- function(  repObj = repInit,
                       initYear = fYear,
                       sIdx = 1, pIdx = 1,
-                      nopar = FALSE )
+                      nopar = FALSE,
+                      pub = FALSE )
 {
   # Pull model dimensions
   nS <- repObj$nS
@@ -1413,8 +1436,11 @@ plotSBt <- function(  repObj = repInit,
     # Plot recruitment
     abline( v = vertLines, lwd = .8, lty = 2, col = "grey80")
     abline( h = B0, lty = 2, lwd = .8, col = "red")
-    panLab( x = 0.8, y = c(0.9,0.85), txt = paste("M = ", M_x, sep = "") )
-    panLab( x = 0.8, y = 0.95, txt = paste("B0 = ", B0, sep = "") )
+    if(!pub)
+    {
+      panLab( x = 0.8, y = c(0.9,0.85), txt = paste("M = ", M_x, sep = "") )
+      panLab( x = 0.8, y = 0.95, txt = paste("B0 = ", B0, sep = "") )
+    }
     lines( x = years[1:nT], y = SB_t[1:nT], lwd = 2, col = "red" )
     rect( xleft = years[1:nT] - .3,
           xright = years[1:nT] + .3,
@@ -1425,8 +1451,8 @@ plotSBt <- function(  repObj = repInit,
       points( x = years[1:nT], y = scaledI_ft[f,],
               col = gearCols[f], pch = 16, cex = .8 )
     }
-    axis( side = 4, at = catchScalar * catchTicks,
-          labels = catchTicks, las = 1 )
+    # axis( side = 4, at = catchScalar * catchTicks,
+    #       labels = catchTicks, las = 1 )
     
 } # END plotSBt()
 
@@ -1435,7 +1461,8 @@ plotSBt <- function(  repObj = repInit,
 # in a given rep file. Wraps plotSBt(), and overwrites
 # that functions margins.
 plotSBspt <- function(  repObj = repInit,
-                        initYear = fYear )
+                        initYear = fYear,
+                        pub = TRUE )
 {
   # Pull model dimensions
   nS <- repObj$nS
@@ -1457,7 +1484,7 @@ plotSBspt <- function(  repObj = repInit,
   vertLines <- seq(from = initYear, to = max(years), by = 10)
 
   # Set up plotting environment
-  par(mfcol = c(nP, nS), mar = c(0,1,0,1), oma = c(4,4,3,3) )
+  par(mfcol = c(nP, nS), mar = c(0,1.5,0,1.5), oma = c(4,4,3,3) )
 
   for( sIdx in 1:nS )
     for( pIdx in 1:nP )
@@ -1465,7 +1492,7 @@ plotSBspt <- function(  repObj = repInit,
       plotSBt(  repObj = repObj,
                 initYear = initYear,
                 sIdx = sIdx, pIdx = pIdx,
-                nopar = TRUE )
+                nopar = TRUE, pub = pub )
       # Detect where we are in the mfg
       mfg <- par("mfg")
       # x axis in bottom row
@@ -1476,11 +1503,11 @@ plotSBspt <- function(  repObj = repInit,
 
       # Add species names
       if( mfg[1] == 1 )
-        mtext( side = 3, text = specNames[sIdx] )
+        mtext( side = 3, text = specNames[sIdx], font = 2 )
       if( mfg[2] == mfg[4] )
-        mtext( side = 4, text = stockNames[pIdx] )
+        rmtext( txt = stockNames[pIdx], outer = TRUE, line = 2, font = 2, cex = 1.5 )
     } 
-  mtext(  side = 1, text = "Year", outer = TRUE, line = 2 )
+  mtext(  side = 1, text = "Year", outer = TRUE, line = 2.5 )
   mtext(  side = 2, text = "Biomass and Catch (kt)", outer = TRUE,
           line = 2 )
 
@@ -2266,7 +2293,15 @@ plotSelAge <- function( repObj = repInit,
 # plotDataSummary()
 # Data summary for each species and stock
 plotDataSummary <- function(  reports,
-                              fleetLabs = c("Historical","Modern","HS Ass.","Synoptic") )
+                              fleetLabs = c(  "Historical",
+                                              "Modern",
+                                              "HS Ass.",
+                                              "Synoptic"),
+                              dataCells = c(  "Indices",
+                                              "Ages",
+                                              "Lengths",
+                                              "AAL",
+                                              "Catch") )
 {
   datObj <- reports$data
   repObj <- reports$repOpt
@@ -2290,7 +2325,7 @@ plotDataSummary <- function(  reports,
   years <- seq(from = fYear, by = 1, length.out = nT)
 
 
-  yLabs <- c("Catch","AAL","Lengths","Ages","Indices")
+  yLabs <- rev(dataCells)
   specLabs <- reports$species
   stockLabs <- reports$stocks
 
@@ -2320,12 +2355,16 @@ plotDataSummary <- function(  reports,
   fleetJitter <- seq( from = -.8, to = .8, 
                       length.out = nF )
 
+  nCells <- length(dataCells)
+  cellMins <- seq(from = 0, by = 2, length = nCells)
+  names(cellMins) <- rev(dataCells)
+
   # Prepare pch
 
   for( s in 1:nS )
     for( p in 1:nP )
     {
-      plot( x = range(years), y = c(0,10),
+      plot( x = range(years), y = c(0,2*length(dataCells)),
             type = "n", axes = FALSE )
         # Axes and labels
         mfg <- par( "mfg")
@@ -2334,7 +2373,7 @@ plotDataSummary <- function(  reports,
 
         if( mfg[2] == 1 )
           axis( side = 2, las = 1,
-                at = c(1,3,5,7,9),
+                at = cellMins + 1,
                 labels = yLabs )
 
         if( mfg[1] == 1 )
@@ -2346,47 +2385,63 @@ plotDataSummary <- function(  reports,
 
         grid()
         box()
+        
         # Break up window with hz lines
-        abline( h = c(2,4,6,8), lwd = .8 )
+        abline( h = seq(from = 2, by = 2, length = nCells), lwd = .8 )
 
         # Plot catch
+        if("Catch" %in% dataCells)
+        {
         rect( xleft = years - .3, xright = years + .3,
-              ybottom = 0, ytop = C_spt[s,p,],
+              ybottom = cellMins["Catch"], ytop = C_spt[s,p,],
               col = "grey50", border = NA )
+        }
 
-        # Plot AAL
-        # Prepare table
-        aal_table.this <- aal_table %>%
-                          as.data.frame() %>%
-                          filter( species == s, stock == p )%>%
-                          group_by( year, fleet ) %>%
-                          summarise( posSamp = 1 )
-        points( x =  years[aal_table.this$year],
-                y = 3 + fleetJitter[aal_table.this$fleet],
-                pch = 16, col = fleetCols[aal_table.this$fleet] )
+        if("AAL" %in% dataCells)
+        {
+          # Plot AAL
+          # Prepare table
+          aal_table.this <- aal_table %>%
+                            as.data.frame() %>%
+                            filter( species == s, stock == p )%>%
+                            group_by( year, fleet ) %>%
+                            summarise( posSamp = 1 )
+          points( x =  years[aal_table.this$year],
+                  y = cellMins["AAL"] + 1 + fleetJitter[aal_table.this$fleet],
+                  pch = 16, col = fleetCols[aal_table.this$fleet] )
+        }
 
         # Plot Lengths
-        len_spft <- apply(X = len_lxspft, FUN = checkPosObs, MARGIN = c(3:6) )
-        for(f in 1:nF )
+        if("Lengths" %in% dataCells)
         {
-          plotPts <- which(!is.na(len_spft[s,p,f,]))
-          nPts <- length(plotPts)
-          points( x = years[plotPts], y = rep(5 + fleetJitter[f],nPts),
-                  col = fleetCols[f], pch = len_spft[s,p,f,plotPts] )
+          len_spft <- apply(X = len_lxspft, FUN = checkPosObs, MARGIN = c(3:6) )
+          for(f in 1:nF )
+          {
+            plotPts <- which(!is.na(len_spft[s,p,f,]))
+            nPts <- length(plotPts)
+            points( x = years[plotPts], y = rep(cellMins["Lengths"] + 1 + fleetJitter[f],nPts),
+                    col = fleetCols[f], pch = len_spft[s,p,f,plotPts] )
+          }
         }
 
         # Plot Ages
-        age_spft <- apply(X = age_axspft, FUN = checkPosObs, MARGIN = c(3:6) )
-        for(f in 1:nF )
-          points( x = years, y = rep(7 + fleetJitter[f],nT),
-                  col = fleetCols[f], pch = age_spft[s,p,f,] )
-        
-        # Plot indices
-        I_spft[I_spft > 0] <- 16
-        I_spft[I_spft <= 0] <- NA
-        for( f in 1:nF )
-          points( x = years, y = rep(9 + fleetJitter[f],nT),
-                  col = fleetCols[f], pch = I_spft[s,p,f,] )
+        if("Ages" %in% dataCells )
+        {    
+          age_spft <- apply(X = age_axspft, FUN = checkPosObs, MARGIN = c(3:6) )
+          for(f in 1:nF )
+            points( x = years, y = rep(cellMins["Ages"] + 1 + fleetJitter[f],nT),
+                    col = fleetCols[f], pch = age_spft[s,p,f,] )
+        }
+
+        if( "Indices" %in% dataCells )
+        {
+          # Plot indices
+          I_spft[I_spft > 0] <- 16
+          I_spft[I_spft <= 0] <- NA
+          for( f in 1:nF )
+            points( x = years, y = rep(cellMins["Indices"] + 1 + fleetJitter[f],nT),
+                    col = fleetCols[f], pch = I_spft[s,p,f,] )
+        }
 
     }
 
