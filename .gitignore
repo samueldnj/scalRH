@@ -6,3 +6,12 @@
 
 # Outputs
 Outputs/fits/
+
+# Documentation
+Documentation/*/knitr*.png
+Documentation/*/knitr*.pdf
+Documentation/*/*.log
+Documentation/*/data/*/*.html
+Documentation/*/data/*/*.o
+Documentation/*/data/*/*.so
+Documentation/*/data/*/*.cpp
