@@ -1478,7 +1478,8 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                     fitReport = phaseList$fitReport,
                     optPars = phaseList$optPars,
                     initPars = pars,
-                    post = phaseList$post,
+                    post = phaseList$posts,
+                    stanfit = phaseList$stanfit,
                     ctlList = obj )
 
   if( ctrlObj$savePhases )
@@ -1834,15 +1835,15 @@ TMBphase <- function( data,
                       q_ispf            = array( NA, dim = c(nSamps,nS,nP,nF) ),
                       xSel50_ispf       = array( data=NA, dim=c(nSamps,nS,nP,nF) ),
                       xSelStep_ispf     = array( data=NA, dim=c(nSamps,nS,nP,nF) ),
-                      sel_ilspft        = array( data = NA, dim = c(nSamps,nL,nS,nP,nF,nT)),
-                      sel_iaxspft       = array( data = NA, dim = c(nSamps,nA,nX,nS,nP,nF,nT)),
+                      # sel_ilspft        = array( data = NA, dim = c(nSamps,nL,nS,nP,nF,nT)),
+                      # sel_iaxspft       = array( data = NA, dim = c(nSamps,nA,nX,nS,nP,nF,nT)),
                       B0_isp            = array( NA, dim = c(nSamps,nS,nP)),
                       R0_isp            = array( NA, dim = c(nSamps,nS,nP)),
                       F_ispft           = array( NA, dim = c(nSamps,nS,nP,nF,nT)),
                       vB_ispft          = array( NA, dim = c(nSamps,nS,nP,nF,nT)),
                       h_isp             = array( NA, dim = c(nSamps,nS,nP) ),
-                      lDist_ilxspft_hat = array( NA, dim = c(nSamps,nL,nX,nS,nP,nF,nT)),
-                      aDist_iaxspft_hat = array( NA, dim = c(nSamps,nA,nX,nS,nP,nF,nT)),
+                      # lDist_ilxspft_hat = array( NA, dim = c(nSamps,nL,nX,nS,nP,nF,nT)),
+                      # aDist_iaxspft_hat = array( NA, dim = c(nSamps,nA,nX,nS,nP,nF,nT)),
                       corrAge_isfaa     = array( NA, dim = c(nSamps,nS,nF,nA,nA) ),
                       corrAge_isfll     = array( NA, dim = c(nSamps,nS,nF,nL,nL) ),
                       residCPUE_ispft   = array( NA, dim = c(nSamps,nS,nP,nF,nT) )
@@ -1861,15 +1862,15 @@ TMBphase <- function( data,
         posts$q_ispf[i,,,]                <- r$q_spf
         posts$xSel50_ispf[i,,,]           <- r$xSel50_spf
         posts$xSelStep_ispf[i,,,]         <- r$xSelStep_spf
-        posts$sel_ilspft[i,,,,,]          <- r$sel_lspft
-        posts$sel_iaxspft[i,,,,,,]        <- r$sel_axspft
+        # posts$sel_ilspft[i,,,,,]          <- r$sel_lspft
+        # posts$sel_iaxspft[i,,,,,,]        <- r$sel_axspft
         posts$B0_isp[i,,]                 <- r$B0_sp
         posts$R0_isp[i,,]                 <- r$R0_sp
         posts$F_ispft[i,,,,]              <- r$F_spft
         posts$vB_ispft[i,,,,]             <- r$vB_spft
         posts$h_isp[i,,]                  <- r$h_sp
-        posts$lDist_ilxspft_hat[i,,,,,,]  <- r$lDist_lxspft_hat
-        posts$aDist_iaxspft_hat[i,,,,,,]  <- r$aDist_axspft_hat
+        # posts$lDist_ilxspft_hat[i,,,,,,]  <- r$lDist_lxspft_hat
+        # posts$aDist_iaxspft_hat[i,,,,,,]  <- r$aDist_axspft_hat
         posts$CorrAge_isfaa[i,,,,]        <- r$CorrAge_isfaa
         posts$CorrLen_isfll[i,,,,]        <- r$CorrLen_isfll
         posts$residCPUE_ispft[i,,,,]      <- r$residCPUE_spft

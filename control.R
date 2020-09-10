@@ -59,5 +59,8 @@ if(!dir.exists("Outputs"))
 
 # compile and load scalRH objective function.
 TMB::compile ("hierSCAL.cpp")
+# Load hierSCAL object
+dyn.load(dynlib("hierSCAL"))
+
 
 

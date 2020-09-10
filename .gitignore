@@ -3,3 +3,6 @@
 # Temporary files from R
 *.Rapp.history
 *.DS_Store
+
+# Outputs
+Outputs/fits/

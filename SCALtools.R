@@ -30,6 +30,111 @@ postMakeBatchInfoFiles <- function(groupFolder = ".")
   return()
 }
 
+# redoPosts()
+# Will rerun the postierior generating procedure,
+# place posteriors into the reports object, and
+# save to the fit directory
+redoPosts <- function(  fitID = 1, 
+                        groupFolder = ".",
+                        baseDir = "./Outputs/fits" )
+{
+  .loadFit(fitID, groupFolder = groupFolder, baseDir = baseDir )
+
+
+  # Pull stan output
+  stanfit <- reports$stanfit
+
+  
+  samps <- as.data.frame(stanfit)
+  samps$lp__ <- NULL
+
+
+  # Pull model dimensions
+  nA <- MLErpt$nA
+  nL <- MLErpt$nL
+  nX <- MLErpt$nX
+  nS <- MLErpt$nS
+  nP <- MLErpt$nP
+  nF <- MLErpt$nF
+  nT <- MLErpt$nT
+
+  nSamps <- dim(samps)[1]
+
+  # Need to create a TMB object
+  obj <- TMB::MakeADFun(  data = reports$data,
+                          parameters = reports$pars,
+                          random= NULL,
+                          DLL= "hierSCAL",
+                          map= reports$map,
+                          silent = FALSE )
+
+
+  # Posteriors of quantities of interest
+  print("Calculating posteriors...")
+  posts <- list(  SB_ispt           = array( data=NA,  dim=c(nSamps,nS,nP,nT) ),
+                  R_ispt            = array( data=NA,  dim=c(nSamps,nS,nP,nT) ),
+                  M_ixsp            = array( data=NA, dim=c(nSamps,nX,nS,nP) ),
+                  q_ispft           = array( NA, dim = c(nSamps,nS,nP,nF,nT) ),
+                  q_ispf            = array( NA, dim = c(nSamps,nS,nP,nF) ),
+                  xSel50_ispf       = array( data=NA, dim=c(nSamps,nS,nP,nF) ),
+                  xSelStep_ispf     = array( data=NA, dim=c(nSamps,nS,nP,nF) ),
+                  # sel_ilspft        = array( data = NA, dim = c(nSamps,nL,nS,nP,nF,nT)),
+                  # sel_iaxspft       = array( data = NA, dim = c(nSamps,nA,nX,nS,nP,nF,nT)),
+                  B0_isp            = array( NA, dim = c(nSamps,nS,nP)),
+                  R0_isp            = array( NA, dim = c(nSamps,nS,nP)),
+                  F_ispft           = array( NA, dim = c(nSamps,nS,nP,nF,nT)),
+                  vB_ispft          = array( NA, dim = c(nSamps,nS,nP,nF,nT)),
+                  h_isp             = array( NA, dim = c(nSamps,nS,nP) ),
+                  # lDist_ilxspft_hat = array( NA, dim = c(nSamps,nL,nX,nS,nP,nF,nT)),
+                  # aDist_iaxspft_hat = array( NA, dim = c(nSamps,nA,nX,nS,nP,nF,nT)),
+                  corrAge_isfaa     = array( NA, dim = c(nSamps,nS,nF,nA,nA) ),
+                  corrAge_isfll     = array( NA, dim = c(nSamps,nS,nF,nL,nL) ),
+                  residCPUE_ispft   = array( NA, dim = c(nSamps,nS,nP,nF,nT) )
+                 )
+  # Progress bar
+  pb <- txtProgressBar( min=0, max=nSamps, style=3 )
+  # Loop over each set of parameter estimates
+  for( i in 1:nSamps )
+  {
+
+    r <- obj$report(samps[i, ])
+    posts$SB_ispt[i,,,]               <- r$SB_spt
+    posts$R_ispt[i,,,]                <- r$R_spt
+    posts$M_ixsp[i,,,]                <- r$M_xsp
+    posts$q_ispft[i,,,,]              <- r$q_spft
+    posts$q_ispf[i,,,]                <- r$q_spf
+    posts$xSel50_ispf[i,,,]           <- r$xSel50_spf
+    posts$xSelStep_ispf[i,,,]         <- r$xSelStep_spf
+    # posts$sel_ilspft[i,,,,,]          <- r$sel_lspft
+    # posts$sel_iaxspft[i,,,,,,]        <- r$sel_axspft
+    posts$B0_isp[i,,]                 <- r$B0_sp
+    posts$R0_isp[i,,]                 <- r$R0_sp
+    posts$F_ispft[i,,,,]              <- r$F_spft
+    posts$vB_ispft[i,,,,]             <- r$vB_spft
+    posts$h_isp[i,,]                  <- r$h_sp
+    # posts$lDist_ilxspft_hat[i,,,,,,]  <- r$lDist_lxspft_hat
+    # posts$aDist_iaxspft_hat[i,,,,,,]  <- r$aDist_axspft_hat
+    posts$CorrAge_isfaa[i,,,,]        <- r$CorrAge_isfaa
+    posts$CorrLen_isfll[i,,,,]        <- r$CorrLen_isfll
+    posts$residCPUE_ispft[i,,,,]      <- r$residCPUE_spft
+    setTxtProgressBar(pb, i)
+  }
+  close(pb)
+
+  reports$posts <- posts
+
+  savePath <- reports$folder
+  saveFile <- paste(basename(savePath),".RData",sep = "")
+
+  postFile <- "posts.Rdata"
+
+  save(reports, file = file.path(reports$folder,saveFile) )
+  save(posts, file = file.path(savePath, postFile))
+
+  message("Posteriors complete, and reports saved to ", savePath, "\n", sep = "")
+}
+
+
 # readBatchInfo()
 # Loads a data.frame of info files for
 # a given groupFolder

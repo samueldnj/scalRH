@@ -13,7 +13,7 @@
 
 # calcRefPts()
 # Calculates biological reference points based on given biological parameters 
-# assuming a delay difference biological model.
+# assuming an age strucutured biological model.
 # inputs:   obj = list of biological parameters
 # ouputs:   refPts = list() of reference points
 calcRefPts <- function( obj )
@@ -371,4 +371,68 @@ calcRefPts <- function( obj )
   FmsyRefPts
 }     # END function .getFmsy
 
+
+# calcMCMCrefPts()
+# Takes MC output and creates a distribution of 
+# reference points by applying calcRefPts for
+# every MCMC rep. Make it like the redoPosts()
+# function
+calcMCMCrefPts <- function( repList = reports )
+{
+  # Pull stan output
+  stanfit <- repList$stanfit
+  MLErpt  <- repList$repOpt
+
+  
+  samps <- as.data.frame(stanfit)
+  samps$lp__ <- NULL
+
+
+  # Pull model dimensions
+  nA <- MLErpt$nA
+  nL <- MLErpt$nL
+  nX <- MLErpt$nX
+  nS <- MLErpt$nS
+  nP <- MLErpt$nP
+  nF <- MLErpt$nF
+  nT <- MLErpt$nT
+
+  nSamps <- dim(samps)[1]
+
+  # Need to create a TMB object
+  obj <- TMB::MakeADFun(  data = repList$data,
+                          parameters = repList$initPars,
+                          random=NULL,
+                          DLL= "hierSCAL",
+                          map= repList$map,
+                          silent = FALSE )
+
+  # Posteriors of quantities of interest
+  print("Calculating posterior reference point distributions...")
+  postRPs <- list(  YeqFmsy_isp    = array( data=NA,  dim=c(nSamps,nS,nP) ),
+                    Fmsy_isp       = array( data=NA,  dim=c(nSamps,nS,nP) ),
+                    Umsy_isp       = array( data=NA,  dim=c(nSamps,nS,nP) ),
+                    BeqFmsy_isp    = array( data=NA,  dim=c(nSamps,nS,nP) ) )
+
+
+
+  # Progress bar
+  pb <- txtProgressBar( min=0, max=nSamps, style=3 )
+  # Loop over each set of parameter estimates
+  for( i in 1:nSamps )
+  {
+    r <- obj$report(samps[i, ])
+    rps <- calcRefPts(r)
+    postRPs$Fmsy_isp[i,,]         <- rps$refPts$FmsyRefPts$Fmsy_sp
+    postRPs$Umsy_isp[i,,]         <- rps$refPts$FmsyRefPts$Umsy_sp
+    postRPs$BeqFmsy_isp[i,,]      <- rps$refPts$FmsyRefPts$BeqFmsy_sp
+    postRPs$YeqFmsy_isp[i,,]      <- rps$refPts$FmsyRefPts$YeqFmsy_sp
+
+    setTxtProgressBar(pb, i)
+  }
+
+  browser()
+
+  postRPs
+}
 

@@ -5,13 +5,13 @@ ctrl$modelHypName 'allComps_fixVonB'
 ctrl$maxFunEval 10000
 ctrl$maxIterations 10000
 ctrl$quiet FALSE
-ctrl$maxPhase 3
+ctrl$maxPhase 12
 ctrl$calcSD TRUE
 ctrl$calcRefPts TRUE
 ctrl$plots TRUE
 ctrl$parBen FALSE
 ctrl$intMethod "MCMC"
-ctrl$mcIter 50
+ctrl$mcIter 500
 ctrl$mcChains 4
 ctrl$mcAdaptDelta .95
 ctrl$mcMaxTreeDepth 12
