@@ -1,4 +1,4 @@
-# fitCtlFile.txt, written to fit_parBatfitAAL12on 1597423265
+# fitCtlFile.txt, written to fit_base_Sep24_.3tauqon 1600984161
 parameter value
 ctrl$dataScenarioName '1956_surveys'
 ctrl$modelHypName 'allComps_fixVonB'
@@ -11,7 +11,7 @@ ctrl$calcRefPts TRUE
 ctrl$plots TRUE
 ctrl$parBen FALSE
 ctrl$intMethod "MCMC"
-ctrl$mcIter 500
+ctrl$mcIter 0
 ctrl$mcChains 4
 ctrl$mcAdaptDelta .95
 ctrl$mcMaxTreeDepth 12
@@ -59,7 +59,7 @@ data$minPropAAL 0.02
 data$minAgeSampSize 100
 data$minLenSampSize 100
 data$minAgeLenSampSize 10
-data$lambdaB0 1
+data$lambdaB0 0
 data$lambdaPropF 0
 data$vonBA1_s c(Dover=3,English=2,Rock=2,Petrale=2,Arrowtooth=2)
 data$vonBA2_s c(Dover=20,English=12,Rock=10,Petrale=15,Arrowtooth=17)
@@ -95,9 +95,9 @@ hypo$condMLEq c(0,0,0,0)
 hypo$logitq FALSE
 hypo$tq50_vec c(comm.hist=5)
 hypo$tq95_vec c(comm.hist=13)
-hypo$pmtauqSurv_f c(.3,.7)
+hypo$pmtauqSurv_f c(.2,.2)
 hypo$mq_f c(.01,.01,.3,.3)
-hypo$sdq_f c(1,1,.5,.5)
+hypo$sdq_f c(1,1,1,1)
 hypo$IGalphaq 1
 hypo$recModel "uncorr"
 hypo$recOption "BH"

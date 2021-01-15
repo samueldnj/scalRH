@@ -3,9 +3,17 @@
 # Temporary files from R
 *.Rapp.history
 *.DS_Store
+*.Rhistory
 
 # Outputs
 Outputs/fits/
+
+# Batch job files
+Batch/job*.txt
+
+# Compiled files
+*.so
+*.o
 
 # Documentation
 Documentation/*/knitr*.png

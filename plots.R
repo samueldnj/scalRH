@@ -1239,19 +1239,39 @@ plotRsptDev <- function(  repObj = repInit,
 # Plots the Recruitments over time for a given
 # species/stock combo. Used individually and wrapped
 # in plotSBspt()
-plotRt <- function( repObj = repInit,
-                    initYear = fYear,
+plotRt <- function( repList = reports,
                     sIdx = 1, pIdx = 1,
-                    nopar = FALSE )
+                    nopar = FALSE, plotCI = FALSE )
 {
+  repObj <- repList$repOpt
+  initYear <- repList$fYear
+
   # Pull model dimensions
   nS <- repObj$nS
   nP <- repObj$nP
   nT <- repObj$nT
 
-  # Pull spawning biomass
+  # Pull recruitment
   R_t   <- repObj$R_spt[sIdx, pIdx, ]
   R0    <- repObj$R0_sp[sIdx,pIdx]
+
+  if(!is.null(repList$post))
+  {
+    R_ispt <- repList$post$R_ispt
+    R0_isp <- repList$post$R0_isp
+
+    R_t <- apply(X = R_ispt[,sIdx,pIdx,], MARGIN = c(2),
+                  FUN = mean, na.rm = T )
+
+    R_qt <- apply( X = R_ispt[,sIdx,pIdx,], MARGIN = c(2),
+                    FUN = quantile, na.rm = T,
+                    probs = c(0.025, 0.5, 0.975) )
+
+    R0  <- mean(R0_isp[,sIdx,pIdx])
+
+    plotCI <- TRUE
+  }
+
 
   # Create years vector
   years     <- seq(from = initYear, length = nT + 1, by = 1)
@@ -1260,7 +1280,11 @@ plotRt <- function( repObj = repInit,
   if( !nopar )
     par(mfcol = c(1, 1), mar = c(2,2,1,1), oma = c(1,1,1,1) )
 
-  plot( x = range(years), y = c(0,max(R_t, na.rm =T) ),
+  maxR <- max(R_t, na.rm = T)
+  if(plotCI)
+    maxR <- max(R_qt, na.rm = T)
+
+  plot( x = range(years), y = c(0,maxR),
         type = "n", xlab = "", ylab = "",
         las = 1, axes = FALSE )
     # Plot axes if not wrapped
@@ -1274,9 +1298,15 @@ plotRt <- function( repObj = repInit,
     # Plot recruitment
     abline( v = vertLines, lwd = .8, lty = 3, col = "grey80")
     abline( h = R0, lty = 2, lwd = 1, col = "grey50")
+    if( plotCI )
+      segments( x0 = years[1:nT],
+                y0 = R_qt[1,1:nT],
+                y1 = R_qt[3,1:nT],
+                col = "grey30", lwd = 2 )
     panLab( x = 0.8, y = 0.85, txt = paste("R0 = ", round(R0,2), sep = "") )
-    lines( x = years[1:nT], y = R_t[1:nT], lwd = 2, col = "grey30" )
-    points( x = years[1:nT], y = R_t[1:nT], pch = 21, bg = "white")
+    # lines( x = years[1:nT], y = R_t[1:nT], lwd = 2, col = "grey30" )
+    points( x = years[1:nT], y = R_t[1:nT], 
+            pch = 21, bg = "grey30", col = "grey30")
     
 } # END plotRt()
 
@@ -1285,9 +1315,10 @@ plotRt <- function( repObj = repInit,
 # Plots recruitment for all species and stocks
 # in a given rep file. Wraps plotRt(), and overwrites
 # that functions margins.
-plotRspt <- function( repObj = repInit,
-                      initYear = fYear )
+plotRspt <- function( repList )
 {
+  repObj    <- repList$repOpt
+  initYear  <- repList$fYear
   # Pull model dimensions
   nS <- repObj$nS
   nP <- repObj$nP
@@ -1309,8 +1340,7 @@ plotRspt <- function( repObj = repInit,
   for( sIdx in 1:nS )
     for( pIdx in 1:nP )
     {
-      plotRt( repObj = repObj,
-              initYear = initYear,
+      plotRt( repList = repList,
               sIdx = sIdx, pIdx = pIdx,
               nopar = TRUE )
       # Detect where we are in the mfg
@@ -1364,12 +1394,16 @@ plotALFreq <- function( repObj = repOpt,
 # Plots the spawning biomass over time for a given
 # species/stock combo. Used individually and wrapped
 # in plotSBspt()
-plotSBt <- function(  repObj = repInit,
-                      initYear = fYear,
+plotSBt <- function(  repList = reports,
                       sIdx = 1, pIdx = 1,
                       nopar = FALSE,
-                      pub = FALSE )
+                      pub = FALSE,
+                      plotCI = FALSE )
 {
+  repObj <- repList$repOpt
+  initYear <- repList$fYear
+  data      <- repList$data
+
   # Pull model dimensions
   nS <- repObj$nS
   nP <- repObj$nP
@@ -1380,10 +1414,38 @@ plotSBt <- function(  repObj = repInit,
   SB_t  <- repObj$SB_spt[sIdx, pIdx, ]
   B0    <- round(repObj$B0_sp[sIdx,pIdx],2)
   M_x   <- round(repObj$M_xsp[,sIdx,pIdx],2)
-  C_ft  <- repObj$C_spft[sIdx, pIdx, , ]
+  C_ft  <- data$C_spft[sIdx, pIdx, , ]
   Bv_ft <- repObj$vB_spft[sIdx,pIdx,,]
   q_ft  <- repObj$q_spft[sIdx,pIdx,,]
-  I_ft  <- repObj$I_spft[sIdx,pIdx,,]
+  I_ft  <- data$I_spft[sIdx,pIdx,,]
+
+  if(!is.null(repList$post))
+  {
+    SB_ispt  <- repList$post$SB_ispt
+    B0_isp   <- repList$post$B0_isp
+    M_ixsp   <- repList$post$M_ixsp
+    # Bv_ispft <- repList$post$vB_ispft
+
+    nDraws <- dim(SB_ispt)[1]
+
+    SB_t <- apply(X = SB_ispt[,sIdx,pIdx,], MARGIN = c(2),
+                  FUN = mean, na.rm = T )
+
+    SB_qt <- apply( X = SB_ispt[,sIdx,pIdx,], MARGIN = c(2),
+                    FUN = quantile, na.rm = T,
+                    probs = c(0.025, 0.5, 0.975) )
+
+    B0  <- round(mean(B0_isp[,sIdx,pIdx]),2)
+    M_x <- apply( X = M_ixsp[,,sIdx,pIdx],
+                  FUN = mean, MARGIN = 2 )
+    M_x <- round(M_x,2)
+
+    # q_ift <- repList$post$q_ispft[,sIdx,pIdx,,]
+    # q_ft  <- apply( X = q_ift, FUN = mean, MARGIN = c(2,3) )
+
+
+    plotCI <- TRUE
+  }
 
 
   # replace -ve indices with NA
@@ -1395,6 +1457,16 @@ plotSBt <- function(  repObj = repInit,
   {
     scaledI_ft[f,] <- I_ft[f,] / q_ft[f,] *( SB_t / Bv_ft[f,])
   }
+
+  # if( !is.null(repList$post))
+  # {
+  #   scaledI_ift <- array(NA, dim = c(nDraws,nF,nT))
+  #   for( i in 1:nDraws )
+  #   {
+  #     for(f in 1:nF )
+  #       scaledI_ift[i,f,]
+  #   }
+  # }
 
   gearCols <- brewer.pal(nF, "Dark2")
   gearCols <- alpha(gearCols, alpha = .6)
@@ -1442,6 +1514,11 @@ plotSBt <- function(  repObj = repInit,
       panLab( x = 0.8, y = 0.95, txt = paste("B0 = ", B0, sep = "") )
     }
     lines( x = years[1:nT], y = SB_t[1:nT], lwd = 2, col = "red" )
+    if( plotCI )
+      polygon(  x = c(years[1:nT],rev(years[1:nT])),
+                y = c(SB_qt[1,1:nT],rev(SB_qt[3,1:nT])),
+                col = alpha("red", 0.5 ),
+                border = NA  )
     rect( xleft = years[1:nT] - .3,
           xright = years[1:nT] + .3,
           ybottom = 0, ytop = catchScalar * C_t,
@@ -1460,10 +1537,12 @@ plotSBt <- function(  repObj = repInit,
 # Plots spawning biomass for all species and stocks
 # in a given rep file. Wraps plotSBt(), and overwrites
 # that functions margins.
-plotSBspt <- function(  repObj = repInit,
-                        initYear = fYear,
+plotSBspt <- function(  repList = reports,
                         pub = TRUE )
 {
+  repObj <- repList$repOpt
+  initYear <- repList$fYear
+
   # Pull model dimensions
   nS <- repObj$nS
   nP <- repObj$nP
@@ -1471,7 +1550,7 @@ plotSBspt <- function(  repObj = repInit,
 
   # Pull spawning biomass
   SB_spt  <- repObj$SB_spt
-  C_spft  <- repObj$C_spft
+  C_spft  <- repList$data$C_spft
 
   specNames <- dimnames(repObj$SB_spt)[[1]]
   stockNames <- dimnames(repObj$SB_spt)[[2]]
@@ -1489,8 +1568,7 @@ plotSBspt <- function(  repObj = repInit,
   for( sIdx in 1:nS )
     for( pIdx in 1:nP )
     {
-      plotSBt(  repObj = repObj,
-                initYear = initYear,
+      plotSBt(  repList = repList,
                 sIdx = sIdx, pIdx = pIdx,
                 nopar = TRUE, pub = pub )
       # Detect where we are in the mfg

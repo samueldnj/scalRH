@@ -179,7 +179,7 @@ dataSummCaption <- "Summary of data used to fit hierSCAL."
 ## Spawning Biomass
 
 ```{r, plotSBall, echo = FALSE, message = FALSE, fig.cap = SBsptCaption }
-plotSBspt( repObj = repObj, initYear = fYear)
+plotSBspt( reports, pub = FALSE)
 ```
 
 
@@ -196,7 +196,7 @@ plotIdxResidsGrid( reports = reports )
 ## Recruitment
 
 ```{r, recruitments, echo = FALSE, fig.cap = RecPlotCap }
-plotRspt( repObj = repObj, initYear = fYear )
+plotRspt( reports )
 ```
 
 ```{r, recruitmentDevs, echo = FALSE, fig.cap = RecDevPlotCap }

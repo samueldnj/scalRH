@@ -1063,6 +1063,8 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
   len_lxspft <- aperm(len_lspftx,c(1,6,2:5))
   len_lxspft <- len_lxspft[,1:nX,,,,]
 
+  lntauqSurv_sf <- matrix(log(hypoObj$pmtauqSurv_f),nrow = nS, ncol = nSurv, byrow = TRUE)
+
   # Generate the data list
   data <- list( I_spft                = I_spft,
                 C_spft                = C_spft,
@@ -1186,7 +1188,7 @@ fitHierSCAL <- function ( ctlFile = "fitCtlFile.txt",
                 # deltaq_sf           = array(0,dim=c(nS,nF)),
                 # lntauq_f            = rep(log(hypoObj$pmtauq_f)),
                 deltaqspf_vec       = rep(0, nStockqDevs),
-                lntauqSurv_sf       = matrix(log(hypoObj$pmtauqSurv_f),nrow = nS, ncol = nSurv ,byrow = TRUE),
+                lntauqSurv_sf       = lntauqSurv_sf,
                 mq_f                = hypoObj$mq_f,
                 sdq_f               = hypoObj$sdq_f,
                 pmtauqSurv_f        = hypoObj$pmtauqSurv_f,
@@ -1835,6 +1837,7 @@ TMBphase <- function( data,
                       q_ispf            = array( NA, dim = c(nSamps,nS,nP,nF) ),
                       xSel50_ispf       = array( data=NA, dim=c(nSamps,nS,nP,nF) ),
                       xSelStep_ispf     = array( data=NA, dim=c(nSamps,nS,nP,nF) ),
+                      vB_ispft          = array( data=NA, dim=c(nSamps,nS,nP,nF,nT) ),
                       # sel_ilspft        = array( data = NA, dim = c(nSamps,nL,nS,nP,nF,nT)),
                       # sel_iaxspft       = array( data = NA, dim = c(nSamps,nA,nX,nS,nP,nF,nT)),
                       B0_isp            = array( NA, dim = c(nSamps,nS,nP)),
@@ -1862,6 +1865,7 @@ TMBphase <- function( data,
         posts$q_ispf[i,,,]                <- r$q_spf
         posts$xSel50_ispf[i,,,]           <- r$xSel50_spf
         posts$xSelStep_ispf[i,,,]         <- r$xSelStep_spf
+        posts$vB_ispft[i,,,,]             <- r$vB_spft
         # posts$sel_ilspft[i,,,,,]          <- r$sel_lspft
         # posts$sel_iaxspft[i,,,,,,]        <- r$sel_axspft
         posts$B0_isp[i,,]                 <- r$B0_sp
